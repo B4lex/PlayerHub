@@ -26,7 +26,7 @@ namespace Network::VoiceTransport
 
     // ServerClient's side: a welcome with voice access starts the transport, and a lost connection
     // ends it.
-    void Start(const Multiplayer::VoiceAccess& a_access, std::string_view a_webSocketUrl);
+    void Start(const Multiplayer::VoiceAccess& a_access, std::string_view a_serverHost);
     void Stop();
 
     // Any thread. Dropped unless kConnected.

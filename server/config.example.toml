@@ -6,7 +6,7 @@
 
 # Only the proxy on this host reaches the game port, so players cannot bypass
 # it or its rate limits.
-listen = "127.0.0.1:3000"
+listen = "127.0.0.1:14201"
 
 # The proxy appends each player's address to X-Forwarded-For; without this,
 # every player shares the proxy's allowance of new sessions.

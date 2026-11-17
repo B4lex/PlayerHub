@@ -36,7 +36,7 @@ namespace PlayerFilters
                 return;
             }
             s_generation = generation;
-            s_server = Network::GetServerAddress();
+            s_server = Network::GetServerUrl();
             s_entries.clear();
             Network::PlayerFilterStore::Copy(s_server, s_entries);
             std::ranges::sort(s_entries, {}, &Entry::session);

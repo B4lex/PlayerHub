@@ -124,10 +124,10 @@ namespace UI::ConnectionControls
             ImGui::SameLine(0.0F, std::floor(kIndicatorGapFonts * fontSize));
         }
 
-        bool HasServerEndpoint()
+        bool HasServerAddress()
         {
             const auto config = Config::Get();
-            return !Config::GetServerEndpoint(config->connection).empty();
+            return Config::HasServerAddress(config->connection);
         }
 
         // The field takes no other characters and no more than the maximum, so a short name is the only invalid one.
@@ -195,7 +195,7 @@ namespace UI::ConnectionControls
     bool CanConnect(bool a_displayNameEntered)
     {
         return Network::GetConnectionState() == ConnectionState::kDisconnected && a_displayNameEntered
-            && HasServerEndpoint() && !VanillaIntro::IsPlaying();
+            && HasServerAddress() && !VanillaIntro::IsPlaying();
     }
 
     void Connect()
@@ -256,9 +256,9 @@ namespace UI::ConnectionControls
         {
             return Text::GetCString(Id::kConnectionGameStage);
         }
-        if (!HasServerEndpoint())
+        if (!HasServerAddress())
         {
-            return Text::GetCString(Id::kConnectionNoEndpoint);
+            return Text::GetCString(Id::kConnectionNoAddress);
         }
         return nullptr;
     }

@@ -102,42 +102,70 @@ setting it depends on are on one page
 | --- | --- | --- |
 | `DisplayName` | The player's name as peers see it, in the player label over the actor and in chat ([Appearance and equipment](appearance-and-equipment.md#display-name)): 3..15 ASCII letters, digits, and underscores, as the server accepts (`Multiplayer::IsValidDisplayName`, [Network](network.md#sessions)). A file value that breaks the rule loads as not set. Empty means not set, and no connection is opened without one ([Network](network.md#connection)). It is the display name of the player's session, so the server refuses one another player holds ([Network](network.md#sessions)), and it reaches the server only when connecting: the settings window locks it while a connection is wanted or open ([UI overlay](ui-overlay.md#connection-controls)) | empty |
 | `ConnectAutomatically` | Whether each game connects when it loads, which it does only with a `DisplayName` set; otherwise the settings window's connection button does | `true` |
-| `CustomServer` | Whether the client connects to `ServerEndpoint` instead of the [official server](#official-and-custom-server) | `false` |
-| `ServerEndpoint` | The custom server's URL, starting with `http://` or `https://`, which the client connects to as `ws://` or `wss://` at `/ws` when the URL has no path; empty is valid and means none. Read only while `CustomServer` is `true`, and kept while it is `false` | empty |
+| `CustomServer` | Whether the client connects to `ServerAddress` instead of the [official server](#official-and-custom-server) | `false` |
+| `ServerAddress` | The custom server's address, `host` or `host:port` ([Server address](#server-address)); empty is valid and means none. Read only while `CustomServer` is `true`, and kept while it is `false` | empty |
+| `ServerTls` | Whether the client connects to `ServerAddress` over TLS (`wss://`) rather than plain (`ws://`). Read only while `CustomServer` is `true` | `false` |
 
 #### Official and custom server
 
 Goal: players connect to the official server bundled with the DLL without
-seeing or entering its URL, and only those who switch `CustomServer` on enter
-one. Non-goal: keeping the official URL
-secret; it is a plain string in the DLL and the key of its lines in
+seeing or entering its address, and only those who switch `CustomServer` on
+enter one. Non-goal: keeping the official address secret; it is a plain string
+in the DLL and, as a WebSocket URL, the key of its lines in
 `PlayerHub.session` and `PlayerHub.players` ([Network](network.md#client)).
 
-`Config::GetServerEndpoint` is the URL the client connects to: the build's
-default while `CustomServer` is `false`, `ServerEndpoint` while it is
-`true`, and empty when that is empty, in which case nothing connects
-([Network](network.md#connection)). `Config::GetDefaultServerEndpoint` is the
-build's default. The default is never written to the file, so a later build
-with another official server moves every player who did not switch, and the
-settings window never draws it ([UI overlay](ui-overlay.md#settings-window)).
-The log names it `the official server` and any other endpoint
-`a custom server`, never a URL ([Network](network.md#client)).
+`Config::GetServerAddress` is the `Config::ServerAddress` (host, port, and
+TLS) the client connects to: the build's default while `CustomServer` is
+`false`, `ServerAddress` with `ServerTls` while it is `true`, and none when
+`ServerAddress` is empty, in which case nothing connects
+([Network](network.md#connection)). `Config::HasServerAddress` answers the
+same without building one, for the checks that run every frame or revision.
+`Config::GetDefaultServerAddress` is the build's default. The default is
+never written to the file, so a later build with another official server moves
+every player who did not switch, and the settings window never draws it
+([UI overlay](ui-overlay.md#settings-window)). The log names it
+`the official server` and any other `a custom server`, never by its address
+([Network](network.md#client)).
 
-The repository does not name the public server. The `server_endpoint` xmake
-option holds it, set with `xmake f --server_endpoint=https://...` or in an
-IDE build profile's configure arguments, and kept in xmake's configuration
-cache. The PlayerHub target's `on_config` passes it as the
-`PLAYERHUB_DEFAULT_SERVER_ENDPOINT` string define, which `SettingsSchema.cpp`
-holds as the default endpoint. It is an option rather than an environment
-variable because an IDE's run configuration does not reach the build, and the
-configured value is visible in `xmake f --menu`. Release builds set it to the
-public server. Its default is `http://127.0.0.1:3000`, the local server's
-default address, so a build without it reaches a server run from `server/` on
-the same machine. A value that does not start with `http://` or `https://`, or
-that holds whitespace, a quote, or a backslash, fails the configuration, since
-the define is a C string literal and the client could not connect to it. xmake
-tracks each file's flags, so a changed value recompiles the plugin. The value
-is still a plain string in the DLL.
+The repository does not name the public server. The `server_address` and
+`server_tls` xmake options hold it, set with
+`xmake f --server_address=example.org:443 --server_tls=y` or in an IDE build
+profile's configure arguments, and kept in xmake's configuration cache. The
+PlayerHub target's `on_config` passes them as the
+`PLAYERHUB_DEFAULT_SERVER_ADDRESS` string define and the
+`PLAYERHUB_DEFAULT_SERVER_TLS` `true` or `false` define, which
+`SettingsSchema.cpp` holds as the default address. They are options rather
+than environment variables because an IDE's run configuration does not reach
+the build, and the configured values are visible in `xmake f --menu`. Release
+builds set them to the public server. The defaults are `127.0.0.1` without
+TLS, the local server's default address, so a build without them reaches a
+server run from `server/` on the same machine. A `server_address` that is not
+a [server address](#server-address) fails the configuration, and
+`SettingsSchema.cpp` checks it again with a `static_assert`, since the define
+is a C string literal. xmake tracks each file's flags, so a changed value
+recompiles the plugin. The value is still a plain string in the DLL.
+
+#### Server address
+
+`ServerAddress` and `server_address` take the same form
+(`ParseServerAddress` in `SettingsSchema.cpp`, mirrored in `xmake.lua`):
+
+- a host name of ASCII letters, digits, `-`, and `.`, or an IPv4 address; at
+  most 253 characters;
+- optionally `:` and a port of 1 to 5 digits within `1..65535`; without one
+  the port is `14201`, the server's default `listen` port.
+
+A scheme, path, query, user, whitespace, or an IPv6 address is invalid; a
+literal would need brackets in the address and the URL. A host name that
+resolves to IPv6 addresses works.
+Whether to use TLS is the separate `ServerTls` or `server_tls`, since the
+address cannot tell a TLS server from a plain one, and a client that tried TLS
+first and fell back to plain could be downgraded by anyone on the path. TLS is
+off by default because a server run with its defaults serves plain WebSocket
+on port `14201`. The address is the WebSocket's host, the voice relay's host
+when the server names none ([Network](network.md#voice)), and part of the
+WebSocket URL that keys the server's lines in the client's files
+([Network](network.md#transport)).
 
 ### `[DefaultOutfit]`
 
@@ -330,9 +358,9 @@ revision before the snapshot never misses a change.
 | `DefaultOutfit` | main loop | `Refresh`, first in `SyncCoordinator::OnFrame`, resolving every item again when `[DefaultOutfit]` differs |
 | `EquipmentSync` | main loop | the next capture selecting from the new outfit and publishing a new revision |
 | `AppearanceSync` | main loop | the next capture taking the new default race, which publishes a new revision for a modded race |
-| `ConnectionMonitor` | main loop | reading `ConnectAutomatically` and whether `DisplayName` and an endpoint are set when a game starts; ending the player's choice to connect when `DisplayName` is cleared, or while the endpoint is empty and no connection is welcomed |
-| `ServerClient` | transport, worker | reading `Config::GetServerEndpoint` for each attempt, and `DisplayName` and `ViewRadius` for each hello |
-| `ConnectionControls` | overlay | reading whether `Config::GetServerEndpoint` is empty each frame the `[Connection]` page draws |
+| `ConnectionMonitor` | main loop | reading `ConnectAutomatically` and whether `DisplayName` and a server address are set when a game starts; ending the player's choice to connect when `DisplayName` is cleared, or while there is no address and no connection is welcomed |
+| `ServerClient` | transport, worker | reading `Config::GetServerAddress` for each attempt, and `DisplayName` and `ViewRadius` for each hello |
+| `ConnectionControls` | overlay | reading `Config::HasServerAddress` each frame the `[Connection]` page draws |
 | `SettingsWindow` | overlay, input | reading `OpenSettings` on each focus key press |
 | `ChatWindow` | input | reading `OpenChat` and `ManagePlayers` on each focus key press |
 | `TradePrompt` | overlay, input | reading `AcceptTrade` and `DeclineTrade` on each focus key press and each frame it draws |
@@ -383,8 +411,8 @@ under it ([UI overlay](ui-overlay.md#themed-faces)).
    not base-game items are logged and fall back to their defaults, or to no piece
    when the default is unusable too.
 3. The default file connects to the official server without naming it;
-   `[Connection] CustomServer = true` connects to `ServerEndpoint`
-   instead, and with an empty one nothing connects. `[Connection] DisplayName` sets
+   `[Connection] CustomServer = true` connects to `ServerAddress`, over TLS
+   with `ServerTls = true`, instead, and with an empty one nothing connects. `[Connection] DisplayName` sets
    the name peers see; the default file has an empty `DisplayName`, and the
    plugin stays disconnected until one is entered and Connect is pressed.
    `[Advanced] SpawnsPerSecond` bounds spawns, so many players arriving at

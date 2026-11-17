@@ -25,7 +25,6 @@ namespace Config
         // Unbound in the vanilla PC controls.
         constexpr std::uint32_t kDefaultMicrophoneKey = KeyboardKey::kV;
 
-        constexpr std::string_view kDefaultServerEndpoint = PLAYERHUB_DEFAULT_SERVER_ENDPOINT;
 
         // Creation Kit slot names.
         constexpr std::array<std::string_view, DefaultOutfitSettings::kArmorSlotCount> kArmorSlotNames{ "Head", "Body",
@@ -158,6 +157,60 @@ namespace Config
             return key == kBindableKeys.end() ? nullptr : &*key;
         }
 
+        constexpr std::uint16_t kDefaultServerPort = 14201;
+        constexpr std::size_t kMaximumServerHostLength = 253;
+
+        struct AddressParts
+        {
+            std::string_view host;
+            std::uint16_t port{ kDefaultServerPort };
+        };
+
+        constexpr bool IsHostNameCharacter(char a_character)
+        {
+            return (a_character >= 'a' && a_character <= 'z') || (a_character >= 'A' && a_character <= 'Z')
+                || (a_character >= '0' && a_character <= '9') || a_character == '-' || a_character == '.';
+        }
+
+        constexpr std::optional<AddressParts> ParseServerAddress(std::string_view a_address)
+        {
+            const auto colon = a_address.find(':');
+            AddressParts result{ .host = a_address.substr(0, colon) };
+            if (result.host.empty() || result.host.size() > kMaximumServerHostLength
+                || !std::ranges::all_of(result.host, IsHostNameCharacter))
+            {
+                return std::nullopt;
+            }
+            if (colon == std::string_view::npos)
+            {
+                return result;
+            }
+            const auto port = a_address.substr(colon + 1);
+            if (port.empty() || port.size() > 5)
+            {
+                return std::nullopt;
+            }
+            std::uint32_t number = 0;
+            for (const char digit : port)
+            {
+                if (digit < '0' || digit > '9')
+                {
+                    return std::nullopt;
+                }
+                number = number * 10 + static_cast<std::uint32_t>(digit - '0');
+            }
+            if (number == 0 || number > 65535)
+            {
+                return std::nullopt;
+            }
+            result.port = static_cast<std::uint16_t>(number);
+            return result;
+        }
+
+        constexpr std::string_view kDefaultServerAddress = PLAYERHUB_DEFAULT_SERVER_ADDRESS;
+        static_assert(ParseServerAddress(kDefaultServerAddress).has_value(),
+            "server_address must be a host or host:port");
+
         constexpr std::string_view kWhitespace = " \t\r\n";
 
         std::string_view Trim(std::string_view a_text)
@@ -170,12 +223,9 @@ namespace Config
             return a_text.substr(first, a_text.find_last_not_of(kWhitespace) - first + 1);
         }
 
-        // SimpleIni keeps a trailing comment in the value.
-        bool IsValidServerEndpoint(std::string_view a_value)
+        bool IsValidServerAddress(std::string_view a_value)
         {
-            return a_value.empty()
-                || ((a_value.starts_with("http://") || a_value.starts_with("https://"))
-                    && a_value.find_first_of(kWhitespace) == std::string_view::npos);
+            return a_value.empty() || ParseServerAddress(a_value).has_value();
         }
 
         bool IsValidDisplayName(std::string_view a_value)
@@ -193,8 +243,11 @@ namespace Config
             a_visitor.Bool("CustomServer", Id::kConnectionCustomServer, a_settings.customServer,
                 Id::kConnectionCustomServerComment);
             a_visitor.ShowNextIf(a_settings.customServer);
-            a_visitor.String("ServerEndpoint", Id::kConnectionServerEndpoint, a_settings.serverEndpoint,
-                Id::kConnectionServerEndpointComment, IsValidServerEndpoint);
+            a_visitor.String("ServerAddress", Id::kConnectionServerAddress, a_settings.serverAddress,
+                Id::kConnectionServerAddressComment, IsValidServerAddress);
+            a_visitor.ShowNextIf(a_settings.customServer);
+            a_visitor.Bool(
+                "ServerTls", Id::kConnectionServerTls, a_settings.serverTls, Id::kConnectionServerTlsComment);
         }
 
         void DescribeDefaultOutfit(DefaultOutfitSettings& a_settings, SettingsVisitor& a_visitor)
@@ -423,14 +476,33 @@ namespace Config
         return defaults;
     }
 
-    std::string_view GetDefaultServerEndpoint()
+    ServerAddress GetDefaultServerAddress()
     {
-        return kDefaultServerEndpoint;
+        constexpr auto address = *ParseServerAddress(kDefaultServerAddress);
+        return ServerAddress{
+            .host = std::string{ address.host }, .port = address.port, .tls = PLAYERHUB_DEFAULT_SERVER_TLS
+        };
     }
 
-    std::string_view GetServerEndpoint(const ConnectionSettings& a_settings)
+    std::optional<ServerAddress> GetServerAddress(const ConnectionSettings& a_settings)
     {
-        return a_settings.customServer ? std::string_view{ a_settings.serverEndpoint } : kDefaultServerEndpoint;
+        if (!a_settings.customServer)
+        {
+            return GetDefaultServerAddress();
+        }
+        const auto address = ParseServerAddress(a_settings.serverAddress);
+        if (!address)
+        {
+            return std::nullopt;
+        }
+        return ServerAddress{
+            .host = std::string{ address->host }, .port = address->port, .tls = a_settings.serverTls
+        };
+    }
+
+    bool HasServerAddress(const ConnectionSettings& a_settings)
+    {
+        return !a_settings.customServer || ParseServerAddress(a_settings.serverAddress).has_value();
     }
 
     std::optional<bool> ParseBool(std::string_view a_value)

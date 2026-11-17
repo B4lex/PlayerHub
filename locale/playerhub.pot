@@ -52,17 +52,28 @@ msgid "Custom server"
 msgstr ""
 
 msgctxt "ConnectionCustomServerComment"
-msgid "Connects to the server at the URL below instead of the official server."
-msgstr ""
-
-msgctxt "ConnectionServerEndpoint"
-msgid "Server URL"
-msgstr ""
-
-msgctxt "ConnectionServerEndpointComment"
 msgid ""
-"Custom server URL, starting with http:// or https://. Used only while the\n"
-"custom server is on."
+"Connects to the server at the address below instead of the official server."
+msgstr ""
+
+msgctxt "ConnectionServerAddress"
+msgid "Server address"
+msgstr ""
+
+msgctxt "ConnectionServerAddressComment"
+msgid ""
+"Custom server address: a host name or IPv4 address, with :port when the port\n"
+"is not 14201. Used only while the custom server is on."
+msgstr ""
+
+msgctxt "ConnectionServerTls"
+msgid "Use TLS"
+msgstr ""
+
+msgctxt "ConnectionServerTlsComment"
+msgid ""
+"Connects to the custom server over TLS, as a server behind an HTTPS proxy\n"
+"requires. Used only while the custom server is on."
 msgstr ""
 
 msgctxt "OutfitComment"
@@ -542,12 +553,12 @@ msgctxt "SettingsDisplayNameHint"
 msgid "Enter a display name"
 msgstr ""
 
-msgctxt "SettingsServerEndpointHint"
-msgid "Enter server endpoint URL"
+msgctxt "SettingsServerAddressHint"
+msgid "Enter server address (host:port)"
 msgstr ""
 
-msgctxt "SettingsServerEndpointInvalid"
-msgid "Invalid server URL."
+msgctxt "SettingsServerAddressInvalid"
+msgid "Invalid server address."
 msgstr ""
 
 msgctxt "SettingsCustomColor"
@@ -634,8 +645,8 @@ msgctxt "ConnectionCancelToRename"
 msgid "Cancel the connection to change the display name."
 msgstr ""
 
-msgctxt "ConnectionNoEndpoint"
-msgid "Enter a custom server URL to connect."
+msgctxt "ConnectionNoAddress"
+msgid "Enter a custom server address to connect."
 msgstr ""
 
 #. Shown while the vanilla Helgen intro, before the player can move after the dragon attack, holds the connection

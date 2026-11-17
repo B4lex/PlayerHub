@@ -120,15 +120,15 @@ Run it from this directory:
 
     $run
 
-Players connect on port 3000 (listen). The admin panel is at
+Players connect on port 14201 (listen). The admin panel is at
 http://127.0.0.1:3001/admin/ (admin_listen) and has no authentication: keep
 that address off the public Internet. The session database (sessions.db) and
 recordings/ are created in the working directory.
 
 Every setting is in config.toml at its default; the server reads that file
 from the working directory. To let players on other computers connect, allow
-inbound TCP port 3000 through the firewall; behind a reverse proxy on the same
-host, set listen = "127.0.0.1:3000" and add the proxy's address to
+inbound TCP port 14201 through the firewall; behind a reverse proxy on the same
+host, set listen = "127.0.0.1:14201" and add the proxy's address to
 trusted_proxies.
 
 PlayerHub is licensed under GPL-3.0-or-later with the exceptions in

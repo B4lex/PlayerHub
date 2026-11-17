@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -18,9 +19,19 @@ namespace Config
         std::string displayName;
         bool autoConnect{ true };
         bool customServer{ false };
-        std::string serverEndpoint;
+        std::string serverAddress;
+        bool serverTls{ false };
 
         bool operator==(const ConnectionSettings&) const = default;
+    };
+
+    struct ServerAddress
+    {
+        std::string host;
+        std::uint16_t port{ 0 };
+        bool tls{ false };
+
+        bool operator==(const ServerAddress&) const = default;
     };
 
     struct DefaultOutfitSettings
@@ -176,7 +187,9 @@ namespace Config
 
     [[nodiscard]] bool Apply(PluginConfig a_config);
 
-    [[nodiscard]] std::string_view GetDefaultServerEndpoint();
+    [[nodiscard]] ServerAddress GetDefaultServerAddress();
 
-    [[nodiscard]] std::string_view GetServerEndpoint(const ConnectionSettings& a_settings);
+    [[nodiscard]] std::optional<ServerAddress> GetServerAddress(const ConnectionSettings& a_settings);
+
+    [[nodiscard]] bool HasServerAddress(const ConnectionSettings& a_settings);
 }

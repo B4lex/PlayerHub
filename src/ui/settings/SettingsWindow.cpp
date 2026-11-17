@@ -63,7 +63,7 @@ namespace UI
 
         constexpr std::string_view kConnectionSection = "Connection";
         constexpr std::string_view kDisplayNameKey = "DisplayName";
-        constexpr std::string_view kServerEndpointKey = "ServerEndpoint";
+        constexpr std::string_view kServerAddressKey = "ServerAddress";
         constexpr std::string_view kStagedSection = "DefaultOutfit";
         constexpr std::string_view kUISection = "UI";
         constexpr std::string_view kControlsSection = "Controls";
@@ -421,13 +421,13 @@ namespace UI
                     DrawConnectionBar(a_key, a_label, a_value, a_comment, a_isValid);
                     return;
                 }
-                const bool endpoint = a_key == kServerEndpointKey;
-                if (!BeginRow(a_key, a_label, a_comment, !endpoint))
+                const bool address = a_key == kServerAddressKey;
+                if (!BeginRow(a_key, a_label, a_comment, !address))
                 {
                     return;
                 }
                 auto& field = GetField([&a_value] { return a_value; });
-                if (DrawTextField(field, endpoint ? Text::GetCString(Text::Id::kSettingsServerEndpointHint) : nullptr))
+                if (DrawTextField(field, address ? Text::GetCString(Text::Id::kSettingsServerAddressHint) : nullptr))
                 {
                     field.valid = a_isValid(field.text);
                 }
@@ -438,11 +438,11 @@ namespace UI
                 if (!field.valid)
                 {
                     DrawTooltip(Text::Get(a_comment));
-                    if (endpoint)
+                    if (address)
                     {
                         ImGui::PushStyleColor(ImGuiCol_Text, Theme::kNegative);
                         ImGui::PushTextWrapPos(0.0F);
-                        DrawText(Text::Get(Text::Id::kSettingsServerEndpointInvalid));
+                        DrawText(Text::Get(Text::Id::kSettingsServerAddressInvalid));
                         ImGui::PopTextWrapPos();
                         ImGui::PopStyleColor();
                     }

@@ -10,7 +10,7 @@ testing in `../specs/recording-and-replay.md`.
 From this directory, with Go 1.25 or newer:
 
 ```sh
-go run ./cmd/server                       # players on 0.0.0.0:3000, admin on 127.0.0.1:3001
+go run ./cmd/server                       # players on 0.0.0.0:14201, admin on 127.0.0.1:3001
 go run ./cmd/server --listen 127.0.0.1:3100 --admin-listen 127.0.0.1:3101 --config server.toml --verbose
 ```
 
@@ -19,8 +19,8 @@ if there is one, and otherwise runs on the defaults. A file named by
 `--config` must exist. The log names the file that was read.
 
 `--verbose` logs every rejected message and virtual-player detail at debug
-level. A plugin built without `xmake f --server_endpoint=...` takes
-`http://127.0.0.1:3000` as its official server and connects to `/ws`
+level. A plugin built without `xmake f --server_address=...` takes
+`127.0.0.1:14201` without TLS as its official server and connects to `/ws`
 ([Configuration](../specs/configuration.md#official-and-custom-server)).
 
 On `listen`:
@@ -52,7 +52,7 @@ Every key is optional. Link-dependent limits live here, so servers on
 different links differ only in this file.
 
 ```toml
-listen = "0.0.0.0:3000"
+listen = "0.0.0.0:14201"
 admin_listen = "127.0.0.1:3001"   # admin panel, API, and pprof; "" serves none of them
 admin_hosts = []            # host names besides localhost and IP addresses that may reach admin_listen, e.g. ["panel.lan"]
 trusted_proxies = []        # e.g. ["127.0.0.1"] behind a local proxy; X-Forwarded-For then names the player
@@ -111,7 +111,7 @@ lifetime_days = 30          # a session unused for this long is gone, with its d
 
 [voice]
 enabled = true              # false gives clients no voice
-listen = "0.0.0.0:3000"     # UDP; the same port number as the TCP listen is fine
+listen = "0.0.0.0:14201"    # UDP; the same port number as the TCP listen is fine
 public_host = ""            # where clients send datagrams; "" is the host they connected to
 public_port = 0             # 0 is listen's port; set it when a router forwards another one
 radius = 3072               # game units, horizontal; listeners beyond it get none of a speaker's voice
@@ -238,24 +238,27 @@ included, get 403.
 ## Connecting from another computer
 
 On the remote player's machine, switch on `Custom Server` in the settings
-window's Connection section and enter the server's reachable URL, or set
-it in `PlayerHub.ini` next to `PlayerHub.dll`:
+window's Connection section and enter the server's reachable address, `host`
+or `host:port` (port 14201 when omitted), or set it in `PlayerHub.ini` next to
+`PlayerHub.dll`:
 
 ```ini
 [Connection]
 CustomServer = true
-ServerEndpoint = http://192.168.1.20:3000
+ServerAddress = 192.168.1.20
 ```
 
-Allow inbound TCP port 3000 through the server machine's firewall. Sessions
+Allow inbound TCP port 14201 through the server machine's firewall. Sessions
 identify players. The admin panel and API have no authentication and listen
 on `admin_listen`, `127.0.0.1:3001` by default, apart from players; keep that
 address off the public Internet and reach it through an SSH tunnel if needed.
 They refuse web pages from other sites, but trust every program and device
 that can reach them.
-For a remote server, terminate TLS in a reverse proxy and use an `https://`
-endpoint; the plugin connects with `wss://`. Add the proxy's address to
+For a remote server, terminate TLS in a reverse proxy, enter its address with
+the proxy's port, such as `example.org:443`, and switch on TLS (`ServerTls =
+true`); the plugin connects with `wss://` at `/ws`, so the proxy must pass that
+path through unchanged. Add the proxy's address to
 `trusted_proxies` (`127.0.0.1` for `cloudflared` or nginx on the same host),
 or every player shares the proxy's allowance of new sessions per month. With
-the proxy on the same host, set `listen = "127.0.0.1:3000"` and leave port 3000
+the proxy on the same host, set `listen = "127.0.0.1:14201"` and leave port 14201
 closed, so players cannot connect around the proxy.

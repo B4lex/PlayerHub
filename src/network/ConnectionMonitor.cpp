@@ -43,7 +43,7 @@ namespace Network
         std::atomic_uint64_t outstandingProbeID{ 0 };
         std::atomic_bool connectionEnabled{ false };
         std::atomic_bool displayNameSet{ false };
-        std::atomic_bool endpointSet{ true };
+        std::atomic_bool addressSet{ true };
 
         std::mutex refusalLock;
         std::optional<Refusal> refusal;
@@ -167,7 +167,7 @@ namespace Network
             requirementsConfigRevision = revision;
             const auto config = Config::Get();
             const bool nameSet = !config->connection.displayName.empty();
-            const bool hasEndpoint = !Config::GetServerEndpoint(config->connection).empty();
+            const bool hasAddress = Config::HasServerAddress(config->connection);
             if (displayNameSet.exchange(nameSet, std::memory_order_acq_rel) != nameSet)
             {
                 logs::info("Display name {}", nameSet ? "set" : "cleared; not connecting without one");
@@ -177,10 +177,11 @@ namespace Network
                     connectionEnabled.store(false, std::memory_order_release);
                 }
             }
-            if (endpointSet.exchange(hasEndpoint, std::memory_order_acq_rel) != hasEndpoint)
+            if (addressSet.exchange(hasAddress, std::memory_order_acq_rel) != hasAddress)
             {
-                logs::info("Server endpoint {}",
-                    hasEndpoint ? "available" : "missing: the custom server has no URL; not opening a connection without one");
+                logs::info("Server address {}",
+                    hasAddress ? "available"
+                               : "missing: the custom server has no address; not opening a connection without one");
             }
         }
 
@@ -197,8 +198,8 @@ namespace Network
             }
             const bool autoConnect = Config::Get()->connection.autoConnect;
             const bool nameSet = displayNameSet.load(std::memory_order_acquire);
-            const bool hasEndpoint = endpointSet.load(std::memory_order_acquire);
-            const bool connect = autoConnect && nameSet && hasEndpoint;
+            const bool hasAddress = addressSet.load(std::memory_order_acquire);
+            const bool connect = autoConnect && nameSet && hasAddress;
             connectionEnabled.store(connect, std::memory_order_release);
             const auto* next = "waiting for the player to connect";
             if (connect)
@@ -211,7 +212,7 @@ namespace Network
             }
             else if (autoConnect)
             {
-                next = "waiting for the player to enter a custom server endpoint and connect";
+                next = "waiting for the player to enter a custom server address and connect";
             }
             logs::info("Game started; {}", next);
         }
@@ -220,7 +221,7 @@ namespace Network
         {
             return GameSession::IsInGame() && !VanillaIntro::IsPlaying()
                 && connectionEnabled.load(std::memory_order_acquire) && displayNameSet.load(std::memory_order_acquire)
-                && (endpointSet.load(std::memory_order_acquire) || IsConnected());
+                && (addressSet.load(std::memory_order_acquire) || IsConnected());
         }
 
         void Close(std::string_view a_reason)
@@ -313,11 +314,11 @@ namespace Network
             Close("no display name is set");
             return;
         }
-        if (!endpointSet.load(std::memory_order_acquire) && !IsConnected())
+        if (!addressSet.load(std::memory_order_acquire) && !IsConnected())
         {
             // Entering one later must not connect by itself.
             connectionEnabled.store(false, std::memory_order_release);
-            Close("no custom server endpoint is set");
+            Close("no custom server address is set");
             return;
         }
         if (!connectionEnabled.load(std::memory_order_acquire))

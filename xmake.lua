@@ -16,11 +16,17 @@ option("tracy")
     set_description("Build with Tracy profiler instrumentation")
 option_end()
 
--- Release builds set it to the public server, which the repository does not name.
-option("server_endpoint")
-    set_default("http://127.0.0.1:3000")
+-- Release builds set both to the public server, which the repository does not name.
+option("server_address")
+    set_default("127.0.0.1")
     set_showmenu(true)
-    set_description("Official server URL built into the plugin, starting with http:// or https://")
+    set_description("Official server built into the plugin: host or host:port (14201 if omitted)")
+option_end()
+
+option("server_tls")
+    set_default(true)
+    set_showmenu(true)
+    set_description("Connect to the official server over TLS")
 option_end()
 
 -- Without it the settings window has no Discord link.
@@ -164,12 +170,16 @@ target("PlayerHub")
     -- The voice datagrams' socket.
     add_syslinks("ws2_32")
     on_config(function (target)
-        -- The value becomes a C string literal.
-        local endpoint = get_config("server_endpoint") or ""
-        if not (endpoint:startswith("http://") or endpoint:startswith("https://")) or endpoint:find("[%s\"\\]") then
-            raise("server_endpoint must start with http:// or https:// and contain no whitespace, quotes, or backslashes")
+        -- The value becomes a C string literal, which SettingsSchema.cpp also checks with a static_assert.
+        local address = get_config("server_address") or ""
+        local host, port = address:match("^([%w%.%-]+)(.*)$")
+        local number = port and port:match("^:(%d+)$")
+        if not host or #host > 253 or (port ~= "" and not (number and #number <= 5 and tonumber(number) >= 1
+                and tonumber(number) <= 65535)) then
+            raise("server_address must be a host or host:port, such as example.org or example.org:443")
         end
-        target:add("defines", format('PLAYERHUB_DEFAULT_SERVER_ENDPOINT="%s"', endpoint))
+        target:add("defines", format('PLAYERHUB_DEFAULT_SERVER_ADDRESS="%s"', address))
+        target:add("defines", "PLAYERHUB_DEFAULT_SERVER_TLS=" .. (has_config("server_tls") and "true" or "false"))
         -- Defined even when empty: xmake recompiles for a changed define, not an added one.
         local invite = get_config("discord_invite") or ""
         if invite ~= "" and (not invite:startswith("https://") or invite:find("[%s\"\\]")) then

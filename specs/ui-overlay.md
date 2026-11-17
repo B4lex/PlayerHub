@@ -1557,7 +1557,7 @@ covers chat), and admin moderation.
 - `PlayerFilters` (`sync/filters/`) holds the current server's entries by
   session ID: a name, `friended` ([Friends](#friends)), `muted`, and
   `vanished`, each independent of the others. It reads them from
-  `Network::PlayerFilterStore` for `Network::GetServerAddress` and again
+  `Network::PlayerFilterStore` for `Network::GetServerUrl` and again
   whenever the connection generation changes, so a session is never looked
   up on another server's list ([Network](network.md#player-filters)). A
   revision, the sum of its own change count and the generation, tells
@@ -2226,10 +2226,11 @@ peers keep seeing the player.
   the chat's [size](#size) is, is not drawn at all.
 - A row the schema shows only while a value is true (`ShowNextIf`,
   [Configuration](configuration.md#schema)) is left out while it is false, and
-  its text in red is dropped, so it does not come back red. `[Connection]` so shows `ServerEndpoint` only while `CustomServer`
-  is on ([Official and custom server](configuration.md#official-and-custom-server)),
-  as a field without a label, spanning the row from the labels' left edge,
-  with a placeholder while empty: the switch above it already names it. The official server's URL is never drawn.
+  its text in red is dropped, so it does not come back red. `[Connection]` so shows `ServerAddress` and `ServerTls` only while `CustomServer`
+  is on ([Official and custom server](configuration.md#official-and-custom-server)):
+  `ServerAddress` as a field without a label, spanning the row from the labels' left edge,
+  with a placeholder while empty, since the switch above it already names it, and
+  `ServerTls` as a switch row under it. The official server's address is never drawn.
 - A setting's comment is not drawn; it is the tooltip of the row's label, and
   of a text field while its value is invalid.
 - A number's slider runs from 0 to its maximum and shows the value. A drag
@@ -2255,13 +2256,13 @@ peers keep seeing the player.
   color from the picker when it is released or its hex field's
   editing ends, so a drag does not save the file in every frame, and
   text when editing ends, on Enter, on a click
-  elsewhere, or on picking another section, so a half-typed endpoint never
+  elsewhere, or on picking another section, so a half-typed address never
   reconnects. Escape in a text field puts
   back the text it had when editing started. Text that does not parse turns red
   and leaves the setting at its last valid value, while other edits still
   apply, and a red line under the field says that it is invalid: the display
   name's under the [connection bar](#connection-controls), the
-  `ServerEndpoint`'s directly under its field, wrapped at the page's width. A
+  `ServerAddress`'s directly under its field, wrapped at the page's width. A
   red line appears below the settings only while the file could not be
   saved.
 - The footer's buttons share one width: 5.5 font sizes, or more where the
@@ -2364,8 +2365,8 @@ by pressing it, as games' control menus do.
 ### Connection controls
 
 `[Connection]` is one step: the name peers see, and joining with it. The
-rows below hold `ConnectAutomatically`, `CustomServer`, and
-`ServerEndpoint`, without a group heading, so every setting that enables or
+rows below hold `ConnectAutomatically`, `CustomServer`, `ServerAddress`, and
+`ServerTls`, without a group heading, so every setting that enables or
 disables the button is on the same page. `SettingsWindow` draws `[Connection] DisplayName` as a label
 over one line of
 its text field and the connection button, as multiplayer clients lay out
@@ -2411,7 +2412,7 @@ has not reached, and keeps its width and identity when the label changes:
 | Disconnecting | disconnecting, disabled | plain | — |
 | Disconnected, the field holds a display name | connect | accent | wants a connection |
 | Disconnected, the field is empty or its text is invalid | connect, disabled | plain | — |
-| Disconnected, `CustomServer` on without a URL | connect, disabled | plain | — |
+| Disconnected, `CustomServer` on without an address | connect, disabled | plain | — |
 | Disconnected while the [vanilla intro](network.md#vanilla-intro-hold) holds the connection | connect, disabled | plain | — |
 
 Connecting goes by the field's text, not by the applied display name: pressing
@@ -2421,8 +2422,8 @@ lands, so a name that was only typed connects with one click.
 While disconnected, hovering the disabled button shows why it cannot connect
 (`ConnectionControls::GetButtonLock`): while the vanilla intro holds the
 connection, that the player cannot connect at this point of the game
-(`kConnectionGameStage`), the only place the plugin shows that; otherwise, with `CustomServer` on and no URL, to enter a
-URL in the field below, which is the only place the plugin shows that.
+(`kConnectionGameStage`), the only place the plugin shows that; otherwise, with `CustomServer` on and no address, to enter an
+address in the field below, which is the only place the plugin shows that.
 Enter in the field does not connect in either case (`CanConnect`).
 
 The line under the field and the button is wrapped at the page's width and
@@ -2462,8 +2463,8 @@ whatever is applied, which clears the sentence. The refusals are in
 
 Not wanting a connection closes it and removes every remote player until the
 next connect. The button acts on the live settings, which a display name or
-endpoint reaches when its editing ends. Applying an endpoint or switching
-`CustomServer` keeps a live connection on its server; the next connect, or
+address reaches when its editing ends. Applying an address or switching
+`CustomServer` or `ServerTls` keeps a live connection on its server; the next connect, or
 a reconnect after a loss, goes to the server they now name
 ([Network](network.md#connection)).
 
@@ -2479,7 +2480,7 @@ default browser.
 - The invite comes from the build: the `discord_invite` xmake option
   (`xmake f --discord_invite=https://...`, default empty), which the
   PlayerHub target's `on_config` passes as the `PLAYERHUB_DISCORD_INVITE`
-  string define, like `server_endpoint`
+  string define, like `server_address`
   ([Configuration](configuration.md#connection)). A build without it has no
   link at all (`DiscordLink::IsEnabled`); the symbol stays in the font. The
   define is present even when empty, because xmake 3.0.6 recompiles for a
@@ -3091,7 +3092,7 @@ Not confirmed in game:
    only that it is disconnected; typing a name and then clicking the button
    once or pressing Enter connects, and the window stays open, while a click
    elsewhere only saves the name. Enter with an invalid name, or with
-   `CustomServer` on and no URL, only leaves the field. Spaces, punctuation,
+   `CustomServer` on and no address, only leaves the field. Spaces, punctuation,
    and non-ASCII letters cannot be typed or pasted into the field, and it
    takes no 16th character. Once
    connected the button is red and disconnects, the field is greyed out and
@@ -3112,14 +3113,14 @@ Not confirmed in game:
    `[Advanced]` only a disabled Defaults button. Switching `StatusPanel` off hides the panel at once; typing
    a display name changes nothing until a click elsewhere, which saves it
    without connecting. `[Connection]` shows `ConnectAutomatically`
-   on, `CustomServer` off, and no URL, without a group heading.
+   on, `CustomServer` off, and no address, without a group heading.
    `ViewRadius` is a slider showing its zero name at the left end and game
    units up to 15000 in steps of 100 as it is dragged, saved on release. After changes on
    `[UI]` and `[Advanced]`, each page's Defaults restores only its own
    settings, leaves the chat's size as dragged, and is disabled again. Each
    change is in `PlayerHub.ini` without pressing anything. `[DefaultOutfit]`
    shows Defaults, Revert, and Apply; a picked item shows a reset icon and reaches
-   peers only on Apply, and Defaults leaves the display name and endpoint as
+   peers only on Apply, and Defaults leaves the display name and server address as
    they are.
 7. The picker lists only matching base-game items and races. Hovering rows
    switches the model without flicker on the world behind, and the model spins
@@ -3307,13 +3308,16 @@ Not confirmed in game:
     a moment later without the menu changing height. A place from a plugin
     the local game lacks shows as unknown. With the accent changed, the
     name and the pin follow it.
-26. A new install connects to the official server, and its URL appears
+26. A new install connects to the official server, and its address appears
     nowhere in the settings window or `PlayerHub.ini`. Switching
     `CustomServer` on while connected keeps the connection and remote
-    players, and a URL field without a label appears under it. Disconnecting
+    players, and an address field without a label appears under it, with the
+    `ServerTls` switch off below. Disconnecting
     with the field empty disables connecting on `[Connection]` with a sentence
-    saying why. A URL typed into the field applies on Enter, and connecting
-    joins that server; an endpoint without `http://` turns red. Switching
+    saying why. A host typed into the field applies on Enter, and connecting
+    joins that server on port 14201, or on the port typed after a colon; with
+    `ServerTls` on, it joins over TLS. An address with a scheme, a path, or
+    a port outside `1..65535` turns red. Switching
     `CustomServer` off while connected to the custom server keeps that
     connection; disconnecting and connecting join the official server.
 27. Activating a nearby player and picking trade shows both players the
@@ -3599,7 +3603,7 @@ Not confirmed in game:
   system font, so a word can mix the two faces
   ([Themed faces](#themed-faces)); in chat that is any line in a script other
   than Latin or Russian and Ukrainian Cyrillic. Sovngarde's `1` and `l` look
-  alike, which shows in the server endpoint.
+  alike, which shows in the server address.
 - An input method editor's composition, such as Chinese or Japanese, does
   not type into a window: Skyrim takes only single `ToUnicode` characters.
 - Editing shortcut letters (Ctrl+A/C/V/X/Y/Z) follow physical QWERTY positions,
@@ -3623,8 +3627,8 @@ Not confirmed in game:
   until the game exits.
 - An offline player in the player manager shows the name the roster last gave
   it while this game ran, or the kept one; online, the roster's. The window lists the last
-  server that welcomed the client, or the configured endpoint's before the
-  first connection of a game, so an endpoint changed while disconnected
+  server that welcomed the client, or the configured address's before the
+  first connection of a game, so an address changed while disconnected
   shows its list only once connected.
 - Friends, mutes, and vanishes are kept per server URL, so the same server
   reached under another address starts with none.

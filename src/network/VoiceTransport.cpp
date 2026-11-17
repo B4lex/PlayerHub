@@ -222,27 +222,6 @@ namespace Network::VoiceTransport
             return s_session;
         }
 
-        std::string GetHost(std::string_view a_url)
-        {
-            const auto scheme = a_url.find("://");
-            if (scheme == std::string_view::npos)
-            {
-                return {};
-            }
-            a_url.remove_prefix(scheme + 3);
-            a_url = a_url.substr(0, a_url.find_first_of("/?#"));
-            if (const auto at = a_url.rfind('@'); at != std::string_view::npos)
-            {
-                a_url.remove_prefix(at + 1);
-            }
-            if (a_url.starts_with('['))
-            {
-                const auto close = a_url.find(']');
-                return close == std::string_view::npos ? std::string{} : std::string{ a_url.substr(1, close - 1) };
-            }
-            return std::string{ a_url.substr(0, a_url.find(':')) };
-        }
-
         bool SendDatagram(Session& a_session, std::uint8_t a_kind, std::span<const std::uint8_t> a_plaintext)
         {
             const auto socket = a_session.socket.load(std::memory_order_acquire);
@@ -436,11 +415,11 @@ namespace Network::VoiceTransport
         s_sink.store(a_sink, std::memory_order_release);
     }
 
-    void Start(const Multiplayer::VoiceAccess& a_access, std::string_view a_webSocketUrl)
+    void Start(const Multiplayer::VoiceAccess& a_access, std::string_view a_serverHost)
     {
         auto session = std::make_shared<Session>();
         session->access = a_access;
-        session->host = a_access.host.empty() ? GetHost(a_webSocketUrl) : a_access.host;
+        session->host = a_access.host.empty() ? std::string{ a_serverHost } : a_access.host;
         const bool datagrams = !session->host.empty() && session->sealer.Initialize(a_access.key)
                             && session->opener.Initialize(a_access.key);
         if (!datagrams)

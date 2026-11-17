@@ -133,8 +133,9 @@ voice activation.
 ([Network](network.md#voice)) and stops with the connection. Voice travels only
 as datagrams; `VoiceTransport::GetState` gives the link's state.
 
-- The datagram thread resolves the access's host, or the WebSocket's host when
-  it is empty, opens a connected UDP socket to the port, and probes every
+- The datagram thread resolves the access's host, or the server address's
+  host when it is empty
+  ([Configuration](configuration.md#server-address)), opens a connected UDP socket to the port, and probes every
   second (`kConnecting`). The first authentic datagram from the relay makes the
   link `kConnected`; after that it probes every 5 s, which also keeps a NAT
   mapping open.
@@ -271,7 +272,7 @@ crowd's voice costs each listener what the speakers near it say.
 - The relay's radius is horizontal like interest, so a player on another floor
   of a tower is heard if near enough horizontally; occlusion muffles it.
 - The datagram route's encryption keys last one connection and are sent over the
-  WebSocket, so an `http://` endpoint exposes them as it does the session token.
+  WebSocket, so a server address without TLS exposes them as it does the session token.
 - A player whose network blocks UDP to the relay has no voice.
 - Non-goals: voice channels without position, voice recording or replay (voice
   bypasses the hub and its recorder), server-side moderation of voice, and

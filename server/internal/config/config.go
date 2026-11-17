@@ -94,7 +94,7 @@ type Liveness struct {
 
 func Default() Config {
 	return Config{
-		Listen:              "0.0.0.0:3000",
+		Listen:              "0.0.0.0:14201",
 		AdminListen:         "127.0.0.1:3001",
 		RecordingsDirectory: "recordings",
 		AdminUIDirectory:    "../admin-ui/dist",
@@ -119,7 +119,7 @@ func Default() Config {
 		Chat:     Chat{NearbyRadius: 8192},
 		Trade:    Trade{RequestRadius: 400, KeepRadius: 1000, InviteSeconds: 30},
 		Sessions: Sessions{Database: "sessions.db", LifetimeDays: 30},
-		Voice: Voice{Enabled: true, Listen: "0.0.0.0:3000", Radius: 3072, PacketsPerSecond: 60,
+		Voice: Voice{Enabled: true, Listen: "0.0.0.0:14201", Radius: 3072, PacketsPerSecond: 60,
 			PacketBurst: 25},
 	}
 }

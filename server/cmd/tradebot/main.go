@@ -35,7 +35,7 @@ type options struct {
 
 func main() {
 	var o options
-	flag.StringVar(&o.url, "url", "http://localhost:3000/ws", "server WebSocket URL")
+	flag.StringVar(&o.url, "url", "http://localhost:14201/ws", "server WebSocket URL")
 	flag.StringVar(&o.admin, "admin", "http://127.0.0.1:3001", "server admin address: issues the bot's session and shows where the target is")
 	flag.StringVar(&o.name, "name", "TradeBot", "the bot's display name")
 	flag.StringVar(&o.target, "target", "", "display name of the player to follow; empty follows the only other player in the world")

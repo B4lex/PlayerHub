@@ -54,11 +54,17 @@ refused at the handshake ([Transport](#transport)).
   join. A bare reject of any `Origin` would refuse the plugin. The origin's
   host is not compared with `Host`, since behind a proxy the plugin names the
   public host and port.
-- The endpoint (`Config::GetServerEndpoint`: the official server, or
-  `[Connection] ServerEndpoint` with `CustomServer` on,
-  [Configuration](configuration.md#official-and-custom-server)) keeps its
-  `http://` or `https://` form; the client maps it to `ws://` or `wss://` and
-  appends `/ws` when the endpoint has no path. TLS is terminated by a reverse proxy in front of the server.
+- The server address (`Config::GetServerAddress`: the official server, or
+  `[Connection] ServerAddress` and `ServerTls` with `CustomServer` on,
+  [Configuration](configuration.md#official-and-custom-server)) is a host,
+  a port, and whether to use TLS. `ServerClient`'s `ToWebSocketUrl` makes it
+  `wss://host:port/ws` or `ws://host:port/ws`, without the port when it is
+  the scheme's own (443 for `wss`, 80 for `ws`). That URL keys the server's lines in `PlayerHub.session` and
+  `PlayerHub.players`, so `example.org:443` over TLS keys its lines as
+  `wss://example.org/ws`, and `example.org` and `example.org:14201` are one
+  server. The server is always reached at `/ws`; a reverse proxy that
+  serves it under another path is not supported. TLS is terminated by a
+  reverse proxy in front of the server.
 - The client's TLS is IXWebSocket 12 on mbedtls, pinned to 3.6 in `xmake.lua`,
   and verifies the server against the Windows certificate store. mbedtls 4
   returns `MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET` from `mbedtls_ssl_read`
@@ -955,7 +961,7 @@ Server messages:
 A connection on a server with `voice.enabled` (the default) has a voice
 endpoint: a random nonzero 32-bit ID and a random AES-256-GCM key, both for
 that connection alone ([Voice chat](voice-chat.md)). Voice frames travel as UDP
-datagrams to and from `voice.listen` (`0.0.0.0:3000` by default, the TCP
+datagrams to and from `voice.listen` (`0.0.0.0:14201` by default, the TCP
 listen's port number), never over the WebSocket. Which clients receive a speaker's frames is in
 [Interest and delivery](interest-and-delivery.md#voice-listeners).
 
@@ -963,7 +969,7 @@ listen's port number), never over the WebSocket. Which clients receive a speaker
 
 | Field | Meaning | Client validation |
 | --- | --- | --- |
-| `host` | where to send datagrams, `voice.public_host`; empty for the host the WebSocket connected to | at most 253 bytes of printable ASCII without spaces, `/`, or `\` (`Multiplayer::IsValidVoiceHost`) |
+| `host` | where to send datagrams, `voice.public_host`; empty for the server address's host, which the WebSocket connected to | at most 253 bytes of printable ASCII without spaces, `/`, or `\` (`Multiplayer::IsValidVoiceHost`) |
 | `port` | `voice.public_port`, or the listening port | `1..65535` |
 | `id` | the endpoint's ID | nonzero |
 | `key` | the endpoint's key | 32 bytes |
@@ -1055,7 +1061,7 @@ Datagrams (`server/internal/voice/datagram.go`, `network/VoiceTransport`):
   `Network::CopyNearbyPlayers` appends them; chat orders its name list and
   colors its player list by them.
 - `Network::DescribeServer` gives `the official server` for the official
-  endpoint in either form and `a custom server` for any other. Every log line
+  server's WebSocket URL and `a custom server` for any other. Every log line
   that names a server goes through it, so a log never carries a server
   address and players can share it: a failed or abandoned connection,
   vanishes over the limit, saving a session, and muting or vanishing a
@@ -1121,8 +1127,8 @@ Datagrams (`server/internal/voice/datagram.go`, `network/VoiceTransport`):
   under the lock the hello is sent under: a `Vanish` before the hello would
   end the connection, and the hello reads the file, which the caller updates
   before publishing, so a change made meanwhile is in one or the other.
-- `Network::GetServerAddress` is the URL of the latest welcomed connection, or
-  of the configured endpoint before the first, or empty without one: the
+- `Network::GetServerUrl` is the URL of the latest welcomed connection, or
+  of the configured server address before the first, or empty without one: the
   server whose session IDs the roster and chat lines carry. `PlayerFilters`
   reads the file for it again whenever the connection generation changes
   ([UI overlay](ui-overlay.md#mute-and-vanish)), and changes nothing while it
@@ -1141,8 +1147,8 @@ the server's `PeerEnter` messages.
 A connection is wanted only in a game, while the player's choice enables it,
 once `[Connection] DisplayName` is set
 ([Appearance and equipment](appearance-and-equipment.md#display-name)), and
-while `Config::GetServerEndpoint` is not empty or a connection is welcomed.
-The endpoint is empty only with `CustomServer` on and no `ServerEndpoint`
+while `Config::GetServerAddress` gives an address or a connection is welcomed.
+It gives none only with `CustomServer` on and no `ServerAddress`
 ([Configuration](configuration.md#official-and-custom-server)).
 `ConnectionMonitor` owns that decision; nothing else opens or closes the
 client.
@@ -1154,19 +1160,19 @@ client.
   and its connection. For the connection, a game starts only once the
   [vanilla intro](#vanilla-intro-hold) no longer holds it.
 - At a game start the choice becomes `[Connection] ConnectAutomatically`
-  (default `true`) if a display name and an endpoint are set, and disabled
+  (default `true`) if a display name and a server address are set, and disabled
   otherwise. The settings window's Connect, Cancel, and Disconnect change it with
   `Network::SetConnectionEnabled` until the game ends.
 - Applying a display name never opens a connection; only the choice does. The
   monitor reads the display name when the configuration revision changes, and
   one that becomes empty disables the choice, so entering one again waits for
   Connect. The server requires one too, in the hello.
-- Applying an endpoint or switching `CustomServer` never touches the
+- Applying a server address or switching `CustomServer` or `ServerTls` never touches the
   connection: a welcomed one stays with its server, and each later attempt,
-  after Connect or a loss, reads `Config::GetServerEndpoint` when it begins.
+  after Connect or a loss, reads `Config::GetServerAddress` when it begins.
   Goal: changing the server setting does not drop players from the server
-  they are playing on; Disconnect and Connect switch servers. An endpoint
-  that is empty while no connection is welcomed disables the choice and
+  they are playing on; Disconnect and Connect switch servers. A missing
+  address while no connection is welcomed disables the choice and
   closes the client, so entering one waits for Connect.
 - A connection keeps the display name its hello carried. The settings window
   locks the field while a connection is wanted or open
@@ -1193,7 +1199,7 @@ client.
   `Refusal{reason}` for the settings window's [connection
   controls](ui-overlay.md#connection-controls) until the player presses
   Connect or a game starts or ends. Nothing retries by itself, also not an
-  applied display name or endpoint: the player changes what the refusal names
+  applied display name or server address: the player changes what the refusal names
   and presses Connect. 4006 is a refusal because retrying would close the
   connection that replaced this one, and two games holding one token would
   take the session from each other without end.
@@ -1353,8 +1359,8 @@ window, and are empty after a long gap. The status panel shows them.
 - Non-goal: display names in other scripts, with spaces, or with punctuation
   besides `_`. The narrow rule keeps names typeable in a whisper, renderable by
   every font, and comparable without Unicode case folding.
-- The token is sent in the hello as it is, so an `http://` endpoint exposes it
-  to the network; `https://` endpoints carry it under TLS.
+- The token is sent in the hello as it is, so a server address without TLS exposes it
+  to the network; with `ServerTls` or `server_tls` it travels under TLS.
 - The official URL is kept out of the settings window and the log only: it
   is a plain string in the DLL, the key of its lines in `PlayerHub.session`
   and `PlayerHub.players`, and IXWebSocket's reason for a failed connection

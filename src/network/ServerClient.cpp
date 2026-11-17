@@ -100,7 +100,7 @@ namespace Network
         std::optional<QuantizedSkeletonPose> sentPose;
 
         std::mutex attemptLock;
-        std::string attemptEndpoint;
+        Config::ServerAddress attemptAddress;
         std::string attemptDisplayName;
         std::optional<Refusal> refusal;
         std::string welcomedServer;
@@ -111,33 +111,20 @@ namespace Network
         std::mutex socketLock;
         std::shared_ptr<ix::WebSocket> socket;
 
-        std::string GetAttemptEndpoint()
+        Config::ServerAddress GetAttemptAddress()
         {
             const std::scoped_lock lock{ attemptLock };
-            return attemptEndpoint;
+            return attemptAddress;
         }
 
-        std::string ToWebSocketUrl(std::string a_endpoint)
+        // The URL keys the server's lines in PlayerHub.session and PlayerHub.players, so it leaves out the
+        // scheme's own port, as a URL is usually written, and stays the same however the port was entered.
+        std::string ToWebSocketUrl(const Config::ServerAddress& a_address)
         {
-            if (a_endpoint.starts_with("https://"))
-            {
-                a_endpoint.replace(0, 5, "wss");
-            }
-            else if (a_endpoint.starts_with("http://"))
-            {
-                a_endpoint.replace(0, 4, "ws");
-            }
-            const auto authority = a_endpoint.find("://");
-            const auto path = authority == std::string::npos ? std::string::npos : a_endpoint.find('/', authority + 3);
-            if (path == std::string::npos)
-            {
-                return a_endpoint + "/ws";
-            }
-            if (a_endpoint.size() == path + 1)
-            {
-                return a_endpoint + "ws";
-            }
-            return a_endpoint;
+            const std::string_view scheme = a_address.tls ? "wss" : "ws";
+            const std::uint16_t schemePort = a_address.tls ? 443 : 80;
+            return a_address.port == schemePort ? std::format("{}://{}/ws", scheme, a_address.host)
+                                                : std::format("{}://{}:{}/ws", scheme, a_address.host, a_address.port);
         }
 
         std::shared_ptr<ix::WebSocket> GetSocket()
@@ -190,7 +177,7 @@ namespace Network
         void SendHello(ix::WebSocket& a_socket)
         {
             const auto config = Config::Get();
-            const auto server = ToWebSocketUrl(GetAttemptEndpoint());
+            const auto server = ToWebSocketUrl(GetAttemptAddress());
             const auto token = SessionStore::Find(server);
             {
                 const std::scoped_lock lock{ attemptLock };
@@ -437,7 +424,7 @@ namespace Network
         {
             // Kept even when the connection is closing: the session exists on the server and
             // holds its display name either way.
-            auto server = ToWebSocketUrl(GetAttemptEndpoint());
+            auto server = ToWebSocketUrl(GetAttemptAddress());
             if (a_welcome.issuedToken)
             {
                 SessionStore::Save(server, *a_welcome.issuedToken);
@@ -472,7 +459,7 @@ namespace Network
                 a_welcome.issuedToken ? "new" : "resumed", a_welcome.displayName, generation, a_welcome.voice.has_value());
             if (a_welcome.voice)
             {
-                VoiceTransport::Start(*a_welcome.voice, ToWebSocketUrl(GetAttemptEndpoint()));
+                VoiceTransport::Start(*a_welcome.voice, GetAttemptAddress().host);
             }
             else
             {
@@ -850,8 +837,9 @@ namespace Network
                 case ix::WebSocketMessageType::Error:
                     transportOpen.store(false, std::memory_order_release);
                     MarkDisconnected();
-                    logs::warn("Could not connect to {}: {} (http status {})", DescribeServer(GetAttemptEndpoint()),
-                        a_message->errorInfo.reason, a_message->errorInfo.http_status);
+                    logs::warn("Could not connect to {}: {} (http status {})",
+                        DescribeServer(ToWebSocketUrl(GetAttemptAddress())), a_message->errorInfo.reason,
+                        a_message->errorInfo.http_status);
                     break;
                 default:
                     break;
@@ -878,13 +866,14 @@ namespace Network
 
         void OpenSocket()
         {
-            std::string endpoint{ Config::GetServerEndpoint(Config::Get()->connection) };
+            // ConnectionMonitor opens none without an address; one removed since then fails to connect.
+            const auto address = Config::GetServerAddress(Config::Get()->connection).value_or(Config::ServerAddress{});
             {
                 const std::scoped_lock lock{ attemptLock };
-                attemptEndpoint = endpoint;
+                attemptAddress = address;
             }
             auto next = std::make_shared<ix::WebSocket>();
-            next->setUrl(ToWebSocketUrl(endpoint));
+            next->setUrl(ToWebSocketUrl(address));
             // ConnectionMonitor owns every retry.
             next->disableAutomaticReconnection();
             next->setPerMessageDeflateOptions(ix::WebSocketPerMessageDeflateOptions(false));
@@ -1202,7 +1191,7 @@ namespace Network
         }
     }
 
-    std::string GetServerAddress()
+    std::string GetServerUrl()
     {
         {
             const std::scoped_lock lock{ attemptLock };
@@ -1212,15 +1201,14 @@ namespace Network
             }
         }
         const auto config = Config::Get();
-        const auto endpoint = Config::GetServerEndpoint(config->connection);
-        return endpoint.empty() ? std::string{} : ToWebSocketUrl(std::string{ endpoint });
+        const auto address = Config::GetServerAddress(config->connection);
+        return address ? ToWebSocketUrl(*address) : std::string{};
     }
 
     std::string_view DescribeServer(std::string_view a_server)
     {
-        static const auto official = ToWebSocketUrl(std::string{ Config::GetDefaultServerEndpoint() });
-        return a_server == Config::GetDefaultServerEndpoint() || a_server == official ? "the official server"
-                                                                                      : "a custom server";
+        static const auto official = ToWebSocketUrl(Config::GetDefaultServerAddress());
+        return a_server == official ? "the official server" : "a custom server";
     }
 
     void EmitLatencyProbe(std::function<void()> a_onAcknowledged)
@@ -1236,7 +1224,8 @@ namespace Network
 
     void AbandonConnection()
     {
-        logs::warn("Abandoning the connection to {}; forgetting remote players", DescribeServer(GetAttemptEndpoint()));
+        logs::warn("Abandoning the connection to {}; forgetting remote players",
+            DescribeServer(ToWebSocketUrl(GetAttemptAddress())));
         MarkDisconnected();
     }
 

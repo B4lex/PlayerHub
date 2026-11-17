@@ -105,7 +105,7 @@ namespace Network
     void PublishTradeAccept(const Multiplayer::TradeAcceptance& a_acceptance);
     void PublishTradeCancel(Multiplayer::TradeID a_trade, Multiplayer::TradeCloseReason a_reason);
 
-    [[nodiscard]] std::string GetServerAddress();
+    [[nodiscard]] std::string GetServerUrl();
 
     [[nodiscard]] std::string_view DescribeServer(std::string_view a_server);
 
