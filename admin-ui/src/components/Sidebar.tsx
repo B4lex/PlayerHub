@@ -1,6 +1,8 @@
 import { NavLink } from "react-router-dom";
 import type { PageDefinition } from "../pages";
+import { useLogin } from "../state/Login";
 import { useServerState } from "../state/ServerState";
+import { Brand } from "./Brand";
 import { Icon } from "./Icon";
 import styles from "./Sidebar.module.css";
 
@@ -12,15 +14,10 @@ const connectionLabel = {
 
 export function Sidebar({ pages }: { pages: readonly PageDefinition[] }) {
   const { connection } = useServerState();
+  const login = useLogin();
   return (
     <aside className={styles.sidebar}>
-      <div className={styles.brand}>
-        <span className={styles.logo} aria-hidden="true" />
-        <div>
-          <div className={styles.name}>PlayerHub</div>
-          <div className={styles.subtitle}>Server admin</div>
-        </div>
-      </div>
+      <Brand />
 
       <nav className={styles.nav} aria-label="Main">
         {pages.map((page) => (
@@ -44,6 +41,11 @@ export function Sidebar({ pages }: { pages: readonly PageDefinition[] }) {
         <a className={styles.docs} href="/api/state" target="_blank" rel="noreferrer">
           State as JSON
         </a>
+        {login.required && (
+          <button type="button" className={styles.signOut} onClick={() => void login.signOut()}>
+            Log out
+          </button>
+        )}
       </div>
     </aside>
   );

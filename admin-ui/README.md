@@ -21,7 +21,8 @@ For development, run the game server, then:
 npm run dev       # http://localhost:5173/admin/, with hot reload
 ```
 
-Vite forwards `/api`, including the `/api/events` feed, to `http://127.0.0.1:3001`. Point it at a
+Vite forwards `/api`, including the `/api/events` feed and the login routes, to `http://127.0.0.1:3001`;
+a server with `admin_password_hash` set shows its login page there too. Point it at a
 server on another admin address with `ADMIN_SERVER_URL=http://127.0.0.1:3101 npm run dev`.
 
 Other scripts: `npm run typecheck`, `npm test` (Vitest, for the pure logic in
@@ -33,7 +34,7 @@ Other scripts: `npm run typecheck`, `npm test` (Vitest, for the pure logic in
 src/
   pages.tsx            the page list: sidebar and routes are both built from it
   api/                 types.ts (wire types), client.ts (REST), feed.ts (live state and chat)
-  state/               ServerState (one live snapshot for every page, and chat lines), useAction (commands)
+  state/               Login (login page while the server wants its password), ServerState (one live snapshot for every page, and chat lines), useAction (commands)
   components/          shared pieces: Button, Panel, Badge, StatTile, Toasts, Sidebar...
   features/<page>/     one folder per page, with its own components and CSS modules
   lib/                 framework-free helpers and their tests; predictions.ts holds what each command does to the snapshot

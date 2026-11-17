@@ -57,7 +57,14 @@ func main() {
 }
 
 func run(ctx context.Context, o options) error {
-	token, err := session(ctx, o)
+	if o.admin == "" {
+		return errors.New("--admin is required: the bot finds the target through it")
+	}
+	admin, err := adminclient.NewClient(ctx, o.admin)
+	if err != nil {
+		return err
+	}
+	token, err := session(ctx, admin, o)
 	if err != nil {
 		return err
 	}
@@ -107,7 +114,7 @@ func run(ctx context.Context, o options) error {
 		}
 	}()
 	players := make(chan []adminclient.Player, 1)
-	go pollPlayers(ctx, o.admin, players)
+	go pollPlayers(ctx, admin, o.admin, players)
 
 	ticker := time.NewTicker(tickInterval)
 	defer ticker.Stop()
@@ -144,10 +151,7 @@ func run(ctx context.Context, o options) error {
 	}
 }
 
-func session(ctx context.Context, o options) ([]byte, error) {
-	if o.admin == "" {
-		return nil, errors.New("--admin is required: the bot finds the target through it")
-	}
+func session(ctx context.Context, client *http.Client, o options) ([]byte, error) {
 	path := o.sessions
 	if path == "" {
 		var err error
@@ -159,8 +163,9 @@ func session(ctx context.Context, o options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	client := &http.Client{Timeout: 10 * time.Second}
-	token, err := adminclient.IssueSession(ctx, client, o.admin, o.name, file.Tokens[o.name])
+	issueCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	token, err := adminclient.IssueSession(issueCtx, client, o.admin, o.name, file.Tokens[o.name])
 	if errors.Is(err, adminclient.ErrDisplayNameTaken) {
 		return nil, fmt.Errorf("%s is taken by a session %s does not hold; pick another --name", o.name, path)
 	}
@@ -171,13 +176,14 @@ func session(ctx context.Context, o options) ([]byte, error) {
 	return token, adminclient.SaveSessions(path, file)
 }
 
-func pollPlayers(ctx context.Context, admin string, out chan<- []adminclient.Player) {
-	client := &http.Client{Timeout: 2 * time.Second}
+func pollPlayers(ctx context.Context, client *http.Client, admin string, out chan<- []adminclient.Player) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	reported := false
 	for {
-		list, err := adminclient.Players(ctx, client, admin)
+		pollCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		list, err := adminclient.Players(pollCtx, client, admin)
+		cancel()
 		switch {
 		case err != nil && !reported && ctx.Err() == nil:
 			say("cannot read the players from %s: %v", admin, err)

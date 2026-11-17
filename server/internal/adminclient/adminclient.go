@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -15,6 +16,59 @@ import (
 )
 
 var ErrDisplayNameTaken = errors.New("display name taken")
+
+// PasswordVariable names the environment variable that holds the admin password, so it does
+// not show in the process list as a flag would.
+const PasswordVariable = "PLAYERHUB_ADMIN_PASSWORD"
+
+// NewClient returns a client for the admin API at admin, logged in with the password in
+// PasswordVariable when it is set. Each request's context bounds how long it may take.
+func NewClient(ctx context.Context, admin string) (*http.Client, error) {
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, err
+	}
+	client := &http.Client{Jar: jar}
+	password := os.Getenv(PasswordVariable)
+	if password == "" {
+		return client, nil
+	}
+	body, err := json.Marshal(struct {
+		Password string `json:"password"`
+	}{password})
+	if err != nil {
+		return nil, err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint(admin, "/api/login"), bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusNoContent {
+		return nil, fmt.Errorf("cannot log in to %s: %w", admin, failure(response))
+	}
+	return client, nil
+}
+
+func failure(response *http.Response) error {
+	var reply struct {
+		Detail string `json:"detail"`
+	}
+	json.NewDecoder(response.Body).Decode(&reply)
+	err := errors.New(response.Status)
+	if reply.Detail != "" {
+		err = fmt.Errorf("%s: %s", response.Status, reply.Detail)
+	}
+	if response.StatusCode == http.StatusUnauthorized && response.Request.URL.Path != "/api/login" {
+		err = fmt.Errorf("%w; set %s to the admin password", err, PasswordVariable)
+	}
+	return err
+}
 
 func IssueSession(ctx context.Context, client *http.Client, admin, displayName string, token []byte) ([]byte, error) {
 	body, err := json.Marshal(struct {
@@ -34,19 +88,20 @@ func IssueSession(ctx context.Context, client *http.Client, admin, displayName s
 		return nil, err
 	}
 	defer response.Body.Close()
-	var reply struct {
-		Token  []byte `json:"token"`
-		Detail string `json:"detail"`
-	}
-	decodeErr := json.NewDecoder(response.Body).Decode(&reply)
-	switch {
-	case response.StatusCode == http.StatusConflict:
+	switch response.StatusCode {
+	case http.StatusConflict:
 		return nil, ErrDisplayNameTaken
-	case response.StatusCode != http.StatusOK && response.StatusCode != http.StatusCreated:
-		return nil, fmt.Errorf("%s: %s", response.Status, reply.Detail)
-	case decodeErr != nil:
-		return nil, decodeErr
-	case len(reply.Token) == 0:
+	case http.StatusOK, http.StatusCreated:
+	default:
+		return nil, failure(response)
+	}
+	var reply struct {
+		Token []byte `json:"token"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&reply); err != nil {
+		return nil, err
+	}
+	if len(reply.Token) == 0 {
 		return nil, errors.New("the reply has no token")
 	}
 	return reply.Token, nil
@@ -82,7 +137,7 @@ func Players(ctx context.Context, client *http.Client, admin string) ([]Player, 
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return nil, errors.New(response.Status)
+		return nil, failure(response)
 	}
 	var state struct {
 		Players []Player `json:"players"`

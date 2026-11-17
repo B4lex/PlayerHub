@@ -31,7 +31,7 @@ overlay logs a warning and does not install there. `Status` and
 | [voice-chat.md](voice-chat.md) | Proximity voice: devices, capture, noise suppression, push-to-talk and voice activation, Opus, the datagram link to the relay, jitter buffers, spatial mix, occlusion, lip sync, the relay | `src/audio/`, `network/VoiceTransport`, `sync/voicechat/`, `runtime/KeyState`, `actor/ActorLipSync`, `actor/VoiceOcclusion`, `server/internal/voice` |
 | [configuration.md](configuration.md) | `PlayerHub.ini`, schema, snapshots, saving | `src/config/` |
 | [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, localization, theme, background opacity, menu frame, cursor, logo, nameplates, status panel, display name hint, notices, chat, friends, mute and vanish, role badges, player menu, player menu in the world, settings window, Discord link, item picker and preview | `src/ui/`, `src/text/`, `locale/`, `sync/chat/`, `sync/filters/`, `sync/nameplates/`, `sync/notices/`, `assets/` |
-| [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel | `server/internal/{recording,playback,loadtest,admin}`, `server/cmd/`, `admin-ui/` |
+| [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel and its login | `server/internal/{recording,playback,loadtest,admin,adminauth,adminclient}`, `server/cmd/`, `admin-ui/` |
 
 ## Features
 
@@ -71,6 +71,7 @@ criteria.
 | Display name hint | [ui-overlay](ui-overlay.md#display-name-hint), [configuration](configuration.md#controls) |
 | Official and custom server | [configuration](configuration.md#official-and-custom-server), [network](network.md#connection), [ui-overlay](ui-overlay.md#settings-window) |
 | Player cap and join limits | [network](network.md#admission), [ui-overlay](ui-overlay.md#connection-controls) |
+| Admin panel login (one password from `admin_password_hash`, in-memory logins) | [recording-and-replay](recording-and-replay.md#admin-login) |
 | Session management in the admin panel (list, rename, delete) | [network](network.md#sessions), [recording-and-replay](recording-and-replay.md#admin-api) |
 | Player roles (a name and a color given in the admin panel, shown in game as a badge by the holder's name) | [network](network.md#roles), [ui-overlay](ui-overlay.md#roles), [recording-and-replay](recording-and-replay.md#admin-api) |
 | Kicks and bans | [network](network.md#kicks-and-bans), [recording-and-replay](recording-and-replay.md#admin-api), [ui-overlay](ui-overlay.md#notices), [ui-overlay](ui-overlay.md#connection-controls) |

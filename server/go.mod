@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/coder/websocket v1.8.15
+	golang.org/x/term v0.36.0
 	google.golang.org/protobuf v1.36.12
 	modernc.org/sqlite v1.46.1
 )

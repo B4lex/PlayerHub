@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"playerhub/server/internal/admin"
+	"playerhub/server/internal/adminauth"
 	"playerhub/server/internal/auth"
 	"playerhub/server/internal/config"
 	"playerhub/server/internal/delivery"
@@ -37,7 +38,16 @@ func main() {
 	adminListen := flag.String("admin-listen", "", "address of the admin panel and API, overriding the configuration")
 	verbose := flag.Bool("verbose", false, "log debug messages")
 	profile := flag.Bool("pprof", false, "serve net/http/pprof under /debug/pprof/ on the admin address")
+	hashPassword := flag.Bool("hash-password", false, "read an admin password and print its admin_password_hash")
 	flag.Parse()
+
+	if *hashPassword {
+		if err := printPasswordHash(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		return
+	}
 
 	level := slog.LevelInfo
 	if *verbose {
@@ -182,7 +192,13 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 			panel.HandleFunc("/debug/pprof/", pprof.Index)
 			panel.HandleFunc("/debug/pprof/profile", pprof.Profile)
 		}
-		servers = append(servers, newServer(ctx, c.AdminListen, admin.Guard(panel, c.AdminHosts)))
+		trusted, _ := c.TrustedProxyPrefixes()
+		gate := adminauth.New(c.AdminPassword(), trusted, log)
+		servers = append(servers, newServer(ctx, c.AdminListen, admin.Guard(gate.Wrap(panel), c.AdminHosts)))
+		if c.AdminPasswordHash == "" {
+			log.Warn("the admin panel has no password; everyone who reaches admin_listen controls the server",
+				"admin_address", c.AdminListen)
+		}
 	}
 
 	serveErr := make(chan error, len(servers))

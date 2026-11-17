@@ -17,9 +17,11 @@ Global chat channel live, relayed by the hub ([Chat](network.md#chat)).
 | `internal/recording` | Format version 7, `Store`, `Captures`, `Markers` |
 | `internal/playback` | `VirtualPlayer` numbering, `Session` timeline, `Manager`, `HubPlayer` |
 | `internal/loadtest` | `PlanBots`, in-server `Batch`es and their `Manager` |
-| `internal/admin` | REST routes under `/api`, the `/api/events` feed, panel files |
+| `internal/admin` | REST routes under `/api`, the `/api/events` feed, panel files, the request guard |
+| `internal/adminauth` | Admin password hash, logins, the login routes, and the gate in front of the API |
+| `internal/adminclient` | The admin API for `cmd/loadgen` and `cmd/tradebot`: login, issuing sessions, reading players |
 | `cmd/loadgen` | Networked bots, latency and throughput measurement |
-| `admin-ui/` | React and TypeScript panel: Dashboard, Sessions, Replay management, Load testing |
+| `admin-ui/` | React and TypeScript panel: login page, Dashboard, Sessions, Replay management, Load testing |
 
 ## Recordings
 
@@ -153,8 +155,8 @@ the player address `listen`, so a reverse proxy that forwards the game port
 cannot expose them. `--admin-listen` overrides the setting, which must differ
 from `listen`, and `--pprof` needs it.
 
-The address has no authentication, so `admin.Guard` stops web pages the
-operator visits from driving it through the browser:
+`admin.Guard` stops web pages the operator visits from driving the address
+through the browser, and runs before the [login](#admin-login) check:
 
 - **Host:** every request, panel files and pprof included, must name the
   address by an IP literal, `localhost`, or a name in `admin_hosts` (host
@@ -176,8 +178,69 @@ operator visits from driving it through the browser:
   only text, form, and multipart bodies cross-site without a preflight, and
   the API answers no preflight.
 
+### Admin login
+
+Goal: the panel can face another machine, such as a dedicated server's
+operator, without trusting everyone who reaches `admin_listen`. Non-goals:
+accounts, roles, or a record of who did what (one shared password); logins
+that outlive a restart.
+
+- **Password:** `admin_password_hash` holds
+  `pbkdf2-sha256$<iterations>$<salt>$<key>` (unpadded standard base64; salt at
+  least 16 bytes, key 32, iterations 100000..10000000); anything else is a
+  configuration error. `--hash-password` makes one with 600000 iterations
+  (OWASP's PBKDF2-HMAC-SHA256 figure; about 70 ms per check) and a fresh
+  16-byte salt, from a password of at least 12 characters read twice without
+  echo from a terminal, or as one line of standard input otherwise, and exits.
+  PBKDF2 is in Go's standard library, so the hash needs no dependency; the
+  hidden prompt uses `golang.org/x/term`. Empty (the default) leaves the
+  address open as before, with a startup warning, so a local or development
+  server needs no setup.
+- **Gate:** `adminauth.Gate` wraps the admin mux inside the guard. It serves
+  `GET /api/login` (`{required, signedIn}`), `POST /api/login` `{password}`,
+  and `POST /api/logout`; with a password, every other path except `/admin`
+  and `/admin/...` (the panel's files, which hold no data) answers 401 without
+  a live login, `/api/events` and `/debug/pprof/` included. Without a password
+  everything passes, and a login answers 204 without a cookie, so tools need
+  not know which kind of server they talk to.
+- **Login:** a right password answers 204 with the cookie `playerhub_admin`: a
+  random 32-byte token, base64url, `HttpOnly`, `SameSite=Strict`, `Path=/`,
+  `Max-Age` of 7 days, and `Secure` when the request came over TLS or with
+  `X-Forwarded-Proto: https`, so the cookie still works over plain HTTP on
+  loopback and through an SSH tunnel. A wrong one answers 401, a body that is
+  not JSON 415. The log has `admin logged in` (info) and `admin login refused`
+  (warning) with the client address.
+- **Attempt limits:** checked before the hash runs. Per client address
+  (`admission.ClientAddress`, so behind `trusted_proxies` the forwarded one;
+  IPv6 per /64), a bucket of 5 refilled at 5 a minute; then over all
+  addresses, 20 refilled at 2 a second, which bounds the hash's CPU under many
+  addresses. At most 4096 addresses are tracked; when that many hold spent
+  buckets, attempts from new addresses are refused. A refusal answers 429
+  with `Retry-After`.
+- **Logins:** kept in memory, keyed by the token's SHA-256 so a lookup's time
+  does not depend on how much of a guess is right. Each lasts 7 days from
+  logging in, not extended by use; at most 64 are held, and the one that would
+  end soonest makes room. Logout ends it and clears the cookie. Each login has
+  a context that ends with it, and every request it authorized is cancelled
+  then, so an open `/api/events` stream closes on logout or expiry.
+- **Tools:** `adminclient.NewClient` logs in once with the password in
+  `PLAYERHUB_ADMIN_PASSWORD`, an environment variable so it stays out of the
+  process list, and keeps the cookie in a jar; a 401 from the API names the
+  variable.
+- **Panel:** `LoginGate` (`admin-ui/src/state/Login.tsx`) asks
+  `GET /api/login` before mounting the live state, and shows `LoginPage` while
+  a password is required and the panel is not logged in. Any 401 from a
+  command, other than the login form's own, returns to the login page.
+  EventSource gives up on a refused stream without its status, so a feed that
+  closes makes the gate ask again. If the server cannot be asked, the panel is
+  shown and the feed's refusal asks later. The sidebar footer has a log-out
+  control while a password is set. The form carries a hidden fixed user name
+  so password managers file the password.
+
+### Requests and events
+
 Commands are REST under `/api` ([server README](../server/README.md#admin-panel));
-errors, the guard's refusals included, answer `{"detail": ...}`, and player
+errors, the guard's and the gate's refusals included, answer `{"detail": ...}`, and player
 IDs are slots as decimal strings.
 Live state is one full snapshot pushed as a server-sent event (`event: state`)
 at `/api/events` on connect and after each change, coalesced to at most one per
@@ -349,15 +412,23 @@ Not confirmed in game:
 
 ## Known limitations
 
-- The admin API has no authentication: it deletes recordings, spawns
-  virtual players, kicks and bans players, renames and deletes sessions, and
-  issues sessions past the per-address allowance, so
+- Without `admin_password_hash` the admin API has no authentication: it
+  deletes recordings, spawns virtual players, kicks and bans players, renames
+  and deletes sessions, and issues sessions past the per-address allowance, so
   `admin_listen` must not face the Internet, and every program and device that
-  reaches it is trusted. The [request guard](#admin-api) stops only web pages,
-  and browsers without fetch metadata (Safari before 16.4, Firefox before 90)
-  can still be made to send it cross-site GETs, such as a `--pprof` CPU
-  profile the page cannot read. A link to the panel from another site is
-  refused as well.
+  reaches it is trusted.
+- The server does not end TLS on `admin_listen`: from another machine, the
+  password and cookie cross in the clear unless a proxy or tunnel in front
+  encrypts them.
+- One password for everyone; nothing records which admin acted. Logins end on
+  restart. The attempt limits let someone who keeps failing from many
+  addresses keep the operator from logging in until the buckets refill.
+- The [request guard](#admin-api) stops only web pages, and browsers without
+  fetch metadata (Safari before 16.4, Firefox before 90) can still be made to
+  send it cross-site GETs, such as a `--pprof` CPU profile the page cannot
+  read; with a password set, `SameSite=Strict` keeps the login cookie off
+  them, so they get 401. A link to the panel from another site is refused as
+  well, which also rules out single sign-on that redirects back to the panel.
 - A replay reaches every connected client; recordings cannot be edited or
   renamed, and players are not captured automatically.
 - Batches do not survive a server restart.

@@ -42,6 +42,14 @@ async function describeFailure(response: Response): Promise<string> {
   return response.statusText || `Request failed (${response.status})`;
 }
 
+const loginPath = "/api/login";
+let onUnauthorized: (() => void) | null = null;
+
+/** Called when the server refuses a request because the panel is not logged in. */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler;
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   let response: Response;
   try {
@@ -53,6 +61,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   } catch {
     throw new ApiError(0, "Cannot reach the server");
   }
+  // A wrong password is also 401, and is the login form's to report.
+  if (response.status === 401 && path !== loginPath) onUnauthorized?.();
   if (!response.ok) throw new ApiError(response.status, await describeFailure(response));
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
@@ -60,7 +70,18 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 const enc = encodeURIComponent;
 
+export interface LoginStatus {
+  /** The server has a password; without one every request is let in. */
+  required: boolean;
+  signedIn: boolean;
+}
+
 export const api = {
+  login: {
+    status: () => request<LoginStatus>("GET", loginPath),
+    signIn: (password: string) => request<void>("POST", loginPath, { password }),
+    signOut: () => request<void>("POST", "/api/logout"),
+  },
   players: {
     /** Hide a player from everyone else, or show it again. */
     setHidden: (id: string, hidden: boolean) =>

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { ToastProvider } from "./components/Toasts";
+import { LoginGate } from "./state/Login";
 import { ServerStateProvider } from "./state/ServerState";
 import "./styles/tokens.css";
 import "./styles/base.css";
@@ -15,9 +16,11 @@ createRoot(root).render(
     {/* The game server hosts the built app under /admin. */}
     <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
       <ToastProvider>
-        <ServerStateProvider>
-          <App />
-        </ServerStateProvider>
+        <LoginGate>
+          <ServerStateProvider>
+            <App />
+          </ServerStateProvider>
+        </LoginGate>
       </ToastProvider>
     </BrowserRouter>
   </StrictMode>,

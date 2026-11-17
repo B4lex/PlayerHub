@@ -121,9 +121,13 @@ Run it from this directory:
     $run
 
 Players connect on port 14201 (listen). The admin panel is at
-http://127.0.0.1:3001/admin/ (admin_listen) and has no authentication: keep
-that address off the public Internet. The session database (sessions.db) and
-recordings/ are created in the working directory.
+http://127.0.0.1:3001/admin/ (admin_listen). It has no login until
+admin_password_hash is set to the line that
+
+    $run --hash-password
+
+prints; until then, keep that address off the public Internet. The session
+database (sessions.db) and recordings/ are created in the working directory.
 
 Every setting is in config.toml at its default; the server reads that file
 from the working directory. To let players on other computers connect, allow

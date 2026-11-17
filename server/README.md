@@ -41,6 +41,10 @@ On `admin_listen` only:
 - `/admin/` serves the built admin panel; `/api` is its API.
 - `/debug/pprof/` with `--pprof`.
 
+With `admin_password_hash` set, the API, its event feed, and pprof need a
+login (see [Admin login](#admin-login)); without it, the server logs a warning
+at startup and they are open to everyone who reaches `admin_listen`.
+
 To run it in Docker, see [Docker](../README.md#docker). Each GitHub release
 has a built server with the admin panel as one archive for Linux and one for
 Windows; see
@@ -55,6 +59,7 @@ different links differ only in this file.
 listen = "0.0.0.0:14201"
 admin_listen = "127.0.0.1:3001"   # admin panel, API, and pprof; "" serves none of them
 admin_hosts = []            # host names besides localhost and IP addresses that may reach admin_listen, e.g. ["panel.lan"]
+admin_password_hash = ""    # from --hash-password; "" leaves the admin panel and API without a login
 trusted_proxies = []        # e.g. ["127.0.0.1"] behind a local proxy; X-Forwarded-For then names the player
 recordings_directory = "recordings"
 admin_ui_directory = "../admin-ui/dist"
@@ -135,6 +140,31 @@ for profiling under loadgen.
 
 Unknown keys are an error, so a typo does not silently keep a default.
 
+## Admin login
+
+Make a hash of the admin password (at least 12 characters) and put the line
+it prints into the configuration:
+
+```sh
+go run ./cmd/server --hash-password      # asks twice without echo; or pipe one line in
+```
+
+The panel then shows a login page. A login lasts 7 days from logging in and
+ends at once with the panel's log-out control. Logins are kept only in memory,
+so a restart, which is also how a new hash takes effect, logs everyone out. Login
+attempts are limited to 5 per address, refilled at 5 a minute, and 2 a second
+over all addresses, since each one runs the hash.
+
+The password and the session cookie cross the network as sent. Reach a remote
+`admin_listen` through TLS: a reverse proxy on the same host that ends TLS and
+sends `X-Forwarded-Proto: https`, which makes the cookie `Secure`, with the
+proxy's host name in `admin_hosts` and its address in `trusted_proxies`, so
+login limits count each client's own address. An SSH tunnel works too.
+
+`loadgen` and `tradebot` log in with the password in the
+`PLAYERHUB_ADMIN_PASSWORD` environment variable, read from the environment so
+that it does not show in the process list.
+
 ## Tests and tools
 
 ```sh
@@ -145,7 +175,8 @@ go run ./cmd/tradebot --kit
 ```
 
 - `cmd/loadgen` gets its bots' sessions from the admin API (`--admin`,
-  `http://127.0.0.1:3001`), which skips the per-address allowance for new
+  `http://127.0.0.1:3001`, logged in with `PLAYERHUB_ADMIN_PASSWORD` when the
+  server has a password), which skips the per-address allowance for new
   sessions, and keeps their tokens in a file (`--sessions`, by default
   `loadgen-<host>.json` in the user cache directory), so later runs resume the
   same sessions under the same names. Two runs at once against one server need
@@ -201,6 +232,9 @@ second, and each Global chat line as it is relayed.
 
 | Endpoint | |
 | --- | --- |
+| `GET /api/login` | `{required, signedIn}`: whether the server has a password, and whether this request carries a live login |
+| `POST /api/login` `{password}` | Log in: 204 with the `playerhub_admin` cookie, 401 for a wrong password, 429 with `Retry-After` past the attempt limits; 204 without a cookie when there is no password |
+| `POST /api/logout` | End this login and clear its cookie |
 | `GET /api/state` | Everything the panel shows |
 | `GET /api/events` | Event stream of the same snapshot (`state`) and Global chat lines (`chat`) |
 | `GET /api/recordings/{id}` | One recording with its timeline markers |
@@ -230,7 +264,9 @@ second, and each Global chat line as it is relayed.
 | `DELETE /api/batches/{id}` | Stop a batch and remove its bots |
 
 Errors answer `{"detail": "..."}`. Player IDs are slots as decimal strings.
-Request bodies must be sent as `Content-Type: application/json`. Requests that
+Request bodies must be sent as `Content-Type: application/json`. With a
+password set, every request other than the login routes and the panel's files
+needs the login's cookie and gets 401 without it. Requests that
 name the address by a host other than an IP address, `localhost`, or one in
 `admin_hosts`, and any request from another site's web page, links
 included, get 403.
@@ -249,11 +285,13 @@ ServerAddress = 192.168.1.20
 ```
 
 Allow inbound TCP port 14201 through the server machine's firewall. Sessions
-identify players. The admin panel and API have no authentication and listen
-on `admin_listen`, `127.0.0.1:3001` by default, apart from players; keep that
-address off the public Internet and reach it through an SSH tunnel if needed.
-They refuse web pages from other sites, but trust every program and device
-that can reach them.
+identify players. The admin panel and API listen on `admin_listen`,
+`127.0.0.1:3001` by default, apart from players. Without
+`admin_password_hash` they have no login and trust every program and device
+that reaches them, so keep that address off the public Internet; with it, put
+TLS in front before reaching it from another machine
+([Admin login](#admin-login)). Either way they refuse web pages from other
+sites.
 For a remote server, terminate TLS in a reverse proxy, enter its address with
 the proxy's port, such as `example.org:443`, and switch on TLS (`ServerTls =
 true`); the plugin connects with `wss://` at `/ws`, so the proxy must pass that

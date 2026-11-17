@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
-	"net/http"
 	"time"
 
 	"playerhub/server/internal/adminclient"
@@ -44,12 +43,17 @@ func prepareSessions(ctx context.Context, o *options, kind string) ([][]byte, er
 	}
 	o.run = file.Run
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client, err := adminclient.NewClient(ctx, o.admin)
+	if err != nil {
+		return nil, err
+	}
 	changed := false
 	var issueErr error
 	for i := range tokens {
 		name := displayName(kind, o.run, i)
-		token, err := adminclient.IssueSession(ctx, client, o.admin, name, file.Tokens[name])
+		issueCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		token, err := adminclient.IssueSession(issueCtx, client, o.admin, name, file.Tokens[name])
+		cancel()
 		if errors.Is(err, adminclient.ErrDisplayNameTaken) {
 			issueErr = fmt.Errorf("%s is taken by a session %s does not hold; delete the file for new names", name, path)
 			break

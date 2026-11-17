@@ -1340,10 +1340,10 @@ window, and are empty after a long gap. The status panel shows them.
 
 - A role set in the instant between a connection's hello and its join in the
   hub shows from the player's next connection.
-- Sessions authenticate players only. The admin API can delete recordings and
-  spawn virtual players without one; it is served only on `admin_listen`,
-  which must not face the Internet, and refuses only browser requests from
-  other sites ([Recording and replay](recording-and-replay.md#admin-api)).
+- Sessions authenticate players only. The admin API is served only on
+  `admin_listen` and is guarded by its own password
+  ([Admin login](recording-and-replay.md#admin-login)), or by nothing but its
+  refusal of browser requests from other sites when none is set.
 - The `Origin` rule stops browsers only. Any other program can open
   connections and send hellos from its own address.
 - A session cannot be recovered: a player who loses `PlayerHub.session`, or

@@ -8,12 +8,15 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+
+	"playerhub/server/internal/adminauth"
 )
 
 type Config struct {
 	Listen              string   `toml:"listen"`
 	AdminListen         string   `toml:"admin_listen"`
 	AdminHosts          []string `toml:"admin_hosts"`
+	AdminPasswordHash   string   `toml:"admin_password_hash"`
 	TrustedProxies      []string `toml:"trusted_proxies"`
 	RecordingsDirectory string   `toml:"recordings_directory"`
 	AdminUIDirectory    string   `toml:"admin_ui_directory"`
@@ -198,8 +201,18 @@ func (c Config) Validate() error {
 			return fmt.Errorf("admin_hosts: %q is not a host name without a port", host)
 		}
 	}
+	if c.AdminPasswordHash != "" {
+		if _, err := adminauth.ParsePassword(c.AdminPasswordHash); err != nil {
+			return fmt.Errorf("admin_password_hash: %w", err)
+		}
+	}
 	_, err := c.TrustedProxyPrefixes()
 	return err
+}
+
+func (c Config) AdminPassword() adminauth.Password {
+	password, _ := adminauth.ParsePassword(c.AdminPasswordHash)
+	return password
 }
 
 func (c Config) TrustedProxyPrefixes() ([]netip.Prefix, error) {

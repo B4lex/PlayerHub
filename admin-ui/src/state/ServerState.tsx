@@ -11,6 +11,7 @@ import {
 import { connectAdminFeed, type ConnectionStatus } from "../api/feed";
 import type { AdminState, Ban, Batch, ChatLine, Exclusion, Player, Playback, Recording, Role, ServerInfo } from "../api/types";
 import { newerPlayback } from "../lib/playbackClock";
+import { useLogin } from "./Login";
 import { awaited, predicted, type HeldPrediction, type LiveState, type PlaybackView, type Prediction } from "../lib/predictions";
 
 export type { PlaybackView };
@@ -90,11 +91,16 @@ export function ServerStateProvider({ children }: { children: ReactNode }) {
   const predictionSeq = useRef(0);
   const [chat, setChat] = useState<ChatEntry[]>([]);
   const chatSeq = useRef(0);
+  const { recheck } = useLogin();
 
   useEffect(
     () =>
       connectAdminFeed({
-        onStatus: setConnection,
+        onStatus: (status) => {
+          setConnection(status);
+          // EventSource gives up on any refusal without saying which; a lapsed login is one.
+          if (status === "disconnected") recheck();
+        },
         onChat: (line) => {
           const entry = { ...line, seq: ++chatSeq.current };
           setChat((held) => [...held.slice(Math.max(0, held.length - chatLimit + 1)), entry]);
@@ -105,7 +111,7 @@ export function ServerStateProvider({ children }: { children: ReactNode }) {
           setPlaybacks((held) => mergePlaybacks(held, state.playbacks, receivedAt));
         },
       }),
-    [],
+    [recheck],
   );
 
   const adoptPlayback = useCallback((playback: Playback, opened = false) => {
