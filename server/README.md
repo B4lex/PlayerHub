@@ -85,6 +85,7 @@ leave_radius = 9830
 min_dwell_seconds = 1       # time in view before a peer can leave for range
 update_hz = 5               # periodic reevaluation; hard rules apply at once
 max_visible = 64            # peers per client, nearest first; 0 is no cap
+max_posed = 32              # posed peers per client sent skeleton poses, nearest first; 0 sends none
 cap_hysteresis = 1024       # a newcomer must be this much nearer to displace a peer in view
 near_distance = 4096        # peers beyond it get far_rate_hz
 far_rate_hz = 10            # 0 sends every checkpoint to every peer

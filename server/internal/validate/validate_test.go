@@ -630,17 +630,3 @@ func TestInspect(t *testing.T) {
 		t.Error("inspect without a slot accepted")
 	}
 }
-
-func TestPoseLimit(t *testing.T) {
-	limit := func(players uint32) *pb.ClientMessage {
-		return &pb.ClientMessage{Message: &pb.ClientMessage_PoseLimit{PoseLimit: &pb.PoseLimit{Players: players}}}
-	}
-	for _, players := range []uint32{0, MaximumPosePlayers} {
-		if err := Message(limit(players)); err != nil {
-			t.Errorf("pose limit %d rejected: %v", players, err)
-		}
-	}
-	if Message(limit(MaximumPosePlayers+1)) != ErrPoseLimit {
-		t.Error("pose limit above the maximum accepted")
-	}
-}

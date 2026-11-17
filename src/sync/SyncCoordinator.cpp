@@ -530,8 +530,8 @@ namespace SyncCoordinator
                 }
                 else if (auto liveActor = actor.handle.get())
                 {
-                    SkeletonSync::SyncSkeleton(remote, a_peer.skeleton, actor, actor.ready && !beast && !furniturePlaying,
-                        a_local.player.GetPosition(), a_delta);
+                    SkeletonSync::SyncSkeleton(
+                        remote, a_peer.skeleton, actor, actor.ready && !beast && !furniturePlaying, a_delta);
                     AppearanceSync::ApplyActorPresentation(a_peer.appearance, a_playerID, *liveActor, actor.ready);
                 }
             }
@@ -602,7 +602,6 @@ namespace SyncCoordinator
         {
             SyncPeer(playerID, peer, local, localCellID, localWorldspaceID, localFurniture.get(), a_delta);
         }
-        SkeletonSync::AssignSlots();
         // Before the plates, which show who speaks.
         VoiceChatSync::UpdatePeers(s_peers, *a_player, *localCell, a_delta);
         NameplateSync::Update(s_peers, *a_player, a_delta);

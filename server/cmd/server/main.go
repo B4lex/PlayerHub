@@ -119,6 +119,7 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 			MinDwellSeconds:   c.Interest.MinDwellSeconds,
 			UpdateHz:          c.Interest.UpdateHz,
 			MaxVisible:        c.Interest.MaxVisible,
+			MaxPosed:          c.Interest.MaxPosed,
 			CapHysteresis:     c.Interest.CapHysteresis,
 			NearDistance:      c.Interest.NearDistance,
 			FarRateHz:         c.Interest.FarRateHz,

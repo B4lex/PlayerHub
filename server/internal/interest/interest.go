@@ -14,6 +14,7 @@ type Config struct {
 	MinDwellSeconds   float64
 	UpdateHz          float64
 	MaxVisible        int
+	MaxPosed          int
 	CapHysteresis     float64
 	NearDistance      float64
 	FarRateHz         float64
@@ -22,7 +23,7 @@ type Config struct {
 
 func DefaultConfig() Config {
 	return Config{EnterRadius: 8192, LeaveRadius: 9830, MinDwellSeconds: 1, UpdateHz: 5, MaxVisible: 64,
-		CapHysteresis: 1024, NearDistance: 4096, FarRateHz: 10, MinimumViewRadius: 1024}
+		MaxPosed: 32, CapHysteresis: 1024, NearDistance: 4096, FarRateHz: 10, MinimumViewRadius: 1024}
 }
 
 // Space is a worldspace or an interior cell, named by its plugin, which is lowercased

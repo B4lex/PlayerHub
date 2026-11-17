@@ -66,6 +66,7 @@ type Interest struct {
 	MinDwellSeconds   float64 `toml:"min_dwell_seconds"`
 	UpdateHz          float64 `toml:"update_hz"`
 	MaxVisible        int     `toml:"max_visible"`
+	MaxPosed          int     `toml:"max_posed"`
 	CapHysteresis     float64 `toml:"cap_hysteresis"`
 	NearDistance      float64 `toml:"near_distance"`
 	FarRateHz         float64 `toml:"far_rate_hz"`
@@ -113,7 +114,7 @@ func Default() Config {
 		},
 		Liveness: Liveness{PingIntervalSeconds: 5, TimeoutSeconds: 10},
 		Interest: Interest{EnterRadius: 8192, LeaveRadius: 9830, MinDwellSeconds: 1, UpdateHz: 5, MaxVisible: 64,
-			CapHysteresis: 1024, NearDistance: 4096, FarRateHz: 10, MinimumViewRadius: 1024},
+			MaxPosed: 32, CapHysteresis: 1024, NearDistance: 4096, FarRateHz: 10, MinimumViewRadius: 1024},
 		Budget:   Budget{UplinkBytesPerSecond: 6_250_000, EntersPerSecond: 20},
 		Chat:     Chat{NearbyRadius: 8192},
 		Trade:    Trade{RequestRadius: 400, KeepRadius: 1000, InviteSeconds: 30},
@@ -166,9 +167,9 @@ func (c Config) Validate() error {
 		return errors.New("interest.enter_radius must be positive and at most interest.leave_radius")
 	case c.Interest.MinDwellSeconds < 0 || c.Interest.UpdateHz < 0.5 || c.Interest.UpdateHz > 60:
 		return errors.New("interest.min_dwell_seconds must be >= 0 and interest.update_hz within 0.5..60")
-	case c.Interest.MaxVisible < 0 || c.Interest.CapHysteresis < 0 || c.Interest.NearDistance < 0 ||
-		c.Interest.FarRateHz < 0 || c.Interest.MinimumViewRadius < 0:
-		return errors.New("interest.max_visible, cap_hysteresis, near_distance, far_rate_hz, and minimum_view_radius must be >= 0")
+	case c.Interest.MaxVisible < 0 || c.Interest.MaxPosed < 0 || c.Interest.CapHysteresis < 0 ||
+		c.Interest.NearDistance < 0 || c.Interest.FarRateHz < 0 || c.Interest.MinimumViewRadius < 0:
+		return errors.New("interest.max_visible, max_posed, cap_hysteresis, near_distance, far_rate_hz, and minimum_view_radius must be >= 0")
 	case c.Budget.Enabled && c.Budget.UplinkBytesPerSecond < 10_000:
 		return errors.New("budget.uplink_bytes_per_second must be at least 10000 when the budget is enabled")
 	case c.Budget.PerRecipientBytesPerSecond < 0 || c.Budget.EntersPerSecond < 0:

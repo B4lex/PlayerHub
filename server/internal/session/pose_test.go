@@ -33,7 +33,6 @@ func TestPosesTravelAsChanges(t *testing.T) {
 	s := startServer(t, config.Default())
 	a, slotA := join(t, s, "Lydia")
 	b, _ := join(t, s, "Serana")
-	b.send(&pb.ClientMessage{Message: &pb.ClientMessage_PoseLimit{PoseLimit: &pb.PoseLimit{Players: 1}}})
 	place(b, 0)
 
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Enter{Enter: &pb.Enter{}}})

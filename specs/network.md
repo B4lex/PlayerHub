@@ -140,7 +140,6 @@ retries. What a refusal means for the client is in [Connection](#connection).
 | `ChatSend` | `{request_id, text, channel, recipient}`, answered with a `ChatResult` ([Chat](#chat)) |
 | `Ping` | `{request_id}`, answered with `Pong{request_id}` by the connection at once; the latency probe |
 | `Vanish` | `{session_id, vanished}`: stop or resume receiving a session's player ([Vanish](#vanish)) |
-| `PoseLimit` | `{players}`: how many posed peers, nearest first, the client is sent [skeleton poses](#skeleton-pose-encoding) of, `0..32` (`validate.MaximumPosePlayers`); `0` until the first one ([Interest and delivery](interest-and-delivery.md#skeleton-poses)) |
 | `Inspect` | `{slot}`: ask for a player's level and place, answered with an `Inspection` ([Inspection](#inspection)) |
 | `TradeRequest`, `TradeAnswer`, `TradeOffer`, `TradeReport`, `TradePluginQuery`, `TradePluginReply`, `TradeAccept`, `TradeCancel` | A trade between two players ([Trade](#trade)) |
 
@@ -230,18 +229,15 @@ movement in [Locomotion](locomotion.md), stance and hands in
 ### Skeleton pose encoding
 
 A client sends `skeleton` only inside a pose window, while its player plays an
-animation from a mod, a stagger, a kill move, or a knockdown, with
-`[Advanced] ShareCustomAnimations` on
+animation from a mod, a stagger, a kill move, or a knockdown
 ([Remote actor](remote-actor.md#source-window)). A window is the run of
 checkpoints that carry one; no message opens or closes it, so a late joiner
 sees an open window at once. The server relays the pose only to recipients
-that rank the sender among their `PoseLimit` nearest posed peers within the
-near distance, and the checkpoint without it to the others
+that rank the sender among their `interest.max_posed` nearest posed peers
+within the near distance, and the checkpoint without it to the others
 ([Interest and delivery](interest-and-delivery.md#skeleton-poses)), which
-therefore see no window. The client sends `PoseLimit` after every `Welcome`,
-from `[Advanced] ShowCustomAnimations` and `CustomAnimationPlayers` (`0` while
-showing is off), and again whenever the main loop finds that value changed
-(`SkeletonSync`, through `Network::PublishPoseLimit`).
+therefore see no window. The limit is the server's alone; a client has no
+setting for it and shows every pose it receives.
 `protocol/SkeletonPose.h` and `server/internal/validate` hold the same layout
 of a whole pose:
 

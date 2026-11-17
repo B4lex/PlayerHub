@@ -100,10 +100,6 @@ typedef struct _playerhub_v1_Inspect {
     uint32_t slot;
 } playerhub_v1_Inspect;
 
-typedef struct _playerhub_v1_PoseLimit {
-    uint32_t players;
-} playerhub_v1_PoseLimit;
-
 typedef struct _playerhub_v1_TradeRequest {
     uint32_t slot;
 } playerhub_v1_TradeRequest;
@@ -210,7 +206,6 @@ typedef struct _playerhub_v1_ClientMessage {
         playerhub_v1_TradeCancel trade_cancel;
         playerhub_v1_TradePluginQuery trade_plugin_query;
         playerhub_v1_TradePluginReply trade_plugin_reply;
-        playerhub_v1_PoseLimit pose_limit;
         playerhub_v1_Effects effects;
     } message;
 } playerhub_v1_ClientMessage;
@@ -447,7 +442,6 @@ extern "C" {
 
 
 
-
 #define playerhub_v1_TradeSkip_reason_ENUMTYPE playerhub_v1_TradeSkipReason
 
 
@@ -494,7 +488,6 @@ extern "C" {
 #define playerhub_v1_Ping_init_default           {0}
 #define playerhub_v1_Vanish_init_default         {0, 0}
 #define playerhub_v1_Inspect_init_default        {0}
-#define playerhub_v1_PoseLimit_init_default      {0}
 #define playerhub_v1_TradeRequest_init_default   {0}
 #define playerhub_v1_TradeAnswer_init_default    {0, 0}
 #define playerhub_v1_TradeEffect_init_default    {false, playerhub_v1_FormRef_init_default, 0, 0, 0, 0}
@@ -538,7 +531,6 @@ extern "C" {
 #define playerhub_v1_Ping_init_zero              {0}
 #define playerhub_v1_Vanish_init_zero            {0, 0}
 #define playerhub_v1_Inspect_init_zero           {0}
-#define playerhub_v1_PoseLimit_init_zero         {0}
 #define playerhub_v1_TradeRequest_init_zero      {0}
 #define playerhub_v1_TradeAnswer_init_zero       {0, 0}
 #define playerhub_v1_TradeEffect_init_zero       {false, playerhub_v1_FormRef_init_zero, 0, 0, 0, 0}
@@ -590,7 +582,6 @@ extern "C" {
 #define playerhub_v1_Vanish_session_id_tag       1
 #define playerhub_v1_Vanish_vanished_tag         2
 #define playerhub_v1_Inspect_slot_tag            1
-#define playerhub_v1_PoseLimit_players_tag       1
 #define playerhub_v1_TradeRequest_slot_tag       1
 #define playerhub_v1_TradeAnswer_trade_id_tag    1
 #define playerhub_v1_TradeAnswer_accept_tag      2
@@ -646,7 +637,6 @@ extern "C" {
 #define playerhub_v1_ClientMessage_trade_cancel_tag 18
 #define playerhub_v1_ClientMessage_trade_plugin_query_tag 19
 #define playerhub_v1_ClientMessage_trade_plugin_reply_tag 20
-#define playerhub_v1_ClientMessage_pose_limit_tag 21
 #define playerhub_v1_ClientMessage_effects_tag   22
 #define playerhub_v1_VoiceAccess_host_tag        1
 #define playerhub_v1_VoiceAccess_port_tag        2
@@ -779,11 +769,6 @@ X(a, STATIC,   SINGULAR, UINT32,   slot,              1)
 #define playerhub_v1_Inspect_CALLBACK NULL
 #define playerhub_v1_Inspect_DEFAULT NULL
 
-#define playerhub_v1_PoseLimit_FIELDLIST(X, a) \
-X(a, STATIC,   SINGULAR, UINT32,   players,           1)
-#define playerhub_v1_PoseLimit_CALLBACK NULL
-#define playerhub_v1_PoseLimit_DEFAULT NULL
-
 #define playerhub_v1_TradeRequest_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   slot,              1)
 #define playerhub_v1_TradeRequest_CALLBACK NULL
@@ -890,7 +875,6 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_accept,message.trade_accept), 
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_cancel,message.trade_cancel),  18) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_plugin_query,message.trade_plugin_query),  19) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_plugin_reply,message.trade_plugin_reply),  20) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,pose_limit,message.pose_limit),  21) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (message,effects,message.effects),  22)
 #define playerhub_v1_ClientMessage_CALLBACK NULL
 #define playerhub_v1_ClientMessage_DEFAULT NULL
@@ -914,7 +898,6 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (message,effects,message.effects),  22)
 #define playerhub_v1_ClientMessage_message_trade_cancel_MSGTYPE playerhub_v1_TradeCancel
 #define playerhub_v1_ClientMessage_message_trade_plugin_query_MSGTYPE playerhub_v1_TradePluginQuery
 #define playerhub_v1_ClientMessage_message_trade_plugin_reply_MSGTYPE playerhub_v1_TradePluginReply
-#define playerhub_v1_ClientMessage_message_pose_limit_MSGTYPE playerhub_v1_PoseLimit
 #define playerhub_v1_ClientMessage_message_effects_MSGTYPE playerhub_v1_Effects
 
 #define playerhub_v1_VoiceAccess_FIELDLIST(X, a) \
@@ -1151,7 +1134,6 @@ extern const pb_msgdesc_t playerhub_v1_ChatSend_msg;
 extern const pb_msgdesc_t playerhub_v1_Ping_msg;
 extern const pb_msgdesc_t playerhub_v1_Vanish_msg;
 extern const pb_msgdesc_t playerhub_v1_Inspect_msg;
-extern const pb_msgdesc_t playerhub_v1_PoseLimit_msg;
 extern const pb_msgdesc_t playerhub_v1_TradeRequest_msg;
 extern const pb_msgdesc_t playerhub_v1_TradeAnswer_msg;
 extern const pb_msgdesc_t playerhub_v1_TradeEffect_msg;
@@ -1197,7 +1179,6 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_Ping_fields &playerhub_v1_Ping_msg
 #define playerhub_v1_Vanish_fields &playerhub_v1_Vanish_msg
 #define playerhub_v1_Inspect_fields &playerhub_v1_Inspect_msg
-#define playerhub_v1_PoseLimit_fields &playerhub_v1_PoseLimit_msg
 #define playerhub_v1_TradeRequest_fields &playerhub_v1_TradeRequest_msg
 #define playerhub_v1_TradeAnswer_fields &playerhub_v1_TradeAnswer_msg
 #define playerhub_v1_TradeEffect_fields &playerhub_v1_TradeEffect_msg
@@ -1263,7 +1244,6 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_Ping_size                   6
 #define playerhub_v1_PlayerIdentity_size         154
 #define playerhub_v1_Pong_size                   6
-#define playerhub_v1_PoseLimit_size              6
 #define playerhub_v1_Role_size                   110
 #define playerhub_v1_TradeAccept_size            28
 #define playerhub_v1_TradeAnswer_size            8

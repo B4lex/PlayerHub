@@ -478,7 +478,6 @@ namespace Network
             {
                 VoiceTransport::Stop();
             }
-            Send(Wire::EncodePoseLimit(Config::Get()->advanced.GetShownCustomAnimationPlayers()));
         }
 
         void OnRequestAnswered(std::uint32_t a_requestID, Multiplayer::ChatRejection a_rejection)
@@ -1124,14 +1123,6 @@ namespace Network
         if (!helloServer.empty() && helloServer == a_server)
         {
             Send(Wire::EncodeVanish(a_session, a_vanished));
-        }
-    }
-
-    void PublishPoseLimit(std::uint32_t a_players)
-    {
-        if (IsConnected())
-        {
-            Send(Wire::EncodePoseLimit(a_players));
         }
     }
 

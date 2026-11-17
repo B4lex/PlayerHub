@@ -147,7 +147,6 @@ TradeSync::Sync                           # trade events, overlay commands, canc
 if no local cell: return
 PrecisionIsolation::Update                # reassert after the player's Havok world changes
 for each peer: SyncPeer
-SkeletonSync::AssignSlots
 VoiceChatSync::UpdatePeers                    # speakers' gain, pan, occlusion; lip sync; speaking levels
 NameplateSync::Update                     # head nodes, line of sight, the plates the overlay draws
 RemoteLights::Update                      # with a world camera: the remote light budget

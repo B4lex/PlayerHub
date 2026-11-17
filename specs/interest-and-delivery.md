@@ -151,15 +151,14 @@ leave and when the recipient disconnects.
 A posed peer, one whose stored checkpoint carries a
 [skeleton pose](network.md#skeleton-pose-encoding), costs about four times
 the bytes of a plain one with its pose sent as a
-[change](network.md#pose-changes), and eight times with a whole pose, and a
-client shows only its
-`[Advanced] CustomAnimationPlayers` nearest posed peers
-([Remote actor](remote-actor.md#receiver)). So each recipient is sent the
-poses of at most its `PoseLimit` nearest posed subscribed peers within
-`interest.near_distance` (4096), and every other subscriber gets the same
-checkpoint without the pose, which its client reproduces from the graph as
-outside a window. A recipient's pose traffic is then bounded by its limit,
-however many players pose around it. Beyond the near distance a peer is
+[change](network.md#pose-changes), and eight times with a whole pose. So each
+recipient is sent the poses of at most its `interest.max_posed` (32) nearest
+posed subscribed peers within `interest.near_distance` (4096), and every
+other subscriber gets the same checkpoint without the pose, which its client
+reproduces from the graph as outside a window
+([Remote actor](remote-actor.md#receiver)). A recipient's pose traffic is then
+bounded by the limit, however many players pose around it. The limit is one
+server setting for every recipient, not a client choice. Beyond the near distance a peer is
 written at the far rate, and poses interpolated over 0.1 s were off by 9–10°
 in the trunk and limbs at the 95th percentile on recorded climbs and
 paragliding ([Network](network.md#skeleton-pose-encoding)), so far peers
@@ -182,18 +181,17 @@ show the vanilla reproduction instead.
   is written, so one the budget holds back is encoded again from the
   reference then current. A replaced entry was never written, so it is never
   a reference. The encodings live in the `delivery.Batch`'s scratch buffer
-  until it is written. The per-recipient work is bounded by `PoseLimit`.
+  until it is written. The per-recipient work is bounded by `max_posed`.
 - `Hub.assignPoses` ranks a recipient's posed subscribed peers by horizontal
   distance, a peer already sent poses at 0.8 of its distance
   (`poseSlotHysteresis`), leaves out those whose ranked distance exceeds the
-  near distance, and sets `pose` for the nearest `PoseLimit`. The scaling
+  near distance, and sets `pose` for the nearest `max_posed`. The scaling
   keeps peers at about the same distance from trading places, and a peer
   sent poses keeps them up to 5120 units, so one at the edge does not flap. It runs at the end of
   each periodic pass for the recipient, at once for every subscriber of a peer
   whose checkpoint starts or stops carrying a pose, so a window opens and a
   freed place is taken without waiting for the pass, when an event subscribes
-  the recipient to a posed peer, and when the recipient's `PoseLimit`
-  changes. `0` sends no poses.
+  the recipient to a posed peer. `0` sends no poses.
 - A pair whose `pose` changes switches with the next distributed checkpoint;
   one already waiting in the outbox keeps its encoding.
 

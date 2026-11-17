@@ -3378,8 +3378,7 @@ Not confirmed in game:
 31. The settings window's sidebar lists `[Connection]`, `[DefaultOutfit]`,
     `[UI]`, `[Controls]`, and `[Advanced]`. `[UI]` shows its settings under
     the Display, Players, Chat, and Items headings, and `[Advanced]` under
-    Performance, Custom animations, and Diagnostics, `StatusPanel` alone in
-    Diagnostics.
+    Performance and Diagnostics, `StatusPanel` alone in Diagnostics.
     `[Controls]` lists `OpenSettings`, `OpenChat`, `ManagePlayers`,
     `AcceptTrade`, and `DeclineTrade` with their keys, and `[UI]` lists none. A click on
     `AcceptTrade`'s key, then `H`, shows `H` and saves `AcceptTrade = H`

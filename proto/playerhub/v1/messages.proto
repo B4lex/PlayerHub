@@ -49,10 +49,6 @@ message Inspect {
   uint32 slot = 1;
 }
 
-message PoseLimit {
-  uint32 players = 1;
-}
-
 message TradeRequest {
   uint32 slot = 1;
 }
@@ -154,6 +150,8 @@ message TradePluginReply {
 }
 
 message ClientMessage {
+  reserved 21;
+
   oneof message {
     Hello hello = 1;
     Enter enter = 2;
@@ -175,7 +173,6 @@ message ClientMessage {
     TradeCancel trade_cancel = 18;
     TradePluginQuery trade_plugin_query = 19;
     TradePluginReply trade_plugin_reply = 20;
-    PoseLimit pose_limit = 21;
     Effects effects = 22;
   }
 }

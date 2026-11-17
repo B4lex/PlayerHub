@@ -66,8 +66,6 @@ type member struct {
 
 	// The context view.Space was taken from, so a checkpoint recomputes it only after a change.
 	spaceContext *pb.Context
-	// The nearest posed peers this recipient is sent skeleton poses of at most.
-	poseLimit int
 
 	changed     bool
 	distributed *pb.Checkpoint
@@ -404,8 +402,6 @@ func (h *Hub) Handle(slot uint32, message *pb.ClientMessage) error {
 		return h.vanish(m, body.Vanish)
 	case *pb.ClientMessage_Inspect:
 		return h.inspect(m, body.Inspect)
-	case *pb.ClientMessage_PoseLimit:
-		h.setPoseLimit(m, int(body.PoseLimit.GetPlayers()))
 	case *pb.ClientMessage_TradeRequest:
 		return h.requestTrade(m, body.TradeRequest)
 	case *pb.ClientMessage_TradeAnswer:
@@ -1052,24 +1048,11 @@ const fullPriorityDistance = 1024
 // beyond the near distance, so peers at about the same distance or at the edge do not flap.
 const poseSlotHysteresis = 0.8
 
-func (h *Hub) setPoseLimit(r *member, players int) {
-	if r.poseLimit == players {
-		return
-	}
-	r.poseLimit = players
-	if players == 0 {
-		for _, sub := range r.subscribed {
-			sub.pose = false
-		}
-		return
-	}
-	h.assignPoses(r)
-}
-
-// assignPoses sends r the skeleton poses of its nearest r.poseLimit posed subscribed peers within
-// the near distance.
+// assignPoses sends r the skeleton poses of its nearest interest.max_posed posed subscribed peers
+// within the near distance.
 func (h *Hub) assignPoses(r *member) {
-	if r.poseLimit == 0 {
+	limit := h.opts.Interest.MaxPosed
+	if limit == 0 {
 		return
 	}
 	ranked := h.posed[:0]
@@ -1089,7 +1072,7 @@ func (h *Hub) assignPoses(r *member) {
 		}
 		ranked = append(ranked, posedPeer{sub: sub, slot: slot, distance: distance})
 	}
-	if len(ranked) > r.poseLimit {
+	if len(ranked) > limit {
 		slices.SortFunc(ranked, func(a, b posedPeer) int {
 			switch {
 			case a.distance < b.distance:
@@ -1101,7 +1084,7 @@ func (h *Hub) assignPoses(r *member) {
 		})
 	}
 	for i, p := range ranked {
-		p.sub.pose = i < r.poseLimit
+		p.sub.pose = i < limit
 	}
 	clear(ranked)
 	h.posed = ranked[:0]

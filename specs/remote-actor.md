@@ -2,8 +2,8 @@
 
 ## Status
 
-The [skeleton pose](#skeleton-pose) slots have not run with more posed players
-than `[Advanced] CustomAnimationPlayers`, and dropping edge probes before a
+The server's [skeleton pose](#skeleton-pose) limit has not run with more
+posed players than `interest.max_posed`, and dropping edge probes before a
 window has not triggered in a capture. [Reaction windows](#source-window)
 (staggers, kill moves) have not run in game; a paralysis knockdown has.
 [Knock isolation](#knockdowns) has not run in game.
@@ -55,7 +55,7 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/ModdedGraph` | Reads the local player's third-person graph layout and its active modded states |
 | `actor/GraphVocabulary`, `actor/VanillaGraphNames.h` | The vanilla event prefix and the generated vanilla machine, state, and event name hashes ([Source window](#source-window)) |
 | `sync/skeleton/PoseWindow` | Opens, holds, and closes the local player's pose window on modded graph behavior and on reactions |
-| `sync/skeleton/SkeletonSync` | Samples the local pose inside a window; ranks posed peers into slots, interpolates, and blends a remote actor's pose in and out |
+| `sync/skeleton/SkeletonSync` | Samples the local pose inside a window; interpolates and blends a remote actor's pose in and out |
 | `runtime/CodeDetour` | Shared entry detour, which copies checked entry bytes, at the entry or past an entry guard, into a trampoline gateway; call-site detours at a fixed offset or found by call target |
 
 ## Spawn
@@ -779,8 +779,9 @@ Non-goals:
 
 `sync/skeleton/PoseWindow` decides when the local player's checkpoints carry a
 pose; `SkeletonSync::SampleLocalSkeleton` returns an empty pose outside a
-window or with `[Advanced] ShareCustomAnimations` off
-([Configuration](configuration.md#advanced)).
+window. Sharing has no setting: every client shares its windows, and the
+server bounds what each recipient is sent
+([Interest and delivery](interest-and-delivery.md#skeleton-poses)).
 
 - **Modded event.** An accepted event that no vanilla behavior lists is
   modded: `PoseWindow::IsModdedEvent` looks its `GraphVocabulary::HashName`
@@ -795,7 +796,7 @@ window or with `[Advanced] ShareCustomAnimations` off
   `PoseWindow::ObserveLocalGraphEvent`, which keeps the first modded name and a
   count until the next pass. `PoseWindow::Update`, before idles and the
   checkpoint, opens a window on a pass that saw one (`Pose window opened`),
-  unless the setting is off, the client is not connected, or the player is in
+  unless the client is not connected, or the player is in
   a beast form, in furniture, mounted, or dead; any of these closes an open
   window.
   Further modded events extend nothing on their own (Paraglider's DLL sends
@@ -854,25 +855,17 @@ window or with `[Advanced] ShareCustomAnimations` off
 
 ### Receiver
 
-- **Slots.** A peer is posed when `[Advanced] ShowCustomAnimations` is on and
-  its played checkpoint carries a pose in its human form. During the peer
-  loop, `SkeletonSync::SyncSkeleton` lists each posed peer with an owned actor
-  by the squared distance from its interpolated position to the local player,
-  scaled by 0.64 while it holds a slot, so peers at about the same distance do
-  not trade slots back and forth. `SkeletonSync::AssignSlots`, after the loop,
-  gives the nearest `[Advanced] CustomAnimationPlayers` a slot for the next
-  pass (`std::nth_element`) and logs `Remote skeleton pose slots` when the
-  limit or the number of posed peers changes. A slot counts only from the
-  latest ranking (`RemoteState::slotPass`), so a peer that missed a pass starts
-  without one. Peers beyond the cap keep the vanilla reproduction. The server
-  sends poses of only as many posed peers as the cap, nearest first, and none
-  beyond its near distance (4096 by default), where they keep the vanilla
-  reproduction ([Interest and delivery](interest-and-delivery.md#skeleton-poses)), so the
-  client's ranking only settles where the two measure distance differently
-  (the server horizontally from the latest checkpoints).
-- **Blend.** A peer with a slot blends from the graph's output to its pose over
+- **Posed peers.** A peer is posed while its played checkpoint carries a pose
+  in its human form. The client shows every posed peer and ranks none: the
+  server sends poses of only its `interest.max_posed` (32 by default) nearest
+  posed peers, and none beyond its near distance (4096 by default), so the
+  others arrive without a pose and keep the vanilla reproduction
+  ([Interest and delivery](interest-and-delivery.md#skeleton-poses)). A
+  hand-over between two peers at the limit can show one more for the
+  interpolation delay, until the dropped peer's posed checkpoints are played.
+- **Blend.** A posed peer blends from the graph's output to its pose over
   0.2 s (`Remote skeleton pose blending in`), and back over 0.2 s, holding the
-  last shown pose, once poses stop or the slot is lost, then releases the actor
+  last shown pose, once poses stop, then releases the actor
   (`Remote skeleton pose released to the graph`). The weight follows clamped
   frame time; turning it on again mid-way continues from the current weight.
 - **Ownership.** After `ActorRuntime::Update`, `SyncSkeleton` poses a ready
@@ -965,10 +958,10 @@ window or with `[Advanced] ShareCustomAnimations` off
 A whole pose is 211 B and a [change](network.md#pose-changes) from the
 previous one averaged 87 B on a recorded window, so a posed pair costs about
 1.8 KB/s of poses at 20 Hz, only during windows. The server sends each client
-the poses of at most its `CustomAnimationPlayers` nearest posed peers within
+the poses of at most its `interest.max_posed` nearest posed peers within
 the near distance ([Interest and delivery](interest-and-delivery.md#skeleton-poses)), so a
-client receives about 18 KB/s of poses at the default 10, and at most 42 KB/s
-were every pose sent whole, however many players pose around it.
+client receives about 56 KB/s of poses at the default 32, and at most
+135 KB/s were every pose sent whole, however many players pose around it.
 
 ## Engine assumptions
 
@@ -1161,11 +1154,10 @@ Read from the 1.7.104 disassembly only, for the
     landing. Between windows, the source's checkpoints carry no pose and a
     viewer's replacers show.
 12. A modded emote held by the source shows on a viewer who joins during it.
-13. With more posed players than `[Advanced] CustomAnimationPlayers`, the
+13. With more posed players than the server's `interest.max_posed`, the
     nearest that many show their poses and the others their vanilla
-    reproduction, without trading slots between players at about the same
-    distance; turning `ShowCustomAnimations` off blends every posed actor back
-    within 0.2 s, and `ShareCustomAnimations` off stops the source's poses.
+    reproduction, without trading places between players at about the same
+    distance.
 14. Sitting down, mounting, dying, and transforming during a window hand the
     actor back to its graph without a lasting wrong pose.
 15. A source in first person shows its climb on peers as in third person.

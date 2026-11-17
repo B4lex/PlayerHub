@@ -38,7 +38,6 @@ const (
 	maximumSkeletonMaskBytes  = 9
 	allSkeletonBones          = 1<<SkeletonBoneCount - 1
 	MaximumSkeletonPoseSize   = 219
-	MaximumPosePlayers        = 32
 
 	MaximumNameBytes        = 128
 	MinimumDisplayNameBytes = 3
@@ -97,7 +96,6 @@ var (
 	ErrVoice       = errors.New("invalid voice frame")
 	ErrVanish      = errors.New("invalid vanish")
 	ErrInspect     = errors.New("invalid inspect")
-	ErrPoseLimit   = errors.New("invalid pose limit")
 )
 
 var ErrUnexpected = errors.New("unexpected message")
@@ -129,11 +127,6 @@ func Message(m *pb.ClientMessage) error {
 	case *pb.ClientMessage_Inspect:
 		if body.Inspect.GetSlot() == 0 {
 			return ErrInspect
-		}
-		return nil
-	case *pb.ClientMessage_PoseLimit:
-		if body.PoseLimit.GetPlayers() > MaximumPosePlayers {
-			return ErrPoseLimit
 		}
 		return nil
 	default:

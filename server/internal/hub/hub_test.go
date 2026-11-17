@@ -1083,17 +1083,17 @@ func TestIdleCheckpointsAreSuppressedButAnchorsAreNot(t *testing.T) {
 	// A changed skeleton pose is distributed at the same position; an unchanged one is not.
 	f.send(a, skeletonCheckpoint(9, 11*wire.PositionScale+2, 1))
 	f.hub.Tick()
-	expect(t, f.received(b), "states 1:9")
+	expect(t, f.received(b), "states 1:9+pose")
 	f.send(a, skeletonCheckpoint(10, 11*wire.PositionScale+2, 1))
 	f.hub.Tick()
 	expect(t, f.received(b))
 	f.send(a, skeletonCheckpoint(11, 11*wire.PositionScale+2, 2))
 	f.hub.Tick()
-	expect(t, f.received(b), "states 1:11")
+	expect(t, f.received(b), "states 1:11+pose")
 	// An aim moving up or down while standing is distributed.
 	f.send(a, lookCheckpoint(12, 11*wire.PositionScale+2, 2, 300))
 	f.hub.Tick()
-	expect(t, f.received(b), "states 1:12")
+	expect(t, f.received(b), "states 1:12+pose")
 	f.send(a, lookCheckpoint(13, 11*wire.PositionScale+2, 2, 300))
 	f.hub.Tick()
 	expect(t, f.received(b))
@@ -1123,11 +1123,7 @@ func posedAt(sequence uint64, x int32) *pb.ClientMessage {
 	return message
 }
 
-func poseLimit(players uint32) *pb.ClientMessage {
-	return &pb.ClientMessage{Message: &pb.ClientMessage_PoseLimit{PoseLimit: &pb.PoseLimit{Players: players}}}
-}
-
-func TestPosesFollowThePoseLimit(t *testing.T) {
+func TestPosesReachEveryViewerWithinTheMaximum(t *testing.T) {
 	f := newFixture(t)
 	viewer, peer := f.connect(), f.connect()
 	f.placeAt(viewer, 1, 0)
@@ -1136,26 +1132,25 @@ func TestPosesFollowThePoseLimit(t *testing.T) {
 	f.send(peer, posedAt(1, 100))
 	expect(t, f.received(viewer), "welcome 1", "enter 2 state 1")
 	f.send(peer, posedAt(2, 100))
+	f.send(peer, action(1, 2))
+	expect(t, f.received(viewer), "states 2:2+pose", "action 2:1")
+}
+
+func TestNoPosesWithoutPosedSlots(t *testing.T) {
+	f := newFixtureWith(t, func(c *interest.Config) { c.MaxPosed = 0 })
+	viewer, peer := f.connect(), f.connect()
+	f.placeAt(viewer, 1, 0)
+	f.placeAt(peer, 1, 100)
+	f.received(viewer)
+	f.send(peer, posedAt(2, 100))
 	f.hub.Tick()
 	expect(t, f.received(viewer), "states 2:2")
-	f.send(viewer, poseLimit(4))
-	f.send(peer, posedAt(3, 100))
-	f.hub.Tick()
-	expect(t, f.received(viewer), "states 2:3+pose")
-	f.send(peer, posedAt(4, 100))
-	f.send(peer, action(1, 4))
-	expect(t, f.received(viewer), "states 2:4+pose", "action 2:1")
-	f.send(viewer, poseLimit(0))
-	f.send(peer, posedAt(5, 100))
-	f.hub.Tick()
-	expect(t, f.received(viewer), "states 2:5")
 }
 
 func TestPosesStayWithinTheNearDistance(t *testing.T) {
 	f := newFixture(t)
 	viewer, peer := f.connect(), f.connect()
 	f.placeAt(viewer, 1, 0)
-	f.send(viewer, poseLimit(4))
 	f.placeAt(peer, 1, 5000)
 	f.received(viewer)
 	step := func(sequence uint64, x int32, want string) {
@@ -1175,10 +1170,9 @@ func TestPosesStayWithinTheNearDistance(t *testing.T) {
 }
 
 func TestPosesReachTheNearestPosedPeersWithHysteresis(t *testing.T) {
-	f := newFixture(t)
+	f := newFixtureWith(t, func(c *interest.Config) { c.MaxPosed = 1 })
 	viewer, near, far := f.connect(), f.connect(), f.connect()
 	f.placeAt(viewer, 1, 0)
-	f.send(viewer, poseLimit(1))
 	f.placeAt(near, 1, 1000)
 	f.placeAt(far, 1, 2000)
 	f.received(viewer)

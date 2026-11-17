@@ -1,7 +1,6 @@
 #include "sync/skeleton/PoseWindow.h"
 #include "actor/GraphVocabulary.h"
 #include "actor/ModdedGraph.h"
-#include "config/PluginConfig.h"
 #include "network/ServerClient.h"
 #include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
@@ -12,7 +11,6 @@
 #include <cstdint>
 #include <cstring>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -73,20 +71,6 @@ namespace PoseWindow
         LocalGraph s_graph;
         Window s_window;
         std::vector<std::uint64_t> s_machines;
-        std::optional<std::uint64_t> s_configRevision;
-        bool s_sharing = false;
-
-        bool IsSharing()
-        {
-            const auto revision = Config::GetRevision();
-            if (s_configRevision != revision)
-            {
-                s_configRevision = revision;
-                s_sharing = Config::Get()->advanced.shareCustomAnimations;
-            }
-            return s_sharing;
-        }
-
         const char* FindBlock(RE::PlayerCharacter& a_player, bool a_transformed)
         {
             // A window opened while disconnected is discarded on the same pass.
@@ -314,7 +298,7 @@ namespace PoseWindow
         }
         ObserveGraph(player);
 
-        const char* blocked = IsSharing() ? FindBlock(player, a_transformed) : "disabled";
+        const char* blocked = FindBlock(player, a_transformed);
         if (blocked)
         {
             Close(blocked);
