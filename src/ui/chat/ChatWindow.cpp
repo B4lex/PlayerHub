@@ -20,6 +20,7 @@
 #include <imgui_internal.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cfloat>
 #include <cmath>
@@ -39,7 +40,12 @@ namespace UI
         // keeps that size through the division by the step.
         constexpr float kRoomTolerancePixels = 0.5F;
 
-        constexpr float kRecentBackgroundAlpha = 0.25F;
+        constexpr std::array<ImVec2, 4> kShadowOffsetsFonts{
+            { { 0.02F, 0.07F }, { 0.12F, 0.07F },
+            { 0.07F, 0.02F }, { 0.07F, 0.12F } }
+        };
+        constexpr float kShadowReachFonts = 0.135F;
+        constexpr float kShadowAlpha = 0.25F;
 
         constexpr ImGuiWindowFlags kWindowFlags
             = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove;
@@ -47,8 +53,8 @@ namespace UI
             = kWindowFlags | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoBringToFrontOnFocus;
         constexpr ImGuiWindowFlags kManagerWindowFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
             | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
-        constexpr ImGuiWindowFlags kRecentWindowFlags = kWindowFlags | ImGuiWindowFlags_NoInputs
-            | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_AlwaysAutoResize;
+        constexpr ImGuiWindowFlags kRecentWindowFlags = kWindowFlags | ImGuiWindowFlags_NoBackground
+            | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_AlwaysAutoResize;
 
         float GetFramePadding()
         {
@@ -128,10 +134,25 @@ namespace UI
             return window->Pos.y + window->Size.y - window->WindowPadding.y;
         }
 
-        void PushContentClip()
+        // a_below stays under the gap between lines, so a line drawn past the box still stays hidden.
+        void PushContentClip(float a_below)
         {
             const auto* window = ImGui::GetCurrentWindow();
-            ImGui::PushClipRect(window->Pos, ImVec2{ window->Pos.x + window->Size.x, GetContentBottom() }, true);
+            ImGui::PushClipRect(
+                window->Pos, ImVec2{ window->Pos.x + window->Size.x, GetContentBottom() + a_below }, true);
+        }
+
+        void MakeShadow(int a_firstVertex, const ImVec2& a_offset)
+        {
+            auto& vertices = ImGui::GetWindowDrawList()->VtxBuffer;
+            for (auto index = a_firstVertex; index < vertices.Size; ++index)
+            {
+                auto& vertex = vertices[index];
+                vertex.pos.x += a_offset.x;
+                vertex.pos.y += a_offset.y;
+                const auto alpha = static_cast<float>((vertex.col >> IM_COL32_A_SHIFT) & 0xFFU);
+                vertex.col = IM_COL32(0, 0, 0, static_cast<int>(alpha * kShadowAlpha + 0.5F));
+            }
         }
 
         void KeepContentAtBottom(int a_firstVertex)
@@ -276,8 +297,7 @@ namespace UI
 
             void DrawRecent(double a_now)
             {
-                const auto alpha = history.FindRecent(a_now);
-                if (alpha <= 0.0F)
+                if (history.FindRecent(a_now) <= 0.0F)
                 {
                     return;
                 }
@@ -290,14 +310,22 @@ namespace UI
                 // column when it opens.
                 SetNextChatWindowPosition(KeepOnScreen(anchor, frameSize), GetFramePadding());
                 ImGui::SetNextWindowSizeConstraints(ImVec2{ width, 0.0F }, ImVec2{ width, FLT_MAX });
-                ImGui::SetNextWindowBgAlpha(kRecentBackgroundAlpha * alpha);
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0F);
                 const bool visible = ImGui::Begin("##ChatRecent", nullptr, kRecentWindowFlags);
                 ImGui::PopStyleVar();
                 if (visible)
                 {
                     const auto firstVertex = ImGui::GetWindowDrawList()->VtxBuffer.Size;
-                    PushContentClip();
+                    const auto fontSize = ImGui::GetFontSize();
+                    PushContentClip(std::ceil(kShadowReachFonts * fontSize));
+                    const auto start = ImGui::GetCursorPos();
+                    for (const auto& offset : kShadowOffsetsFonts)
+                    {
+                        const auto shadowVertex = ImGui::GetWindowDrawList()->VtxBuffer.Size;
+                        history.DrawRecent(a_now);
+                        MakeShadow(shadowVertex, ImVec2{ offset.x * fontSize, offset.y * fontSize });
+                        ImGui::SetCursorPos(start);
+                    }
                     history.DrawRecent(a_now);
                     ImGui::PopClipRect();
                     KeepContentAtBottom(firstVertex);

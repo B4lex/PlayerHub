@@ -416,10 +416,11 @@ the player reads or acts in. Non-goal: an opacity per window.
   notes, which take the popup color.
 - A popup or child over a window covers more than either alone: at 75%, the
   name list over the open chat is about 94% opaque.
-- Keeping their own lighter background, which the user chose: the
-  [status panel](#status-panel) (35%, `SetNextWindowBgAlpha`) and the closed
-  chat's recent lines (25%, fading with them), which stay on screen over the
-  game while the player is not using the overlay. Also unaffected are the
+- Keeping its own lighter background, which the user chose: the
+  [status panel](#status-panel) (35%, `SetNextWindowBgAlpha`), which stays on
+  screen over the game while the player is not using the overlay. The closed
+  chat's recent lines have no background at all, only a text shadow. Also
+  unaffected are the
   trade cells' wells and thumbnail backgrounds, which must be opaque
   ([3D preview](#3d-preview)), and the trade [backdrop](#backdrop).
 
@@ -448,8 +449,7 @@ overlay windows behind a surface.
   game blurred where the window is, not the window: the user chose to blur
   them anyway. Child windows that take the popup color, such as the chat's
   name list and notes, are not blurred, since the window they are in is.
-- The status panel and the closed chat's recent lines keep their own
-  backgrounds and are not blurred either.
+- The status panel keeps its own background and is not blurred either.
 - While the full-screen backdrop is drawn in the same frame, the blur is
   tinted as it is (`Blur::tint`), so a surface over the trade window matches
   what is around it.
@@ -1493,20 +1493,31 @@ sent and only how it is drawn differs.
   Up/Down a page; under the shown cursor the lines scroll as Dear ImGui does,
   and over the player list the list scrolls instead.
   New lines scroll down unless the history was scrolled back.
-- Closed, the newest lines (at most 6) show for 10 s on a faint background and
-  fade out over the last 2; with nothing recent nothing is drawn. They follow
-  the filters, whispers included, so turning Global off is how a player
-  keeps global chat off the screen. They have no
+- Closed, the newest lines (at most 6) show for 10 s with no background
+  (`ImGuiWindowFlags_NoBackground`) and fade out over the last 2; with nothing
+  recent nothing is drawn. They follow the filters, whispers included, so
+  turning Global off is how a player keeps global chat off the screen. They have no
   frame: its corners alone are taller than a line or two. Their box is in from
   the chat's corner by the frame's padding, so the lines stay in the same
   column when the chat opens.
+- A soft dark shadow under the recent lines keeps them readable over bright
+  scenes. `ChatWindow` draws the lines once per shadow offset, turns each
+  copy's vertices black at a fraction of their alpha and shifts them down and
+  right (`MakeShadow`), then draws the lines over them. The fractional
+  offsets, sampled between texels, and the overlapping copies soften its
+  edge. It covers every part of a line, role marks and mentions included,
+  without the lines' drawing knowing about it, and fades with the line.
+  Laying the lines out once per copy costs little: at most 6 lines, and only
+  while they show.
 - The recent lines' box is pinned by its bottom and fitted to them by Dear
   ImGui, which uses the previous frame's content. For the frame after a line
   leaves, the box is still a line taller, so the lines are moved down to its
   bottom (`KeepContentAtBottom`) rather than jumping up for that frame. For
   the frame after a line arrives, the box is still a line shorter, so the
   lines are clipped at its bottom padding and the new line shows a frame
-  later, all at once (`PushContentClip`).
+  later, all at once (`PushContentClip`). The clip reaches below the box by
+  the shadow's reach, which is less than the gap between lines, so the last
+  line's shadow is whole and the new line still stays hidden.
 - The open chat and the recent lines are each drawn in a `Theme::Scope`
   ([Theme](#theme)), so the chat has no colors or sizes of its own beyond
   `ChatStyle`'s channel and failure colors: the field is the theme's white
@@ -1519,8 +1530,8 @@ sent and only how it is drawn differs.
   column, and the player button, the rule, the scrollbar, the list, and the
   field end at one.
   Lines are a quarter of a font size apart (`ChatHistory::GetLinePitch`),
-  closer than the theme's items. The recent lines' box has the theme's 10 px
-  corners and no border.
+  closer than the theme's items. The recent lines' box draws neither a
+  background nor a border.
 - Dear ImGui details the input relies on: the field has
   `ImGuiInputTextFlags_CallbackAlways`, `CallbackHistory`, and
   `CallbackCompletion`, and its callback is where edits reach the composer
@@ -3054,7 +3065,8 @@ Not confirmed in game:
    `CloseChatOnSend = false` keeps it open for the next line, where Enter in
    an empty field does nothing; Escape closes without sending and does not
    open the journal; a menu that opens by itself closes the chat; recent lines
-   fade after 10 s; the wheel and Page Up/Down scroll; sending while disconnected
+   show over the game with no background, readable over snow or sky by
+   their shadow, and fade after 10 s with it; the wheel and Page Up/Down scroll; sending while disconnected
    shows a failure note above the field and keeps the chat open with the
    text, and typing clears the note.
 3. The chip shows Nearby at first, and `hi` reaches players within 8192 units

@@ -82,9 +82,9 @@ namespace Config
         static constexpr std::uint32_t kMinimumBackgroundOpacity = 25;
         static constexpr std::uint32_t kMaximumBackgroundOpacity = 100;
         static constexpr std::uint32_t kBackgroundOpacityStep = 5;
-        static constexpr std::uint32_t kMinimumChatWidth = 24;
+        static constexpr std::uint32_t kMinimumChatWidth = 30;
         static constexpr std::uint32_t kMaximumChatWidth = 100;
-        static constexpr std::uint32_t kMinimumChatLines = 9;
+        static constexpr std::uint32_t kMinimumChatLines = 15;
         static constexpr std::uint32_t kMaximumChatLines = 40;
         static constexpr float kMaximumChatPosition = 100.0F;
         static constexpr std::uint32_t kMaximumNameplateDistance = 4000;
