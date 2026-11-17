@@ -269,6 +269,8 @@ namespace ActorSkeleton
             WritePose(a_graph, entry->second);
         }
 
+        PROFILE_HOOK_COUNTER(s_poseCopyProfile, "pose copy");
+
         template <int Site>
         struct PoseCopyHook
         {
@@ -277,6 +279,7 @@ namespace ActorSkeleton
                 _original(a_graph, a_flag);
                 if (a_graph)
                 {
+                    PROFILE_HOOK(s_poseCopyProfile);
                     ApplyNetworkPose(*a_graph);
                 }
             }

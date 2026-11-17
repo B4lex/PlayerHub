@@ -66,6 +66,8 @@ namespace RemoteCollision
         // remote skeleton bodies in it, and the character bodies while remote
         // actors are not solid, ignore collision for the player's update, and
         // keep it for everything else.
+        PROFILE_HOOK_COUNTER(s_updateMovementProfile, "movement isolation");
+
         struct UpdateMovementHook
         {
             static void AddBumpedCharacter(RE::Actor* a_mover, PassThrough& a_passThrough, bool a_solid)
@@ -152,17 +154,25 @@ namespace RemoteCollision
 
             static void Thunk(RE::Actor* a_actor, float a_delta)
             {
-                if (ActorRegistry::IsNetworkPlaced(a_actor))
+                bool networkPlaced = false;
+                {
+                    PROFILE_HOOK(s_updateMovementProfile);
+                    networkPlaced = ActorRegistry::IsNetworkPlaced(a_actor);
+                }
+                if (networkPlaced)
                 {
                     return;
                 }
 
                 PassThrough passThrough;
-                const bool solid = !GameplayPolicy::DisablesCollision();
-                AddBumpedCharacter(a_actor, passThrough, solid);
-                if (a_actor && a_actor->IsPlayerRef())
                 {
-                    AddOverlappingRemoteBodies(*a_actor, passThrough, solid);
+                    PROFILE_HOOK_RESUME(s_updateMovementProfile);
+                    const bool solid = !GameplayPolicy::DisablesCollision();
+                    AddBumpedCharacter(a_actor, passThrough, solid);
+                    if (a_actor && a_actor->IsPlayerRef())
+                    {
+                        AddOverlappingRemoteBodies(*a_actor, passThrough, solid);
+                    }
                 }
                 _original(a_actor, a_delta);
             }

@@ -104,7 +104,10 @@ refused at the handshake ([Transport](#transport)).
 - Liveness runs on the transport, not the game: the server pings every
   `liveness.ping_interval_seconds` (5) and closes a connection whose pong does
   not arrive within `liveness.timeout_seconds` (10). IXWebSocket answers pings
-  on its own thread, so a paused game stays connected.
+  on its own thread, so a paused game stays connected. The client sends no
+  WebSocket pings: its ping interval is -1, not 0, because IXWebSocket polls an
+  open socket with the interval as its timeout, and 0 spun its thread with an
+  allocation per poll on Windows.
 - Boundary limits: 48 KiB per message (the largest valid `ClientMessage`, an
   `Appearance` with every tint and overlay path at full length, is about 44 KB); `limits.messages_per_second` (120, burst 240) per connection,
   over which the connection is closed with 4003, counting every message; a recipient whose unsent

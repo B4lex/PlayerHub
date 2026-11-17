@@ -36,6 +36,7 @@
 #include "sync/trade/TradeSync.h"
 #include "sync/voicechat/VoiceChatSync.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -121,7 +122,12 @@ namespace SyncCoordinator
         void ApplyNetworkChanges(Peers& a_peers)
         {
             PROFILE_FUNCTION();
+            PROFILE_ALLOCATIONS("network changes");
             auto changes = Network::DrainRemotePlayerChanges();
+            PROFILE_PLOT("Inbound checkpoints", changes.transforms.size());
+            PROFILE_PLOT("Inbound actions", changes.animationActions.size());
+            PROFILE_PLOT("Inbound appearance, equipment, effects",
+                changes.appearances.size() + changes.equipment.size() + changes.effects.size());
             RemovePeersFromLostConnection(a_peers, changes);
 
             for (const auto& playerID : changes.exitedPlayerIDs)
@@ -332,6 +338,7 @@ namespace SyncCoordinator
         void SyncLocalPlayer(RE::PlayerCharacter& a_player, float a_delta)
         {
             PROFILE_FUNCTION();
+            PROFILE_ALLOCATIONS("local player");
             const LocalFrame local{ .player = a_player };
 
             const bool transformed = ShapeshiftSync::ObserveLocalForm(local) != Multiplayer::Shapeshift::kNone;
@@ -391,6 +398,7 @@ namespace SyncCoordinator
         {
             PROFILE_FUNCTION();
             const auto remote = GetRemoteFrame(a_playerID, a_peer);
+            PROFILE_ALLOCATIONS("SyncPeer");
             auto& lifecycle = a_peer.lifecycle;
 
             const bool isInLocalSpace = MovementSync::IsInLocalSpace(remote, a_localCellID, a_localWorldspaceID);
@@ -602,6 +610,9 @@ namespace SyncCoordinator
         {
             SyncPeer(playerID, peer, local, localCellID, localWorldspaceID, localFurniture.get(), a_delta);
         }
+        PROFILE_PLOT("Remote actors", std::ranges::count_if(s_peers, [](const auto& a_entry) {
+            return a_entry.second.lifecycle.actor.has_value();
+        }));
         // Before the plates, which show who speaks.
         VoiceChatSync::UpdatePeers(s_peers, *a_player, *localCell, a_delta);
         NameplateSync::Update(s_peers, *a_player, a_delta);

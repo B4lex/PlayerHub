@@ -979,6 +979,7 @@ namespace EquipmentSync
     void SyncEquipment(RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RemoteActor& a_remoteActor, float a_delta)
     {
         PROFILE_FUNCTION();
+        PROFILE_ALLOCATIONS("remote equipment");
         const float delta = FrameTime::Clamp(a_delta);
         EnsureResolved(a_remote, a_playerID);
         if (a_remote.handsMatch || a_remote.exhausted)
@@ -1008,6 +1009,13 @@ namespace EquipmentSync
         const float sinceLastCheck = a_remote.checkElapsed;
         a_remote.checkElapsed = 0.0F;
         a_remote.inventoryCheckElapsed += sinceLastCheck;
+        // An exhausted actor stays as it is until a new revision or respawn, so the inventory
+        // is read again only to notice a state that came to match by itself.
+        if (a_remote.exhausted && a_remote.inventoryCheckElapsed < kMatchedInventoryCheckIntervalSeconds
+            && !IsPresentationMatched(*actor, a_remote))
+        {
+            return;
+        }
         if (a_remote.armorMatches && a_remote.handsMatch
             && a_remote.inventoryCheckElapsed < kMatchedInventoryCheckIntervalSeconds
             && IsPresentationMatched(*actor, a_remote))

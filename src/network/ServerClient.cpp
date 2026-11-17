@@ -142,6 +142,7 @@ namespace Network
             }
             if (a_socket)
             {
+                PROFILE_SCOPE("WebSocket send");
                 const auto info = a_socket->sendBinary(a_message);
                 if (info.success)
                 {
@@ -798,6 +799,8 @@ namespace Network
                 case ix::WebSocketMessageType::Message:
                 {
                     PROFILE_SCOPE("Server message");
+                    PROFILE_ALLOCATIONS("server message");
+                    PROFILE_PLOT("Server message bytes", a_message->wireSize);
                     CountReceivedBytes(a_message->wireSize);
                     if (!a_message->binary)
                     {
@@ -878,8 +881,9 @@ namespace Network
             next->disableAutomaticReconnection();
             next->setPerMessageDeflateOptions(ix::WebSocketPerMessageDeflateOptions(false));
             next->setHandshakeTimeout(kHandshakeTimeoutSeconds);
-            // IXWebSocket answers the server's pings on its own thread.
-            next->setPingInterval(0);
+            // IXWebSocket answers the server's pings on its own thread, so the client sends none. Not 0:
+            // IXWebSocket polls an open socket with the interval as its timeout, and 0 spins its thread.
+            next->setPingInterval(-1);
             next->setOnMessageCallback(OnSocketMessage);
             {
                 const std::scoped_lock lock{ socketLock };

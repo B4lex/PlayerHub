@@ -3,6 +3,7 @@
 #include "actor/ActorRegistry.h"
 #include "actor/GameplayPolicy.h"
 #include "runtime/CodeDetour.h"
+#include "runtime/Profiling.h"
 
 #include <array>
 #include <atomic>
@@ -17,8 +18,11 @@ namespace CombatIsolation
         using CodeDetour::EntryDetourTrampolineSize;
         using CodeDetour::WriteEntryDetour;
 
+        PROFILE_HOOK_COUNTER(s_hostilityProfile, "hostility checks");
+
         bool IsRemoteActorCombatQuery(const RE::Actor* a_actor, const RE::Actor* a_target, std::string_view a_path)
         {
+            PROFILE_HOOK(s_hostilityProfile);
             if (!ActorRegistry::IsRegistered(a_target) && !ActorRegistry::IsRegistered(a_actor))
             {
                 return false;

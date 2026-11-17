@@ -16,6 +16,20 @@ option("tracy")
     set_description("Build with Tracy profiler instrumentation")
 option_end()
 
+-- Tracy sends lock and memory events through one global mutex, which serializes
+-- the threads that emit them and distorts the timings of everything else.
+option("tracy_locks")
+    set_default(false)
+    set_showmenu(true)
+    set_description("With tracy: record the plugin's instrumented locks")
+option_end()
+
+option("tracy_memory")
+    set_default(false)
+    set_showmenu(true)
+    set_description("With tracy: record every plugin allocation")
+option_end()
+
 -- Release builds set both to the public server, which the repository does not name.
 option("server_address")
     set_default("127.0.0.1")
@@ -191,6 +205,12 @@ target("PlayerHub")
         add_packages("tracy")
         -- The package does not export TRACY_ENABLE to consumers.
         add_defines("TRACY_ENABLE")
+        if has_config("tracy_locks") then
+            add_defines("PLAYERHUB_TRACY_LOCKS")
+        end
+        if has_config("tracy_memory") then
+            add_defines("PLAYERHUB_TRACY_MEMORY")
+        end
     end
     set_pcxxheader("src/pch.h")
 

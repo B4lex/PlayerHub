@@ -1,7 +1,7 @@
 // MSVC binds a replacement of the global allocation functions per module, so
 // the engine's own heap stays unreported.
 #ifdef TRACY_ENABLE
-#    include <tracy/Tracy.hpp>
+#    include "runtime/Profiling.h"
 
 #    include <cstddef>
 #    include <cstdlib>
@@ -15,7 +15,10 @@ namespace
         void* pointer = std::malloc(a_size == 0 ? 1 : a_size);
         if (pointer)
         {
+#    ifdef PLAYERHUB_TRACY_MEMORY
             TracyAlloc(pointer, a_size);
+#    endif
+            Profiling::CountAllocation(a_size);
         }
         return pointer;
     }
@@ -25,7 +28,10 @@ namespace
         void* pointer = _aligned_malloc(a_size == 0 ? 1 : a_size, static_cast<std::size_t>(a_alignment));
         if (pointer)
         {
+#    ifdef PLAYERHUB_TRACY_MEMORY
             TracyAlloc(pointer, a_size);
+#    endif
+            Profiling::CountAllocation(a_size);
         }
         return pointer;
     }
@@ -34,7 +40,9 @@ namespace
     {
         if (a_pointer)
         {
+#    ifdef PLAYERHUB_TRACY_MEMORY
             TracyFree(a_pointer);
+#    endif
             std::free(a_pointer);
         }
     }
@@ -43,7 +51,9 @@ namespace
     {
         if (a_pointer)
         {
+#    ifdef PLAYERHUB_TRACY_MEMORY
             TracyFree(a_pointer);
+#    endif
             _aligned_free(a_pointer);
         }
     }

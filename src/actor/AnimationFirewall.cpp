@@ -156,6 +156,13 @@ namespace AnimationFirewall
             GraphOutputEventSink() = default;
         };
 
+        PROFILE_HOOK_COUNTER(s_directionChannelProfile, "Direction channel");
+        PROFILE_HOOK_COUNTER(s_speedChannelProfile, "Speed channel");
+        PROFILE_HOOK_COUNTER(s_turnDeltaChannelProfile, "TurnDelta channel");
+        PROFILE_HOOK_COUNTER(s_flightChannelProfile, "flight channels");
+        PROFILE_HOOK_COUNTER(s_weaponSpeedChannelProfile, "weapon speed channels");
+        PROFILE_HOOK_COUNTER(s_speedSamplerProfile, "speed sampler");
+
         struct GraphInputHook
         {
             static bool Thunk(RE::IAnimationGraphManagerHolder* a_holder, const RE::BSFixedString& a_eventName)
@@ -254,6 +261,7 @@ namespace AnimationFirewall
             static void Thunk(RE::BSAnimationGraphChannel* a_channel, bool a_arg)
             {
                 _original(a_channel, a_arg);
+                PROFILE_HOOK(s_directionChannelProfile);
                 if (!a_channel)
                 {
                     return;
@@ -276,6 +284,7 @@ namespace AnimationFirewall
             static void Thunk(RE::BSAnimationGraphChannel* a_channel, bool a_arg)
             {
                 _original(a_channel, a_arg);
+                PROFILE_HOOK(s_speedChannelProfile);
                 if (!a_channel)
                 {
                     return;
@@ -298,6 +307,7 @@ namespace AnimationFirewall
             static void Thunk(RE::BSAnimationGraphChannel* a_channel, bool a_arg)
             {
                 _original(a_channel, a_arg);
+                PROFILE_HOOK(s_turnDeltaChannelProfile);
                 if (!a_channel)
                 {
                     return;
@@ -329,6 +339,7 @@ namespace AnimationFirewall
             static void Thunk(RE::BSAnimationGraphChannel* a_channel, bool a_arg)
             {
                 _original(a_channel, a_arg);
+                PROFILE_HOOK(s_flightChannelProfile);
                 if (!a_channel)
                 {
                     return;
@@ -362,6 +373,7 @@ namespace AnimationFirewall
             static void Thunk(RE::BSAnimationGraphChannel* a_channel, bool a_arg)
             {
                 _original(a_channel, a_arg);
+                PROFILE_HOOK(s_weaponSpeedChannelProfile);
                 if (!a_channel)
                 {
                     return;
@@ -406,6 +418,7 @@ namespace AnimationFirewall
             {
                 if (a_modifier && a_context.character)
                 {
+                    PROFILE_HOOK(s_speedSamplerProfile);
                     const auto* graph = reinterpret_cast<const std::byte*>(a_context.character) - kGraphCharacterOffset;
                     const RE::Actor* actor = nullptr;
                     std::memcpy(&actor, graph + kGraphActorOffset, sizeof(actor));

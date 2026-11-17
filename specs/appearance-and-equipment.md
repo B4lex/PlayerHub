@@ -535,6 +535,9 @@ A mismatch is checked every frame until the first mutation pass, so a new
 revision applies at once; afterwards, and while matching, every 0.25 s. At most
 4 mutation passes run before the state matches; then the actor keeps what it
 reached until a new revision, a respawn, or a later match resets the budget.
+While it keeps it, the hands and worn armor are compared without allocating
+every 0.25 s, and the inventory is read in full only when they match or every
+5 s, which is how a later match is noticed.
 Checking the live state also undoes the actor's own AI auto-equip, outfit
 re-application, and unequip-on-hit.
 

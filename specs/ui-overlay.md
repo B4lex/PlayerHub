@@ -814,8 +814,9 @@ hook calls `PluginTime::EndFrame` once per pass after its scope closes; time
 before the first pass is dropped. Once at least 1 s of wall-clock time has
 passed, the total over the passes in the window becomes the published average
 and a new window starts, so the number changes once per second. It is always
-compiled in and costs two clock reads per hook call. Detailed profiling uses
-Tracy (`xmake f --tracy=y`, `runtime/Profiling.h`).
+compiled in and costs two clock reads per hook call. It leaves out the engine
+hooks that run per actor on animation and AI threads. What the plugin costs
+and how to profile it in detail is in [Performance](performance.md).
 
 ## Display name hint
 

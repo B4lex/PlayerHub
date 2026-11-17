@@ -1,6 +1,7 @@
 #include "actor/AimPresentation.h"
 #include "actor/ActorRegistry.h"
 #include "actor/RemoteActor.h"
+#include "runtime/Profiling.h"
 
 #include <cmath>
 #include <cstddef>
@@ -39,6 +40,8 @@ namespace AimPresentation
             return actor;
         }
 
+        PROFILE_HOOK_COUNTER(s_directAtTargetProfile, "aim target");
+
         struct DirectAtTargetHook
         {
             static void Thunk(void* a_interface, const RE::hkbContext& a_context, bool* a_found,
@@ -46,6 +49,7 @@ namespace AimPresentation
             {
                 if (a_mode >= kFirstAimMode && a_mode <= kLastAimMode && a_found && a_target)
                 {
+                    PROFILE_HOOK(s_directAtTargetProfile);
                     const auto* actor = GetGraphActor(a_context);
                     if (const auto pitch = ActorRegistry::GetLookPitch(actor))
                     {

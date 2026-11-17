@@ -31,6 +31,7 @@ overlay logs a warning and does not install there. `Status` and
 | [voice-chat.md](voice-chat.md) | Proximity voice: devices, capture, noise suppression, push-to-talk and voice activation, Opus, the datagram link to the relay, jitter buffers, spatial mix, occlusion, lip sync, the relay | `src/audio/`, `network/VoiceTransport`, `sync/voicechat/`, `runtime/KeyState`, `actor/ActorLipSync`, `actor/VoiceOcclusion`, `server/internal/voice` |
 | [configuration.md](configuration.md) | `PlayerHub.ini`, schema, snapshots, saving | `src/config/` |
 | [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, localization, theme, background opacity, menu frame, cursor, logo, nameplates, status panel, display name hint, notices, chat, friends, mute and vanish, role badges, player menu, player menu in the world, settings window, Discord link, item picker and preview | `src/ui/`, `src/text/`, `locale/`, `sync/chat/`, `sync/filters/`, `sync/nameplates/`, `sync/notices/`, `assets/` |
+| [performance.md](performance.md) | Frame cost of the plugin and its growth with remote actors, what bounds it, Tracy profiling | `runtime/Profiling.h`, `runtime/Profiling.cpp`, `runtime/ProfilingMemory.cpp`, `runtime/PluginTime` |
 | [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel and its login | `server/internal/{recording,playback,loadtest,admin,adminauth,adminclient}`, `server/cmd/`, `admin-ui/` |
 
 ## Features
@@ -66,6 +67,7 @@ criteria.
 | Custom animations (modded graph behavior, modded idles, staggers, kill moves, and knockdowns shown through skeleton poses during pose windows) | [remote-actor](remote-actor.md#skeleton-pose), [network](network.md#skeleton-pose-encoding), [sync-pipeline](sync-pipeline.md#local-publishing), [interest-and-delivery](interest-and-delivery.md#skeleton-poses), [idle-presentation](idle-presentation.md#capture), [locomotion](locomotion.md#ground-offset) |
 | Light budget for remote players' torches and spells | [remote-actor](remote-actor.md#light-budget), [configuration](configuration.md#advanced), [sync-pipeline](sync-pipeline.md#frame-sequence) |
 | Fake lights for remote torches and spell hand lights | [appearance-and-equipment](appearance-and-equipment.md#fake-lights), [combat-presentation](combat-presentation.md#spell-look), [remote-actor](remote-actor.md#light-budget) |
+| Performance and profiling | [performance](performance.md), [ui-overlay](ui-overlay.md#plugin-time), [interest-and-delivery](interest-and-delivery.md#measurements) |
 | Connection, latency, traffic | [network](network.md#connection), [ui-overlay](ui-overlay.md#status-panel) |
 | No connection during the vanilla Helgen intro | [network](network.md#vanilla-intro-hold), [sync-pipeline](sync-pipeline.md#vanilla-intro), [ui-overlay](ui-overlay.md#connection-controls), [ui-overlay](ui-overlay.md#display-name-hint) |
 | Display name hint | [ui-overlay](ui-overlay.md#display-name-hint), [configuration](configuration.md#controls) |

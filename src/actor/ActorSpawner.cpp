@@ -6,6 +6,7 @@
 #include "actor/RaceMenuOverlays.h"
 #include "actor/SurvivalPolicy.h"
 #include "runtime/GameThread.h"
+#include "runtime/Profiling.h"
 
 #include <cmath>
 #include <utility>
@@ -44,6 +45,7 @@ namespace ActorSpawner
     std::optional<RemoteActor> Spawn(RE::TESNPC* a_npcBase, const RE::NiPoint3& a_targetPosition, float a_targetHeading,
         float a_speed, float a_stoppingDistance)
     {
+        PROFILE_FUNCTION();
         if (!GameThread::Require("SpawnControlledNPC") || !a_npcBase || !std::isfinite(a_targetPosition.x)
             || !std::isfinite(a_targetPosition.y) || !std::isfinite(a_targetPosition.z)
             || !std::isfinite(a_targetHeading) || !std::isfinite(a_speed) || a_speed <= 0.0F

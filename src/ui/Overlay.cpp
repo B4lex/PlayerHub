@@ -156,23 +156,30 @@ namespace UI::Overlay
             ItemPreview::Update();
             Backdrop::Update();
 
-            ImGui_ImplDX11_NewFrame();
-            ImGui_ImplWin32_NewFrame();
-            // The Win32 backend uses the client rectangle, which can differ from
-            // the back buffer when Skyrim renders at another resolution.
-            auto& io = ImGui::GetIO();
-            io.DisplaySize = ImVec2{ static_cast<float>(swapChainDesc.bufferDesc.width),
-                static_cast<float>(swapChainDesc.bufferDesc.height) };
-            ApplyScale(io.DisplaySize.y);
-            Cursor::PlaceTooltips(ImGui::GetStyle());
-            ApplyLanguage();
-            Fonts::Update(*io.Fonts, kBaseFontSize);
-            const auto wheelSteps = InputCapture::ForwardToImGui();
-
-            ImGui::NewFrame();
-            WindowManager::DrawAll(wheelSteps);
-            Cursor::Draw();
-            ImGui::Render();
+            float wheelSteps = 0.0F;
+            {
+                PROFILE_SCOPE("Overlay new frame");
+                ImGui_ImplDX11_NewFrame();
+                ImGui_ImplWin32_NewFrame();
+                // The Win32 backend uses the client rectangle, which can differ from
+                // the back buffer when Skyrim renders at another resolution.
+                auto& io = ImGui::GetIO();
+                io.DisplaySize = ImVec2{ static_cast<float>(swapChainDesc.bufferDesc.width),
+                    static_cast<float>(swapChainDesc.bufferDesc.height) };
+                ApplyScale(io.DisplaySize.y);
+                Cursor::PlaceTooltips(ImGui::GetStyle());
+                ApplyLanguage();
+                Fonts::Update(*io.Fonts, kBaseFontSize);
+                wheelSteps = InputCapture::ForwardToImGui();
+                ImGui::NewFrame();
+            }
+            {
+                PROFILE_SCOPE("Overlay windows");
+                WindowManager::DrawAll(wheelSteps);
+                Cursor::Draw();
+                ImGui::Render();
+            }
+            PROFILE_SCOPE("Overlay render");
             Backdrop::BlurPopups(*ImGui::GetDrawData());
 
             // The DX11 backend restores the pipeline state it changes, except the
@@ -206,6 +213,7 @@ namespace UI::Overlay
                 _original(a_timer);
                 const PluginTime::Scope timing;
                 PROFILE_SCOPE("Overlay");
+                PROFILE_ALLOCATIONS("overlay");
                 DrawFrame();
             }
 
