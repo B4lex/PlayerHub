@@ -1181,14 +1181,6 @@ namespace AppearanceSync
         invalidReported.clear();
     }
 
-    std::string GetRaceName(Multiplayer::PeerSlot a_playerID, const Multiplayer::AppearanceFormReference& a_race,
-        const std::optional<Multiplayer::AppearanceFormReference>& a_defaultRace)
-    {
-        const auto* race = ResolveRace(a_playerID, a_race, a_defaultRace, 0).race;
-        const char* name = race ? race->GetFullName() : nullptr;
-        return name ? name : "";
-    }
-
     void AcceptRemoteAppearance(
         RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, Multiplayer::PlayerAppearance&& a_appearance)
     {

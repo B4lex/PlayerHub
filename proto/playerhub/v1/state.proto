@@ -107,6 +107,8 @@ message Context {
   // The idle graph event that entered the idle the player is held in, such as a
   // seat or a dance; empty for none.
   string idle = 6;
+  // The player's current location (BGSLocation), unset for none.
+  FormRef location = 7;
 }
 
 enum AttackAction {

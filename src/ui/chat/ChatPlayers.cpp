@@ -19,7 +19,6 @@ namespace UI
     namespace
     {
         constexpr float kListWidthFonts = 13.0F;
-        constexpr float kIconGapFonts = 0.3F;
         constexpr float kFilterMarkFonts = 0.75F;
         // U+E003, U+E004, U+E00B, and U+E00C of the logo font.
         constexpr const char* kMutedGlyph = "\xEE\x80\x83";
@@ -28,21 +27,6 @@ namespace UI
         constexpr const char* kSpeakerGlyph = "\xEE\x80\x8C";
         constexpr double kNearbySeconds = 0.5;
         constexpr ImVec4 kDistantPlayerColor{ 0.76F, 0.75F, 0.73F, 1.0F };
-
-        struct DigitRows
-        {
-            float top{ 0.0F };
-            float height{ 0.0F };
-        };
-
-        DigitRows FindDigitRows()
-        {
-            if (const auto* digit = ImGui::GetFontBaked()->FindGlyphNoFallback('0'))
-            {
-                return DigitRows{ .top = std::round(digit->Y0), .height = std::round(digit->Y1 - digit->Y0) };
-            }
-            return DigitRows{ .top = 0.0F, .height = ImGui::GetFontSize() };
-        }
     }
 
     float ChatPlayers::GetWidth()
@@ -79,11 +63,11 @@ namespace UI
         const auto fontSize = ImGui::GetFontSize();
         const auto padding = ChatStyle::GetChipPadding();
         const auto textSize = ImGui::CalcTextSize(text);
-        const auto digit = FindDigitRows();
+        const auto digit = ChatStyle::FindDigitRows();
         auto* const iconFont = online ? Fonts::GetLogo() : nullptr;
         const auto icon =
             iconFont ? std::round(iconFont->CalcTextSizeA(digit.height, FLT_MAX, 0.0F, kPersonGlyph).x) : 0.0F;
-        const auto gap = iconFont ? std::floor(kIconGapFonts * fontSize) : 0.0F;
+        const auto gap = iconFont ? std::floor(ChatStyle::kIconGapFonts * fontSize) : 0.0F;
         const ImVec2 size{ padding.x * 2.0F + icon + gap + textSize.x, textSize.y + padding.y * 2.0F };
 
         ImGui::SameLine();

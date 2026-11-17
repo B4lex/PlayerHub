@@ -20,6 +20,8 @@ namespace UI::ChatStyle
     inline constexpr float kChipOutlineAlpha = 0.55F;
     inline constexpr ImVec2 kChipPaddingFonts{ 0.5F, 0.25F };
     inline constexpr float kChipOutlineFonts = 0.0625F;
+    // Between an icon glyph and the text it leads.
+    inline constexpr float kIconGapFonts = 0.3F;
 
     [[nodiscard]] constexpr const ImVec4& GetChannelColor(Multiplayer::ChatChannel a_channel)
     {
@@ -39,6 +41,23 @@ namespace UI::ChatStyle
     {
         a_color.w *= a_alpha;
         return a_color;
+    }
+
+    // The rows a digit of the current font covers from the line's top, which an icon glyph
+    // spanning its em is drawn over to stand as tall as the text.
+    struct DigitRows
+    {
+        float top{ 0.0F };
+        float height{ 0.0F };
+    };
+
+    [[nodiscard]] inline DigitRows FindDigitRows()
+    {
+        if (const auto* digit = ImGui::GetFontBaked()->FindGlyphNoFallback('0'))
+        {
+            return DigitRows{ .top = std::round(digit->Y0), .height = std::round(digit->Y1 - digit->Y0) };
+        }
+        return DigitRows{ .top = 0.0F, .height = ImGui::GetFontSize() };
     }
 
     [[nodiscard]] inline ImVec2 GetChipPadding()

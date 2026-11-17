@@ -211,7 +211,7 @@ func (p *Player) SetEffects(e *pb.Effects) error {
 
 func sameContext(a, b *pb.Context) bool {
 	return sameFormRef(a.InteriorCell, b.InteriorCell) && sameFormRef(a.Worldspace, b.Worldspace) &&
-		a.GetGraphEpoch() == b.GetGraphEpoch() && a.GetShapeshift() == b.GetShapeshift() &&
+		sameFormRef(a.Location, b.Location) && a.GetGraphEpoch() == b.GetGraphEpoch() && a.GetShapeshift() == b.GetShapeshift() &&
 		sameFormRef(a.Furniture, b.Furniture) && a.GetIdle() == b.GetIdle()
 }
 

@@ -192,6 +192,7 @@ namespace Network::Wire
                 && ReadOptionalFormReference(
                     a_context.has_interior_cell, a_context.interior_cell, a_result.interiorCell)
                 && ReadOptionalFormReference(a_context.has_worldspace, a_context.worldspace, a_result.worldspace)
+                && ReadOptionalFormReference(a_context.has_location, a_context.location, a_result.location)
                 && ReadOptionalFormReference(a_context.has_furniture, a_context.furniture, a_result.furniture);
         }
 
@@ -1033,6 +1034,7 @@ namespace Network::Wire
         context.shapeshift = static_cast<playerhub_v1_Shapeshift>(a_context.shapeshift);
         if (!WriteOptionalFormReference(a_context.interiorCell, context.has_interior_cell, context.interior_cell)
             || !WriteOptionalFormReference(a_context.worldspace, context.has_worldspace, context.worldspace)
+            || !WriteOptionalFormReference(a_context.location, context.has_location, context.location)
             || !WriteOptionalFormReference(a_context.furniture, context.has_furniture, context.furniture)
             || !CopyString(context.idle, Multiplayer::GetIdleEventName(a_context.idle)))
         {
@@ -1785,15 +1787,13 @@ namespace Network::Wire
                 }
                 Multiplayer::PlayerInspection result{ .playerID = inspection.slot,
                     .level = static_cast<std::uint16_t>(inspection.level) };
-                if (inspection.has_race && !ReadFormReference(inspection.race, result.race.emplace()))
+                if ((inspection.has_interior_cell && inspection.has_worldspace)
+                    || !ReadOptionalFormReference(
+                        inspection.has_interior_cell, inspection.interior_cell, result.interiorCell)
+                    || !ReadOptionalFormReference(inspection.has_worldspace, inspection.worldspace, result.worldspace)
+                    || !ReadOptionalFormReference(inspection.has_location, inspection.location, result.location))
                 {
-                    return std::unexpected("inspection race");
-                }
-                if (inspection.has_default_race
-                    && (!ReadFormReference(inspection.default_race, result.defaultRace.emplace())
-                        || !Multiplayer::IsBaseGamePlugin(result.defaultRace->plugin)))
-                {
-                    return std::unexpected("inspection defaultRace");
+                    return std::unexpected("inspection place");
                 }
                 return result;
             }

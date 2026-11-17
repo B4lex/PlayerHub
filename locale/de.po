@@ -941,14 +941,13 @@ msgstr "Offline"
 #. {} is the player's level
 #, c++-format
 msgctxt "PlayerMenuLevel"
-msgid "Level {}"
-msgstr "Stufe {}"
+msgid "lvl. {}"
+msgstr "St. {}"
 
-#. {0} is the player's race, {1} their level
-#, c++-format
-msgctxt "PlayerMenuRaceLevel"
-msgid "{} · Level {}"
-msgstr "{} · Stufe {}"
+#. The player's place, when it is not in the local load order
+msgctxt "PlayerMenuUnknownPlace"
+msgid "Unknown"
+msgstr "Unbekannt"
 
 msgctxt "PlayerMenuWhisper"
 msgid "Whisper"

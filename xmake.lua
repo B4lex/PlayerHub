@@ -35,6 +35,12 @@ option_end()
 -- another; its API selection is compile-time, so TLS setup fails at runtime.
 set_policy("package.librarydeps.strict_compatibility", true)
 
+-- xmake probes each raw flag by compiling a stub and caches a failure for the
+-- configuration. Under wine the probe can fail spuriously, which silently dropped
+-- CommonLib's "/Zc:templateScope" from debug builds although MSVC supports it.
+-- MSVC itself only warns (D9002) on an option it does not know.
+set_policy("check.auto_ignore_flags", false)
+
 -- The xmake-repo recipe with patches/ixwebsocket applied. A distinct name, because
 -- set_base looks up project packages first and would find this one.
 package("ixwebsocket-patched")

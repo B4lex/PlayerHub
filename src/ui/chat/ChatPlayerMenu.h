@@ -23,7 +23,8 @@ namespace UI
 
         Multiplayer::PlayerIdentity player;
         std::optional<Multiplayer::Role> role;
-        std::string details;
+        std::string level;
+        std::string place;
         float waited{ 0.0F };
         bool pending{ false };
         bool inTradeRange{ false };

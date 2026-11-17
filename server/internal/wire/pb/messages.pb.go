@@ -25,18 +25,18 @@ type Protocol int32
 
 const (
 	Protocol_PROTOCOL_UNSPECIFIED Protocol = 0
-	Protocol_PROTOCOL_VERSION     Protocol = 16
+	Protocol_PROTOCOL_VERSION     Protocol = 17
 )
 
 // Enum value maps for Protocol.
 var (
 	Protocol_name = map[int32]string{
 		0:  "PROTOCOL_UNSPECIFIED",
-		16: "PROTOCOL_VERSION",
+		17: "PROTOCOL_VERSION",
 	}
 	Protocol_value = map[string]int32{
 		"PROTOCOL_UNSPECIFIED": 0,
-		"PROTOCOL_VERSION":     16,
+		"PROTOCOL_VERSION":     17,
 	}
 )
 
@@ -2877,12 +2877,14 @@ func (x *NearbyPlayers) GetLeft() []uint32 {
 	return nil
 }
 
+// interior_cell, worldspace, and location are the player's latest Context's.
 type Inspection struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Slot          uint32                 `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"`
 	Level         uint32                 `protobuf:"varint,2,opt,name=level,proto3" json:"level,omitempty"`
-	Race          *FormRef               `protobuf:"bytes,3,opt,name=race,proto3" json:"race,omitempty"`
-	DefaultRace   *FormRef               `protobuf:"bytes,4,opt,name=default_race,json=defaultRace,proto3" json:"default_race,omitempty"`
+	InteriorCell  *FormRef               `protobuf:"bytes,3,opt,name=interior_cell,json=interiorCell,proto3" json:"interior_cell,omitempty"`
+	Worldspace    *FormRef               `protobuf:"bytes,4,opt,name=worldspace,proto3" json:"worldspace,omitempty"`
+	Location      *FormRef               `protobuf:"bytes,5,opt,name=location,proto3" json:"location,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2931,16 +2933,23 @@ func (x *Inspection) GetLevel() uint32 {
 	return 0
 }
 
-func (x *Inspection) GetRace() *FormRef {
+func (x *Inspection) GetInteriorCell() *FormRef {
 	if x != nil {
-		return x.Race
+		return x.InteriorCell
 	}
 	return nil
 }
 
-func (x *Inspection) GetDefaultRace() *FormRef {
+func (x *Inspection) GetWorldspace() *FormRef {
 	if x != nil {
-		return x.DefaultRace
+		return x.Worldspace
+	}
+	return nil
+}
+
+func (x *Inspection) GetLocation() *FormRef {
+	if x != nil {
+		return x.Location
 	}
 	return nil
 }
@@ -3797,13 +3806,16 @@ const file_playerhub_v1_messages_proto_rawDesc = "" +
 	"\x04left\x18\x02 \x01(\rR\x04left\";\n" +
 	"\rNearbyPlayers\x12\x16\n" +
 	"\x06joined\x18\x01 \x03(\rR\x06joined\x12\x12\n" +
-	"\x04left\x18\x02 \x03(\rR\x04left\"\x9b\x01\n" +
+	"\x04left\x18\x02 \x03(\rR\x04left\"\xdc\x01\n" +
 	"\n" +
 	"Inspection\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\rR\x04slot\x12\x14\n" +
-	"\x05level\x18\x02 \x01(\rR\x05level\x12)\n" +
-	"\x04race\x18\x03 \x01(\v2\x15.playerhub.v1.FormRefR\x04race\x128\n" +
-	"\fdefault_race\x18\x04 \x01(\v2\x15.playerhub.v1.FormRefR\vdefaultRace\"\x9a\x01\n" +
+	"\x05level\x18\x02 \x01(\rR\x05level\x12:\n" +
+	"\rinterior_cell\x18\x03 \x01(\v2\x15.playerhub.v1.FormRefR\finteriorCell\x125\n" +
+	"\n" +
+	"worldspace\x18\x04 \x01(\v2\x15.playerhub.v1.FormRefR\n" +
+	"worldspace\x121\n" +
+	"\blocation\x18\x05 \x01(\v2\x15.playerhub.v1.FormRefR\blocation\"\x9a\x01\n" +
 	"\vTradeInvite\x12\x19\n" +
 	"\btrade_id\x18\x01 \x01(\rR\atradeId\x124\n" +
 	"\x06sender\x18\x02 \x01(\v2\x1c.playerhub.v1.PlayerIdentityR\x06sender\x12:\n" +
@@ -3858,7 +3870,7 @@ const file_playerhub_v1_messages_proto_rawDesc = "" +
 	"\amessage*:\n" +
 	"\bProtocol\x12\x18\n" +
 	"\x14PROTOCOL_UNSPECIFIED\x10\x00\x12\x14\n" +
-	"\x10PROTOCOL_VERSION\x10\x10*Y\n" +
+	"\x10PROTOCOL_VERSION\x10\x11*Y\n" +
 	"\vChatChannel\x12\x17\n" +
 	"\x13CHAT_CHANNEL_GLOBAL\x10\x00\x12\x17\n" +
 	"\x13CHAT_CHANNEL_NEARBY\x10\x01\x12\x18\n" +
@@ -4020,41 +4032,42 @@ var file_playerhub_v1_messages_proto_depIdxs = []int32{
 	38, // 46: playerhub.v1.ChatMessage.sender:type_name -> playerhub.v1.PlayerIdentity
 	38, // 47: playerhub.v1.ChatMessage.recipient:type_name -> playerhub.v1.PlayerIdentity
 	38, // 48: playerhub.v1.Roster.joined:type_name -> playerhub.v1.PlayerIdentity
-	50, // 49: playerhub.v1.Inspection.race:type_name -> playerhub.v1.FormRef
-	50, // 50: playerhub.v1.Inspection.default_race:type_name -> playerhub.v1.FormRef
-	38, // 51: playerhub.v1.TradeInvite.sender:type_name -> playerhub.v1.PlayerIdentity
-	38, // 52: playerhub.v1.TradeInvite.recipient:type_name -> playerhub.v1.PlayerIdentity
-	3,  // 53: playerhub.v1.TradeClose.reason:type_name -> playerhub.v1.TradeCloseReason
-	27, // 54: playerhub.v1.ServerMessage.welcome:type_name -> playerhub.v1.Welcome
-	28, // 55: playerhub.v1.ServerMessage.chat_result:type_name -> playerhub.v1.ChatResult
-	30, // 56: playerhub.v1.ServerMessage.peer_states:type_name -> playerhub.v1.PeerStates
-	31, // 57: playerhub.v1.ServerMessage.peer_enter:type_name -> playerhub.v1.PeerEnter
-	32, // 58: playerhub.v1.ServerMessage.peer_context:type_name -> playerhub.v1.PeerContext
-	33, // 59: playerhub.v1.ServerMessage.peer_leave:type_name -> playerhub.v1.PeerLeave
-	34, // 60: playerhub.v1.ServerMessage.peer_action:type_name -> playerhub.v1.PeerAction
-	35, // 61: playerhub.v1.ServerMessage.peer_appearance:type_name -> playerhub.v1.PeerAppearance
-	36, // 62: playerhub.v1.ServerMessage.peer_equipment:type_name -> playerhub.v1.PeerEquipment
-	41, // 63: playerhub.v1.ServerMessage.chat_message:type_name -> playerhub.v1.ChatMessage
-	42, // 64: playerhub.v1.ServerMessage.roster:type_name -> playerhub.v1.Roster
-	44, // 65: playerhub.v1.ServerMessage.inspection:type_name -> playerhub.v1.Inspection
-	45, // 66: playerhub.v1.ServerMessage.trade_invite:type_name -> playerhub.v1.TradeInvite
-	46, // 67: playerhub.v1.ServerMessage.trade_open:type_name -> playerhub.v1.TradeOpen
-	18, // 68: playerhub.v1.ServerMessage.trade_offer:type_name -> playerhub.v1.TradeOffer
-	20, // 69: playerhub.v1.ServerMessage.trade_report:type_name -> playerhub.v1.TradeReport
-	21, // 70: playerhub.v1.ServerMessage.trade_accept:type_name -> playerhub.v1.TradeAccept
-	47, // 71: playerhub.v1.ServerMessage.trade_commit:type_name -> playerhub.v1.TradeCommit
-	48, // 72: playerhub.v1.ServerMessage.trade_close:type_name -> playerhub.v1.TradeClose
-	43, // 73: playerhub.v1.ServerMessage.nearby_players:type_name -> playerhub.v1.NearbyPlayers
-	23, // 74: playerhub.v1.ServerMessage.trade_plugin_query:type_name -> playerhub.v1.TradePluginQuery
-	24, // 75: playerhub.v1.ServerMessage.trade_plugin_reply:type_name -> playerhub.v1.TradePluginReply
-	29, // 76: playerhub.v1.ServerMessage.pong:type_name -> playerhub.v1.Pong
-	37, // 77: playerhub.v1.ServerMessage.peer_effects:type_name -> playerhub.v1.PeerEffects
-	40, // 78: playerhub.v1.ServerMessage.roles:type_name -> playerhub.v1.Roles
-	79, // [79:79] is the sub-list for method output_type
-	79, // [79:79] is the sub-list for method input_type
-	79, // [79:79] is the sub-list for extension type_name
-	79, // [79:79] is the sub-list for extension extendee
-	0,  // [0:79] is the sub-list for field type_name
+	50, // 49: playerhub.v1.Inspection.interior_cell:type_name -> playerhub.v1.FormRef
+	50, // 50: playerhub.v1.Inspection.worldspace:type_name -> playerhub.v1.FormRef
+	50, // 51: playerhub.v1.Inspection.location:type_name -> playerhub.v1.FormRef
+	38, // 52: playerhub.v1.TradeInvite.sender:type_name -> playerhub.v1.PlayerIdentity
+	38, // 53: playerhub.v1.TradeInvite.recipient:type_name -> playerhub.v1.PlayerIdentity
+	3,  // 54: playerhub.v1.TradeClose.reason:type_name -> playerhub.v1.TradeCloseReason
+	27, // 55: playerhub.v1.ServerMessage.welcome:type_name -> playerhub.v1.Welcome
+	28, // 56: playerhub.v1.ServerMessage.chat_result:type_name -> playerhub.v1.ChatResult
+	30, // 57: playerhub.v1.ServerMessage.peer_states:type_name -> playerhub.v1.PeerStates
+	31, // 58: playerhub.v1.ServerMessage.peer_enter:type_name -> playerhub.v1.PeerEnter
+	32, // 59: playerhub.v1.ServerMessage.peer_context:type_name -> playerhub.v1.PeerContext
+	33, // 60: playerhub.v1.ServerMessage.peer_leave:type_name -> playerhub.v1.PeerLeave
+	34, // 61: playerhub.v1.ServerMessage.peer_action:type_name -> playerhub.v1.PeerAction
+	35, // 62: playerhub.v1.ServerMessage.peer_appearance:type_name -> playerhub.v1.PeerAppearance
+	36, // 63: playerhub.v1.ServerMessage.peer_equipment:type_name -> playerhub.v1.PeerEquipment
+	41, // 64: playerhub.v1.ServerMessage.chat_message:type_name -> playerhub.v1.ChatMessage
+	42, // 65: playerhub.v1.ServerMessage.roster:type_name -> playerhub.v1.Roster
+	44, // 66: playerhub.v1.ServerMessage.inspection:type_name -> playerhub.v1.Inspection
+	45, // 67: playerhub.v1.ServerMessage.trade_invite:type_name -> playerhub.v1.TradeInvite
+	46, // 68: playerhub.v1.ServerMessage.trade_open:type_name -> playerhub.v1.TradeOpen
+	18, // 69: playerhub.v1.ServerMessage.trade_offer:type_name -> playerhub.v1.TradeOffer
+	20, // 70: playerhub.v1.ServerMessage.trade_report:type_name -> playerhub.v1.TradeReport
+	21, // 71: playerhub.v1.ServerMessage.trade_accept:type_name -> playerhub.v1.TradeAccept
+	47, // 72: playerhub.v1.ServerMessage.trade_commit:type_name -> playerhub.v1.TradeCommit
+	48, // 73: playerhub.v1.ServerMessage.trade_close:type_name -> playerhub.v1.TradeClose
+	43, // 74: playerhub.v1.ServerMessage.nearby_players:type_name -> playerhub.v1.NearbyPlayers
+	23, // 75: playerhub.v1.ServerMessage.trade_plugin_query:type_name -> playerhub.v1.TradePluginQuery
+	24, // 76: playerhub.v1.ServerMessage.trade_plugin_reply:type_name -> playerhub.v1.TradePluginReply
+	29, // 77: playerhub.v1.ServerMessage.pong:type_name -> playerhub.v1.Pong
+	37, // 78: playerhub.v1.ServerMessage.peer_effects:type_name -> playerhub.v1.PeerEffects
+	40, // 79: playerhub.v1.ServerMessage.roles:type_name -> playerhub.v1.Roles
+	80, // [80:80] is the sub-list for method output_type
+	80, // [80:80] is the sub-list for method input_type
+	80, // [80:80] is the sub-list for extension type_name
+	80, // [80:80] is the sub-list for extension extendee
+	0,  // [0:80] is the sub-list for field type_name
 }
 
 func init() { file_playerhub_v1_messages_proto_init() }

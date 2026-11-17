@@ -47,6 +47,7 @@ namespace Network
         // outside. Both are empty in a space that cannot be referenced.
         Multiplayer::FormReference interiorCell;
         Multiplayer::FormReference worldspace;
+        Multiplayer::FormReference location;
         Multiplayer::FormReference furniture;
         Multiplayer::Shapeshift shapeshift{ Multiplayer::Shapeshift::kNone };
         // The idle event that entered the idle the player is held in; null for none.

@@ -72,6 +72,7 @@ namespace Network
     {
         Multiplayer::FormReference interiorCell;
         Multiplayer::FormReference worldspace;
+        Multiplayer::FormReference location;
         std::uint64_t graphEpoch{ 0 };
         Multiplayer::FormReference furniture;
         Multiplayer::Shapeshift shapeshift{ Multiplayer::Shapeshift::kNone };
@@ -80,7 +81,7 @@ namespace Network
         bool operator==(const CheckpointContext& a_other) const
         {
             return interiorCell == a_other.interiorCell && worldspace == a_other.worldspace
-                && graphEpoch == a_other.graphEpoch && furniture == a_other.furniture
+                && location == a_other.location && graphEpoch == a_other.graphEpoch && furniture == a_other.furniture
                 && shapeshift == a_other.shapeshift && Multiplayer::IsSameIdleEvent(idle, a_other.idle);
         }
     };
@@ -114,6 +115,7 @@ namespace Network
     {
         return CheckpointContext{ .interiorCell = a_transform.interiorCell,
             .worldspace = a_transform.worldspace,
+            .location = a_transform.location,
             .graphEpoch = a_transform.graphEpoch,
             .furniture = a_transform.furniture,
             .shapeshift = a_transform.shapeshift,
@@ -252,6 +254,7 @@ namespace Network
             .grounded = (flags & kGrounded) != 0,
             .interiorCell = a_context.interiorCell,
             .worldspace = a_context.worldspace,
+            .location = a_context.location,
             .furniture = a_context.furniture,
             .shapeshift = a_context.shapeshift,
             .idle = a_context.idle,

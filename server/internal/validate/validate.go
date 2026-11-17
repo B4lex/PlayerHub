@@ -255,7 +255,7 @@ func WeaponDrawn(c *pb.Checkpoint) bool {
 
 func Context(c *pb.Context) error {
 	if c.GetGraphEpoch() == 0 || (c.Worldspace != nil && c.InteriorCell != nil) ||
-		!optionalFormRef(c.InteriorCell) || !optionalFormRef(c.Worldspace) || !optionalFormRef(c.Furniture) ||
+		!optionalFormRef(c.InteriorCell) || !optionalFormRef(c.Worldspace) || !optionalFormRef(c.Location) || !optionalFormRef(c.Furniture) ||
 		c.GetShapeshift() < pb.Shapeshift_SHAPESHIFT_NONE || c.GetShapeshift() > pb.Shapeshift_SHAPESHIFT_WEREBEAR {
 		return ErrContext
 	}

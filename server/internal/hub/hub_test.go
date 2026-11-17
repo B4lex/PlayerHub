@@ -270,11 +270,13 @@ func describe(m *pb.ServerMessage) string {
 	case *pb.ServerMessage_Inspection:
 		i := body.Inspection
 		s := fmt.Sprintf("inspection %d level %d", i.Slot, i.Level)
-		if i.Race != nil {
-			s += fmt.Sprintf(" race %s|%X", i.Race.Plugin, i.Race.FormId)
-		}
-		if i.DefaultRace != nil {
-			s += fmt.Sprintf(" default %s|%X", i.DefaultRace.GetPlugin(), i.DefaultRace.GetFormId())
+		for _, place := range []struct {
+			name string
+			ref  *pb.FormRef
+		}{{"cell", i.InteriorCell}, {"worldspace", i.Worldspace}, {"location", i.Location}} {
+			if place.ref != nil {
+				s += fmt.Sprintf(" %s %s|%X", place.name, place.ref.Plugin, place.ref.FormId)
+			}
 		}
 		return s
 	case *pb.ServerMessage_TradeInvite:
@@ -1298,6 +1300,12 @@ func TestInspect(t *testing.T) {
 	f.send(b, &pb.ClientMessage{Message: &pb.ClientMessage_Appearance{Appearance: &pb.Appearance{
 		Revision: 1, Name: "Serana", Level: 31, Race: &pb.FormRef{Plugin: "Mod.esp", FormId: 0x812},
 		DefaultRace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 0x13746}}}})
+	f.send(b, enter())
+	f.send(b, contextMessage(1, false))
+	// A context that changes only the location is stored, not dropped as a repeat.
+	f.send(b, &pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{
+		Worldspace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 60}, GraphEpoch: 1,
+		Location: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 0x13163}}}})
 	v := f.hub.Connect(world.KindReplay, nil)
 	f.send(v, appearance(1, "Lydia"))
 	f.received(a)
@@ -1307,10 +1315,16 @@ func TestInspect(t *testing.T) {
 	f.send(a, inspect(a))
 	f.send(a, inspect(v))
 	f.send(a, inspect(99))
-	expect(t, f.received(a), "inspection 2 level 31 race Mod.esp|812 default Skyrim.esm|13746",
+	expect(t, f.received(a),
+		"inspection 2 level 31 worldspace Skyrim.esm|3C location Skyrim.esm|13163",
 		"inspection 1 level 0", "inspection 3 level 0", "inspection 99 level 0")
 	expect(t, f.received(b))
 
+	f.send(b, exit())
+	f.send(a, inspect(b))
+	expect(t, f.received(a), "inspection 2 level 31")
+
+	f.clock.Advance(0.5)
 	f.send(a, inspect(b))
 	f.reject(a, inspect(b), ErrRateLimited)
 	f.clock.Advance(0.5)

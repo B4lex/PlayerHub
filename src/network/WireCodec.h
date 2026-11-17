@@ -5,6 +5,7 @@
 #include "protocol/EffectState.h"
 #include "protocol/EquipmentState.h"
 #include "protocol/PeerSlot.h"
+#include "protocol/PlayerInspection.h"
 #include "protocol/PlayerState.h"
 #include "protocol/Quantization.h"
 #include "protocol/Session.h"

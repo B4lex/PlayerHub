@@ -293,8 +293,9 @@ scale and costs two quads a frame. U+E002 is the Discord symbol of the
 marks of the [player list](#player-list), U+E005 to U+E007 the
 [font cursor](#font-cursor), U+E008 the [voice chat](#voice-chat)
 microphone, U+E009 and U+E00A the close and reset icons of
-`Controls::IconButton`, U+E00B the person on the player list's button, and
-U+E00C the [voice chat](#voice-chat) speaker.
+`Controls::IconButton`, U+E00B the person on the player list's button,
+U+E00C the [voice chat](#voice-chat) speaker, and U+E00D the location pin of
+the [player menu](#player-menu).
 
 - `assets/logo/logo.svg` is the source. `assets/logo/generate.py`, run with
   `uv run --script`, merges its white paths into the letters, cuts its black
@@ -1573,7 +1574,7 @@ listed, offline ones included, and undone.
   under the cursor it is underlined and the cursor asks for the hand, a click
   whispers the player while it is online, and a right click opens its
   [player menu](#player-menu) (`##ManagePlayersMenu`), offline too. An
-  offline player has no slot, so its menu has no race and level line and
+  offline player has no slot, so its menu has no level or place and
   whisper is disabled. Whisper sets the chat's target as the list's
   does, and the window stays open. The chat counts the menu among its open
   menus (`ChatPlayerManager::IsMenuOpen`), so Escape closes it first and
@@ -1678,23 +1679,29 @@ hides roles.
 Goal: wherever another player's menu opens, a right click on its name in
 the chat's lines or the [player list](#player-list) or Activate on its
 character ([below](#player-menu-in-the-world)), it looks the same and says
-who the player is: its name, race, and level, then whisper,
+who the player is and where: its name, level, and place, then whisper,
 [trade](#trade-window), [friend](#friends), and
-[mute and vanish](#mute-and-vanish) items. Non-goals: the real name of a modded
-race the local game lacks (a race's name is not on the wire; the race the
-local game resolves it to is named, as on its character), and following a
-level-up while the menu is open.
+[mute and vanish](#mute-and-vanish) items. Non-goals: the player's race
+(its character shows it, and a modded race the local game lacks could only
+be named by its local fallback), the name of a place whose plugin the local
+game lacks (names are not on the wire), and following a level-up or a move
+while the menu is open.
 
 - `ChatPlayerMenu` is the menu's content. `ChatHistory`, `ChatPlayers`,
   `ChatPlayerManager`, and `WorldPlayerMenu` each hold one, call `Open` with the roster entry when
   they open their popup, and `Draw` inside it, which reports a whisper for
   each to handle.
 - It starts with the roster's name in the heading face (`Fonts::GetHeading`)
-  at the text size and in the accent color (`Theme::GetAccent`), then the
-  player's [role](#roles) badge when it has one, then a
-  line with the race and level in the muted text color: the level alone
-  without a race name, the race alone at level zero, and no line without
-  either. A separator and the items follow. Whisper is disabled for a
+  at the text size and in the accent color (`Theme::GetAccent`), followed on
+  its line by the level (`kPlayerMenuLevel`) in a smaller text size
+  (`kSecondaryTextScale`) and the muted text color, on the name's baseline;
+  there is no level at level zero. Below come the player's [role](#roles)
+  badge when it has one and a muted line naming the player's place, both
+  in the smaller size. The place line starts with the location pin U+E00D
+  of the [logo](#logo) font in the accent color (left out without the
+  font) and tells that the place is unknown when it does not resolve
+  locally; there is no such line for a player outside the world. A
+  separator and the items follow. Whisper is disabled for a
   player without a slot, which only an offline
   row in the [player manager](#player-manager) opens the menu for.
 - `Open` asks `PlayerDetails` (`sync/chat/`) for the player's slot,
@@ -1705,25 +1712,31 @@ level-up while the menu is open.
   server with `Network::RequestInspection`
   ([Network](network.md#inspection)), since an appearance kept after a peer
   left range may be old. Without a connection the answer is empty.
-- The race is `AppearanceSync::GetRaceName`: the full name of the race the
-  appearance's race resolves to in the local game, with the
-  [fallback](appearance-and-equipment.md#resolution-and-fallback) a spawned
-  character gets. The level is `Appearance.level`, zero before the player
-  sent an appearance.
+- The level is `Appearance.level`, zero before the player sent an
+  appearance.
+- The place (`Details::place`) comes from the player's latest context
+  ([Network](network.md#checkpoint-and-context)): the newest received
+  checkpoint's for a peer with an actor, the `Inspection`'s otherwise. Its
+  name is the first full name found among the interior cell, the location,
+  and the worldspace, each resolved with `FormLookup::ResolveForm` to its
+  form type, so an exterior is named by its location and an unnamed
+  interior or location falls back to the next. None resolving, as when the
+  player's plugins are not loaded, gives an empty name, shown as unknown;
+  no reference at all leaves `place` unset.
 - The local answer also says whether the player's character is near
   enough to trade (`Details::inTradeRange`, [Trade](trade.md#invitation)); a
   server answer never is, since a player without a character is not near.
 - `PlayerDetails` keeps only the latest request, with its slot and session,
   and its answer, under one lock; an answer for another slot is dropped. It
-  also keeps the race and level of each answer that has either, by the
+  also keeps the level and place of each answer that has either, by the
   requested player's session (`FindKnown`), for the rest of the run. A
   session survives reconnects, so a reused slot never shows another
   player's details.
 - `Open` shows the known details at once and still asks for fresh ones,
   which replace them when they arrive; an empty answer, such as one without
   a connection, keeps them. While the answer is due the menu reads it once a
-  frame; with nothing known it holds an empty line of the text's height, so
-  the menu does not grow under the cursor. After `kDetailsWaitSeconds` (2)
+  frame; with nothing known it holds the place line's height, so the menu
+  does not grow under the cursor. After `kDetailsWaitSeconds` (2)
   of frame time, each frame counting at most 0.1 s, it stops waiting and
   shows the known details or the name alone, as for a reply the server's
   rate limit dropped. The answer is read once.
@@ -3225,11 +3238,11 @@ Not confirmed in game:
     default look. The status panel stays as it was.
 24. The menus a right click opens on a player's chat line or on its name in
     the player list look like the one E opens: its name in bold in the
-    accent color, then a muted line with its race and level, also for a
-    player far away, whose line fills in a moment later without the menu
-    changing height. A player using a race the local game lacks shows the
-    race its character has locally. With the accent changed, the name
-    follows it.
+    accent color with its level after it, then a line with a pin naming
+    where the player is, also for a player far away, whose details fill in
+    a moment later without the menu changing height. A place from a plugin
+    the local game lacks shows as unknown. With the accent changed, the
+    name and the pin follow it.
 25. A new install connects to the official server, and its URL appears
     nowhere in the settings window or `PlayerHub.ini`. Switching
     `CustomServer` on while connected keeps the connection and remote

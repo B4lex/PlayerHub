@@ -509,9 +509,10 @@ func (h *Hub) inspect(m *member, request *pb.Inspect) error {
 		return ErrRateLimited
 	}
 	inspection := &pb.Inspection{Slot: request.GetSlot()}
-	if target := h.members[request.GetSlot()]; target != nil && target.listed() && target.Appearance != nil {
-		a := target.Appearance
-		inspection.Level, inspection.Race, inspection.DefaultRace = a.GetLevel(), a.GetRace(), a.GetDefaultRace()
+	if target := h.members[request.GetSlot()]; target != nil && target.listed() {
+		c := target.Context
+		inspection.Level = target.Appearance.GetLevel()
+		inspection.InteriorCell, inspection.Worldspace, inspection.Location = c.GetInteriorCell(), c.GetWorldspace(), c.GetLocation()
 	}
 	m.outbox.AppendGlobal(wire.Marshal(&pb.ServerMessage{Message: &pb.ServerMessage_Inspection{Inspection: inspection}}))
 	return nil

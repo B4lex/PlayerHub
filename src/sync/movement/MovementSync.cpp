@@ -18,6 +18,21 @@ namespace MovementSync
         {
             return std::isfinite(a_angle) ? std::clamp(a_angle, -Network::kMaximumPitch, Network::kMaximumPitch) : 0.0F;
         }
+
+        void SampleLocalLocation(LocalState& a_state, RE::FormID a_locationID)
+        {
+            if (a_locationID == a_state.spaceLocationID)
+            {
+                return;
+            }
+            a_state.spaceLocationID = a_locationID;
+            a_state.space.location = a_locationID != 0
+                ? FormLookup::MakeFormReference(RE::TESForm::LookupByID(a_locationID))
+                      .value_or(Multiplayer::FormReference{})
+                : Multiplayer::FormReference{};
+            logs::debug("Publishing local location: location={:08X} reference={}|{:06X}", a_locationID,
+                a_state.space.location.plugin, a_state.space.location.localFormID);
+        }
     }
 
     bool IsSameCoordinateSpace(const Network::PlayerTransform& a_first, const Network::PlayerTransform& a_second)
@@ -102,6 +117,7 @@ namespace MovementSync
             && !a_carrier.IsInRagdollState();
         // The player's aim, not a mount's.
         const float lookPitch = SanitizePitch(a_local.player.GetAngleX());
+        const auto* location = a_local.player.GetPlayerRuntimeData().currentLocation;
 
         return LocalSample{ .position = position,
             .heading = heading,
@@ -114,7 +130,8 @@ namespace MovementSync
             .grounded = grounded,
             .relocated = !comparableLocalSpace,
             .cellID = cellID,
-            .worldspaceID = worldspaceID };
+            .worldspaceID = worldspaceID,
+            .locationID = location ? location->GetFormID() : 0 };
     }
 
     float GetCheckpointSpeed(const LocalSample& a_sample, Multiplayer::MovementState a_state)
@@ -133,6 +150,7 @@ namespace MovementSync
 
     const LocalSpace& SampleLocalSpace(LocalState& a_state, const LocalSample& a_sample)
     {
+        SampleLocalLocation(a_state, a_sample.locationID);
         // Exterior cell crossings keep the worldspace's reference.
         const auto cellID = a_sample.worldspaceID == 0 ? a_sample.cellID : 0;
         if (a_state.hasSpace && cellID == a_state.spaceCellID && a_sample.worldspaceID == a_state.spaceWorldspaceID)
@@ -157,8 +175,8 @@ namespace MovementSync
             logs::debug("Publishing local space: cell={:08X} worldspace={:08X} reference={}|{:06X}", cellID,
                 a_sample.worldspaceID, reference.plugin, reference.localFormID);
         }
-        a_state.space = cellID != 0 ? LocalSpace{ .interiorCell = std::move(reference) }
-                                    : LocalSpace{ .worldspace = std::move(reference) };
+        a_state.space.interiorCell = cellID != 0 ? std::move(reference) : Multiplayer::FormReference{};
+        a_state.space.worldspace = cellID != 0 ? Multiplayer::FormReference{} : std::move(reference);
         return a_state.space;
     }
 

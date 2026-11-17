@@ -1,8 +1,8 @@
 #include "sync/chat/PlayerDetails.h"
+#include "forms/FormLookup.h"
 #include "network/ServerClient.h"
 #include "runtime/GameThread.h"
 #include "sync/PeerState.h"
-#include "sync/appearance/AppearanceSync.h"
 #include "sync/trade/TradeSync.h"
 
 #include <mutex>
@@ -35,6 +35,28 @@ namespace PlayerDetails
             return offset.x * offset.x + offset.y * offset.y <= TradeSync::kRequestRadius * TradeSync::kRequestRadius;
         }
 
+        template <class T>
+        const char* GetFormName(const Multiplayer::FormReference& a_reference)
+        {
+            const auto* form = a_reference.IsEmpty() ? nullptr : FormLookup::ResolveForm<T>(a_reference);
+            const char* name = form ? form->GetFullName() : nullptr;
+            return name && *name != '\0' ? name : nullptr;
+        }
+
+        // Most exterior cells have no name, so a worldspace is named by the location within it.
+        std::optional<std::string> GetPlaceName(const Multiplayer::FormReference& a_interiorCell,
+            const Multiplayer::FormReference& a_worldspace, const Multiplayer::FormReference& a_location)
+        {
+            if (a_interiorCell.IsEmpty() && a_worldspace.IsEmpty() && a_location.IsEmpty())
+            {
+                return std::nullopt;
+            }
+            const char* name = GetFormName<RE::TESObjectCELL>(a_interiorCell);
+            name = name ? name : GetFormName<RE::BGSLocation>(a_location);
+            name = name ? name : GetFormName<RE::TESWorldSpace>(a_worldspace);
+            return std::string{ name ? name : "" };
+        }
+
         void Publish(Multiplayer::PeerSlot a_playerID, Details&& a_details)
         {
             const std::scoped_lock lock{ s_lock };
@@ -42,7 +64,7 @@ namespace PlayerDetails
             {
                 return;
             }
-            if (s_requestedSession != 0 && (a_details.level != 0 || !a_details.race.empty()))
+            if (s_requestedSession != 0 && (a_details.level != 0 || a_details.place))
             {
                 auto& known = s_known[s_requestedSession];
                 known = a_details;
@@ -93,10 +115,13 @@ namespace PlayerDetails
         if (a_peer && a_peer->lifecycle.actor && a_peer->appearance.latest)
         {
             const auto& appearance = *a_peer->appearance.latest;
-            logs::debug("Player details from the remote actor: player={} level={}", a_playerID, appearance.level);
+            const auto* newest = a_peer->playout.GetNewest();
+            const auto& checkpoint = newest ? *newest : a_peer->playout.GetPlayed();
+            logs::debug("Player details from the remote actor: player={} level={} location={}|{:06X}", a_playerID,
+                appearance.level, checkpoint.location.plugin, checkpoint.location.localFormID);
             Publish(a_playerID,
-                Details{ .race = AppearanceSync::GetRaceName(a_playerID, appearance.race, appearance.defaultRace),
-                    .level = appearance.level,
+                Details{ .level = appearance.level,
+                    .place = GetPlaceName(checkpoint.interiorCell, checkpoint.worldspace, checkpoint.location),
                     .inTradeRange = IsInTradeRange(*a_peer) });
             return;
         }
@@ -116,13 +141,11 @@ namespace PlayerDetails
         }
         for (const auto& inspection : a_inspections)
         {
-            logs::debug("Player details from the server: player={} level={} race={}", inspection.playerID,
-                inspection.level, inspection.race ? inspection.race->plugin : std::string{ "none" });
+            logs::debug("Player details from the server: player={} level={} location={}|{:06X}", inspection.playerID,
+                inspection.level, inspection.location.plugin, inspection.location.localFormID);
             Publish(inspection.playerID,
-                Details{ .race = inspection.race
-                        ? AppearanceSync::GetRaceName(inspection.playerID, *inspection.race, inspection.defaultRace)
-                        : std::string{},
-                    .level = inspection.level });
+                Details{ .level = inspection.level,
+                    .place = GetPlaceName(inspection.interiorCell, inspection.worldspace, inspection.location) });
         }
     }
 }

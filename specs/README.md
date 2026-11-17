@@ -84,7 +84,7 @@ criteria.
 | Mute and vanish | [ui-overlay](ui-overlay.md#mute-and-vanish), [network](network.md#vanish), [interest-and-delivery](interest-and-delivery.md#subscriptions), [voice-chat](voice-chat.md#playback) |
 | Proximity voice chat (push-to-talk or voice activation, positional and occluded voices, noise suppression, speaking indicators, lip sync) | [voice-chat](voice-chat.md), [network](network.md#voice), [interest-and-delivery](interest-and-delivery.md#voice-listeners), [ui-overlay](ui-overlay.md#voice-chat), [remote-actor](remote-actor.md#voice), [configuration](configuration.md#voice), [sync-pipeline](sync-pipeline.md#frame-sequence) |
 | Player menu in the world (Activate on a player) | [ui-overlay](ui-overlay.md#player-menu-in-the-world), [remote-actor](remote-actor.md#spawn), [sync-pipeline](sync-pipeline.md#frame-sequence) |
-| Player menu heading (name, race, level; inspection) | [ui-overlay](ui-overlay.md#player-menu), [network](network.md#inspection), [sync-pipeline](sync-pipeline.md#frame-sequence), [appearance-and-equipment](appearance-and-equipment.md#resolution-and-fallback) |
+| Player menu heading (name, level, place; inspection) | [ui-overlay](ui-overlay.md#player-menu), [network](network.md#inspection), [network](network.md#checkpoint-and-context), [sync-pipeline](sync-pipeline.md#frame-sequence), [sync-pipeline](sync-pipeline.md#coordinate-spaces) |
 | Settings | [ui-overlay](ui-overlay.md#settings-window), [configuration](configuration.md) |
 | Discord invitation on the Connection page | [ui-overlay](ui-overlay.md#discord-link) |
 | Accent color | [ui-overlay](ui-overlay.md#accent-color), [configuration](configuration.md#ui) |

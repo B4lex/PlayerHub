@@ -969,10 +969,11 @@ namespace Network
         if (contextChanged)
         {
             logs::debug(
-                "Publishing context: cell={}|{:06X} worldspace={}|{:06X} graphEpoch={} furniture={}:{:06X} "
-                "shapeshift={} idle={}",
+                "Publishing context: cell={}|{:06X} worldspace={}|{:06X} location={}|{:06X} graphEpoch={} "
+                "furniture={}:{:06X} shapeshift={} idle={}",
                 context.interiorCell.plugin, context.interiorCell.localFormID, context.worldspace.plugin,
-                context.worldspace.localFormID, static_cast<unsigned long long>(context.graphEpoch),
+                context.worldspace.localFormID, context.location.plugin, context.location.localFormID,
+                static_cast<unsigned long long>(context.graphEpoch),
                 context.furniture.plugin, context.furniture.localFormID,
                 Multiplayer::GetShapeshiftName(context.shapeshift),
                 context.idle ? std::string_view{ *context.idle } : std::string_view{ "-" });

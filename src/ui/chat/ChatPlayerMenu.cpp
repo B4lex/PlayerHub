@@ -6,11 +6,14 @@
 #include "text/Text.h"
 #include "ui/Fonts.h"
 #include "ui/Theme.h"
+#include "ui/chat/ChatStyle.h"
 #include "ui/widgets/RoleBadge.h"
 
 #include <imgui.h>
 
 #include <algorithm>
+#include <cfloat>
+#include <cmath>
 #include <utility>
 
 namespace UI
@@ -21,18 +24,39 @@ namespace UI
 
         constexpr float kDetailsWaitSeconds = 2.0F;
         constexpr float kMaximumFrameSeconds = 0.1F;
+        constexpr float kSecondaryTextScale = 0.85F;
+        // U+E00D of the logo font.
+        constexpr const char* kPlaceGlyph = "\xEE\x80\x8D";
 
-        std::string FormatDetails(const PlayerDetails::Details& a_details)
+        std::string FormatLevel(const PlayerDetails::Details& a_details)
         {
-            if (a_details.level == 0)
+            return a_details.level != 0 ? Text::Format(Id::kPlayerMenuLevel, a_details.level) : std::string{};
+        }
+
+        std::string FormatPlace(const PlayerDetails::Details& a_details)
+        {
+            if (!a_details.place)
             {
-                return a_details.race;
+                return {};
             }
-            if (a_details.race.empty())
+            return a_details.place->empty() ? std::string{ Text::Get(Id::kPlayerMenuUnknownPlace) } : *a_details.place;
+        }
+
+        void DrawPlace(const std::string& a_place)
+        {
+            if (auto* const iconFont = Fonts::GetLogo())
             {
-                return Text::Format(Id::kPlayerMenuLevel, a_details.level);
+                const auto digit = ChatStyle::FindDigitRows();
+                const auto width = std::round(iconFont->CalcTextSizeA(digit.height, FLT_MAX, 0.0F, kPlaceGlyph).x);
+                const auto min = ImGui::GetCursorScreenPos();
+                ImGui::Dummy(ImVec2{ width, ImGui::GetTextLineHeight() });
+                ImGui::GetWindowDrawList()->AddText(iconFont, digit.height, ImVec2{ min.x, min.y + digit.top },
+                    ImGui::GetColorU32(Theme::GetAccent()), kPlaceGlyph);
+                ImGui::SameLine(0.0F, std::floor(ChatStyle::kIconGapFonts * ImGui::GetFontSize()));
             }
-            return Text::Format(Id::kPlayerMenuRaceLevel, a_details.race, a_details.level);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+            ImGui::TextUnformatted(a_place.c_str());
+            ImGui::PopStyleColor();
         }
     }
 
@@ -43,7 +67,8 @@ namespace UI
         const auto listed = ChatRoster::Find(player.playerID);
         role = ChatRoster::FindRole(listed && listed->session == player.session ? listed->role : player.role);
         const auto known = PlayerDetails::FindKnown(player.session);
-        details = known ? FormatDetails(*known) : std::string{};
+        level = known ? FormatLevel(*known) : std::string{};
+        place = known ? FormatPlace(*known) : std::string{};
         inTradeRange = false;
         waited = 0.0F;
         pending = player.playerID != 0;
@@ -70,9 +95,10 @@ namespace UI
             if (const auto found = PlayerDetails::Find(player.playerID))
             {
                 // An empty answer, such as one without a connection, keeps the known details.
-                if (auto text = FormatDetails(*found); !text.empty())
+                if (auto text = FormatLevel(*found), where = FormatPlace(*found); !text.empty() || !where.empty())
                 {
-                    details = std::move(text);
+                    level = std::move(text);
+                    place = std::move(where);
                 }
                 inTradeRange = found->inTradeRange;
                 pending = false;
@@ -86,23 +112,37 @@ namespace UI
         ImGui::PushFont(Fonts::GetHeading(), 0.0F);
         ImGui::PushStyleColor(ImGuiCol_Text, Theme::GetAccent());
         ImGui::TextUnformatted(player.name.c_str());
+        const auto nameTop = ImGui::GetItemRectMin().y;
+        const auto nameAscent = ImGui::GetFontBaked()->Ascent;
         ImGui::PopStyleColor();
         ImGui::PopFont();
+        if (!level.empty())
+        {
+            ImGui::SameLine();
+            ImGui::PushFont(nullptr, Fonts::GetBaseSize() * kSecondaryTextScale);
+            const auto min = ImGui::GetCursorScreenPos();
+            ImGui::Dummy(ImGui::CalcTextSize(level.c_str()));
+            // On the name's baseline, since the name's face and size differ.
+            ImGui::GetWindowDrawList()->AddText(
+                ImVec2{ min.x, nameTop + std::round(nameAscent - ImGui::GetFontBaked()->Ascent) },
+                ImGui::GetColorU32(ImGuiCol_TextDisabled), level.c_str());
+            ImGui::PopFont();
+        }
+        ImGui::PushFont(nullptr, Fonts::GetBaseSize() * kSecondaryTextScale);
         if (role)
         {
             RoleBadge::Name(*role);
         }
-        if (pending && details.empty())
+        if (!place.empty())
+        {
+            DrawPlace(place);
+        }
+        else if (pending && level.empty())
         {
             // Holds the line's height until the details arrive, so the menu does not grow under the cursor.
             ImGui::Dummy(ImVec2{ 0.0F, ImGui::GetTextLineHeight() });
         }
-        else if (!details.empty())
-        {
-            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-            ImGui::TextUnformatted(details.c_str());
-            ImGui::PopStyleColor();
-        }
+        ImGui::PopFont();
         ImGui::Separator();
     }
 

@@ -898,13 +898,12 @@ msgstr ""
 #. {} is the player's level
 #, c++-format
 msgctxt "PlayerMenuLevel"
-msgid "Level {}"
+msgid "lvl. {}"
 msgstr ""
 
-#. {0} is the player's race, {1} their level
-#, c++-format
-msgctxt "PlayerMenuRaceLevel"
-msgid "{} · Level {}"
+#. The player's place, when it is not in the local load order
+msgctxt "PlayerMenuUnknownPlace"
+msgid "Unknown"
 msgstr ""
 
 msgctxt "PlayerMenuWhisper"

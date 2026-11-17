@@ -8,7 +8,7 @@ option go_package = "playerhub/server/internal/wire/pb;pb";
 
 enum Protocol {
   PROTOCOL_UNSPECIFIED = 0;
-  PROTOCOL_VERSION = 16;
+  PROTOCOL_VERSION = 17;
 }
 
 message Hello {
@@ -304,11 +304,13 @@ message NearbyPlayers {
   repeated uint32 left = 2;
 }
 
+// interior_cell, worldspace, and location are the player's latest Context's.
 message Inspection {
   uint32 slot = 1;
   uint32 level = 2;
-  FormRef race = 3;
-  FormRef default_race = 4;
+  FormRef interior_cell = 3;
+  FormRef worldspace = 4;
+  FormRef location = 5;
 }
 
 message TradeInvite {

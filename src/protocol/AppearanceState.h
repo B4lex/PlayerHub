@@ -1,7 +1,6 @@
 #pragma once
 
 #include "protocol/FormReference.h"
-#include "protocol/PeerSlot.h"
 #include "text/AsciiCase.h"
 
 #include <algorithm>
@@ -128,14 +127,6 @@ namespace Multiplayer
     {
         return std::clamp(a_part, PlayerAppearance::kMinimumFacePart, PlayerAppearance::kMaximumFacePart);
     }
-
-    struct PlayerInspection
-    {
-        PeerSlot playerID{ 0 };
-        std::uint16_t level{ 0 };
-        std::optional<AppearanceFormReference> race;
-        std::optional<AppearanceFormReference> defaultRace;
-    };
 
     [[nodiscard]] inline bool IsValidAppearanceName(std::string_view a_name)
     {

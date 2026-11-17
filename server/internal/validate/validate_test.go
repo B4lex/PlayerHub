@@ -134,6 +134,9 @@ func TestContext(t *testing.T) {
 	if err := Context(&pb.Context{Worldspace: ref("Skyrim.esm", 0x3C), GraphEpoch: 1}); err != nil {
 		t.Fatal(err)
 	}
+	if err := Context(&pb.Context{Worldspace: ref("Skyrim.esm", 0x3C), Location: ref("Skyrim.esm", 0x13163), GraphEpoch: 1}); err != nil {
+		t.Fatal(err)
+	}
 	if err := Context(&pb.Context{GraphEpoch: 1, Furniture: ref("Skyrim.esm", 0xFFFFFF)}); err != nil {
 		t.Fatal(err)
 	}
@@ -144,20 +147,22 @@ func TestContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, c := range map[string]*pb.Context{
-		"zero graph epoch":      {},
-		"cell in a worldspace":  {InteriorCell: ref("Skyrim.esm", 5), Worldspace: ref("Skyrim.esm", 0x3C), GraphEpoch: 1},
-		"empty cell plugin":     {GraphEpoch: 1, InteriorCell: ref("", 5)},
-		"long worldspace":       {GraphEpoch: 1, Worldspace: ref(strings.Repeat("a", 261), 0x3C)},
-		"cell above 24 bits":    {GraphEpoch: 1, InteriorCell: ref("Skyrim.esm", 0x1000000)},
-		"empty furniture":       {GraphEpoch: 1, Furniture: ref("", 1)},
-		"long plugin":           {GraphEpoch: 1, Furniture: ref(strings.Repeat("a", 261), 1)},
-		"form ID above 24 bits": {GraphEpoch: 1, Furniture: ref("Skyrim.esm", 0x1000000)},
-		"unknown shapeshift":    {GraphEpoch: 1, Shapeshift: 4},
-		"negative shapeshift":   {GraphEpoch: 1, Shapeshift: -1},
-		"idle exit event":       {GraphEpoch: 1, Idle: "OffsetStop"},
-		"idle without suffix":   {GraphEpoch: 1, Idle: "Idle"},
-		"idle in furniture":     {GraphEpoch: 1, Idle: "IdleLaugh", Furniture: ref("Skyrim.esm", 1)},
-		"idle in a beast form":  {GraphEpoch: 1, Idle: "IdleLaugh", Shapeshift: pb.Shapeshift_SHAPESHIFT_WEREWOLF},
+		"zero graph epoch":       {},
+		"cell in a worldspace":   {InteriorCell: ref("Skyrim.esm", 5), Worldspace: ref("Skyrim.esm", 0x3C), GraphEpoch: 1},
+		"empty cell plugin":      {GraphEpoch: 1, InteriorCell: ref("", 5)},
+		"long worldspace":        {GraphEpoch: 1, Worldspace: ref(strings.Repeat("a", 261), 0x3C)},
+		"cell above 24 bits":     {GraphEpoch: 1, InteriorCell: ref("Skyrim.esm", 0x1000000)},
+		"empty location":         {GraphEpoch: 1, Location: ref("", 0x13163)},
+		"location above 24 bits": {GraphEpoch: 1, Location: ref("Skyrim.esm", 0x1000000)},
+		"empty furniture":        {GraphEpoch: 1, Furniture: ref("", 1)},
+		"long plugin":            {GraphEpoch: 1, Furniture: ref(strings.Repeat("a", 261), 1)},
+		"form ID above 24 bits":  {GraphEpoch: 1, Furniture: ref("Skyrim.esm", 0x1000000)},
+		"unknown shapeshift":     {GraphEpoch: 1, Shapeshift: 4},
+		"negative shapeshift":    {GraphEpoch: 1, Shapeshift: -1},
+		"idle exit event":        {GraphEpoch: 1, Idle: "OffsetStop"},
+		"idle without suffix":    {GraphEpoch: 1, Idle: "Idle"},
+		"idle in furniture":      {GraphEpoch: 1, Idle: "IdleLaugh", Furniture: ref("Skyrim.esm", 1)},
+		"idle in a beast form":   {GraphEpoch: 1, Idle: "IdleLaugh", Shapeshift: pb.Shapeshift_SHAPESHIFT_WEREWOLF},
 	} {
 		if Context(c) == nil {
 			t.Errorf("%s accepted", name)

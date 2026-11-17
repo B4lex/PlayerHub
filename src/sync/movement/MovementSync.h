@@ -52,12 +52,14 @@ namespace MovementSync
         bool relocated{ false };
         RE::FormID cellID{ 0 };
         RE::FormID worldspaceID{ 0 };
+        RE::FormID locationID{ 0 };
     };
 
     struct LocalSpace
     {
         Multiplayer::FormReference interiorCell;
         Multiplayer::FormReference worldspace;
+        Multiplayer::FormReference location;
     };
 
     struct LocalState
@@ -69,6 +71,7 @@ namespace MovementSync
 
         RE::FormID spaceCellID{ 0 };
         RE::FormID spaceWorldspaceID{ 0 };
+        RE::FormID spaceLocationID{ 0 };
         LocalSpace space;
         bool hasSpace{ false };
     };

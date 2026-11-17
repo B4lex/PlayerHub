@@ -98,6 +98,7 @@ namespace CheckpointPublisher
             .grounded = movement.grounded,
             .interiorCell = space.interiorCell,
             .worldspace = space.worldspace,
+            .location = space.location,
             .furniture = std::move(furniture),
             .shapeshift = form,
             .idle = std::move(idle),

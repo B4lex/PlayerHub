@@ -20,7 +20,7 @@ refused at the handshake ([Transport](#transport)).
 | Module | Responsibility |
 | --- | --- |
 | `proto/playerhub/v1/` | The schema (`state.proto`, `messages.proto`) and nanopb size options. `proto/generate.sh` regenerates `server/internal/wire/pb` and `src/network/proto` |
-| `src/protocol/` | Plain wire values and shared validation: `PlayerState.h`, `MovementState.h`, `AppearanceState.h`, `EquipmentState.h`, `FormReference.h`, `ChatMessage.h`, `PeerSlot.h`, `Session.h`, `Role.h`, `VoiceFrame.h`, and the quantization rules in `Quantization.h`. No Skyrim headers |
+| `src/protocol/` | Plain wire values and shared validation: `PlayerState.h`, `MovementState.h`, `AppearanceState.h`, `PlayerInspection.h`, `EquipmentState.h`, `FormReference.h`, `ChatMessage.h`, `PeerSlot.h`, `Session.h`, `Role.h`, `VoiceFrame.h`, and the quantization rules in `Quantization.h`. No Skyrim headers |
 | `network/WireCodec` | nanopb encoding of client messages and validated decoding of server messages |
 | `network/SkeletonDelta` | Writes a skeleton pose as a [change](#pose-changes) from its stream's previous one, and resolves a received pose against it |
 | `network/ServerClient` | IXWebSocket transport: sends, dispatches received messages, holds both directions' [pose references](#pose-changes), merges each peer's context into its checkpoints, and queues per-player changes for `DrainRemotePlayerChanges` |
@@ -87,7 +87,7 @@ refused at the handshake ([Transport](#transport)).
 - The first client message must be
   `Hello{protocol_version, view_radius, session_token, display_name, vanished}`
   within `limits.hello_timeout_seconds` (5). A version other than
-  `Protocol.PROTOCOL_VERSION` (16) is closed with status 4001 and reason
+  `Protocol.PROTOCOL_VERSION` (17) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008. The
   session fields are in [Sessions](#sessions).
 - The server answers a hello with
@@ -141,7 +141,7 @@ retries. What a refusal means for the client is in [Connection](#connection).
 | `Ping` | `{request_id}`, answered with `Pong{request_id}` by the connection at once; the latency probe |
 | `Vanish` | `{session_id, vanished}`: stop or resume receiving a session's player ([Vanish](#vanish)) |
 | `PoseLimit` | `{players}`: how many posed peers, nearest first, the client is sent [skeleton poses](#skeleton-pose-encoding) of, `0..32` (`validate.MaximumPosePlayers`); `0` until the first one ([Interest and delivery](interest-and-delivery.md#skeleton-poses)) |
-| `Inspect` | `{slot}`: ask for a player's level and race, answered with an `Inspection` ([Inspection](#inspection)) |
+| `Inspect` | `{slot}`: ask for a player's level and place, answered with an `Inspection` ([Inspection](#inspection)) |
 | `TradeRequest`, `TradeAnswer`, `TradeOffer`, `TradeReport`, `TradePluginQuery`, `TradePluginReply`, `TradeAccept`, `TradeCancel` | A trade between two players ([Trade](#trade)) |
 
 A rejected message is dropped and logged on the server (at most one summary
@@ -175,6 +175,7 @@ context.
 | `Context` field | Validation |
 | --- | --- |
 | `interior_cell`, `worldspace` | [form references](#form-references) of the interior cell the player is in, or of the worldspace outside; never both. `interior_cell` is unset in a worldspace, so crossing exterior cells changes no field. Both are unset in a space without a form reference |
+| `location` | the player's current location (`BGSLocation`) as a [form reference](#form-references), unset for none; only named in the [player menu](ui-overlay.md#player-menu) |
 | `graph_epoch` | `>= 1`, never decreasing while in the world |
 | `furniture` | occupied placed reference as a [form reference](#form-references), unset for none |
 | `shapeshift` | `NONE`, `WEREWOLF`, `VAMPIRE_LORD`, or `WEREBEAR`: the vanilla beast form the player is in ([Appearance and equipment](appearance-and-equipment.md#shapeshifts)) |
@@ -481,7 +482,7 @@ The lasting effects that show on the player's actor
 | `Roster` | `joined`, a list of `PlayerIdentity`, and `left`, a slot or 0 ([Roster](#roster)) |
 | `Roles` | `roles`, every `Role{id, name, color}` of the server, in place of those sent before ([Roles](#roles)) |
 | `NearbyPlayers` | `joined` and `left`, packed slots entering and leaving the recipient's Nearby chat reach ([Nearby players](#nearby-players)) |
-| `Inspection` | `slot`, `level`, `race`, `default_race` of the player an `Inspect` named ([Inspection](#inspection)) |
+| `Inspection` | `slot`, `level`, `interior_cell`, `worldspace`, `location` of the player an `Inspect` named ([Inspection](#inspection)) |
 | `TradeInvite`, `TradeOpen`, `TradeOffer`, `TradeReport`, `TradePluginQuery`, `TradePluginReply`, `TradeAccept`, `TradeCommit`, `TradeClose` | A trade's progress ([Trade](#trade)) |
 
 When each is sent and in what order is
@@ -868,26 +869,29 @@ is the client's alone and has no wire message.
 
 ### Inspection
 
-A player's menu shows the player's race and level
+A player's menu shows the player's level and place
 ([UI overlay](ui-overlay.md#player-menu)), and a client holds them only for
 the players it receives. The server holds every connected player's
-appearance, so it answers for the others.
+appearance and context, so it answers for the others.
 
 - `Inspect{slot}` with a zero slot is dropped as `invalid inspect`.
 - `Hub.inspect` answers the asking connection alone, from its global queue,
-  with `Inspection{slot, level, race, default_race}` copied from the named
-  player's stored `Appearance`. A slot that is not a listed client
-  ([Roster](#roster)), or one without an appearance yet, gets
-  `Inspection{slot}` alone, so the client stops waiting. Asking about oneself
-  is answered too.
+  with `Inspection{slot, level, interior_cell, worldspace, location}`, the
+  level from the named player's stored `Appearance` and the rest from its
+  stored `Context`. A slot that is not a listed client ([Roster](#roster))
+  gets `Inspection{slot}` alone, so the client stops waiting; a player
+  without an appearance yet leaves `level` zero, and one outside the world
+  (`Exit` clears the context) the place fields unset. Asking
+  about oneself is answered too.
 - Each connection may ask twice a second with a burst of 5
   (`inspectsPerSecond`, `inspectBurst`, a `limit.TokenBucket`); one more is
   dropped as `rate limited` without a reply. A reply is small and goes only
   to the asker, so the limit guards the hub's work rather than anyone's
   bandwidth.
 - Neither is recorded; vanish and hiding do not change the reply, since the
-  name is already on the roster and the race and level show on the label of
-  any character in range.
+  name is already on the roster and the level shows on the label of any
+  character in range. The place is shared with every connected player
+  as well, by the same reasoning as the roster: the menu is the only reader.
 
 ### Trade
 
@@ -1078,8 +1082,8 @@ Datagrams (`server/internal/voice/datagram.go`, `network/VoiceTransport`):
   while connected; `PublishTradeRequest` reports whether it did.
 - `Network::RequestInspection` sends `Inspect` while connected and reports
   whether it did. An `Inspection` without a slot, with a level above 65535,
-  with an invalid race, or with a default race that is invalid or not from a
-  base game plugin is rejected, as an `Appearance` with them would be. The
+  or with both `interior_cell` and `worldspace` or an invalid place
+  reference is rejected, as a `Context` with them would be. The
   newest per slot is queued with the remote changes, drained as
   `RemotePlayerChanges::inspections`, and dropped with them when the
   connection is lost.

@@ -114,7 +114,7 @@ NameplateSync::Clear                      # an early return leaves no plates
 restore save eligibility after a save
 DefaultOutfit::Refresh                    # re-resolve a changed [DefaultOutfit]
 ApplyNetworkChanges                       # the one drain; trade events queued
-ServePlayerDetails                        # the open player menu's race and level
+ServePlayerDetails                        # the open player menu's level and place
 PlayCheckpoints                           # each peer's due checkpoints play
 ActorLifecycle::RefillSpawnAllowance
 if no player: VoiceChatSync::UpdateLocal(false), return
@@ -475,7 +475,12 @@ interior needs an exact cell match, because its coordinates are local to it.
 
 - **Publishing.** `MovementSync::SampleLocalSpace` builds the reference once
   per space change; exterior cell crossings keep it. A space without a form
-  reference publishes neither and is logged as a warning.
+  reference publishes neither and is logged as a warning. It also builds
+  the `location` reference once per change of the player's current location
+  (`PlayerCharacter` runtime data `currentLocation`); a location without a
+  form reference, a dynamic one, publishes none. Nothing in the sync reads
+  the location; it names the place in the
+  [player menu](ui-overlay.md#player-menu), and a change costs one context.
 - **Resolution.** `MovementSync::OnCheckpointPlayed` resolves a peer's
   reference with `FormLookup::ResolveFormID` on its first played checkpoint
   and on each change, into `PeerState::space`, which `RemoteFrame::cellID`

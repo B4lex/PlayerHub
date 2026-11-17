@@ -952,7 +952,9 @@ type Context struct {
 	Shapeshift   Shapeshift `protobuf:"varint,5,opt,name=shapeshift,proto3,enum=playerhub.v1.Shapeshift" json:"shapeshift,omitempty"`
 	// The idle graph event that entered the idle the player is held in, such as a
 	// seat or a dance; empty for none.
-	Idle          string `protobuf:"bytes,6,opt,name=idle,proto3" json:"idle,omitempty"`
+	Idle string `protobuf:"bytes,6,opt,name=idle,proto3" json:"idle,omitempty"`
+	// The player's current location (BGSLocation), unset for none.
+	Location      *FormRef `protobuf:"bytes,7,opt,name=location,proto3" json:"location,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1027,6 +1029,13 @@ func (x *Context) GetIdle() string {
 		return x.Idle
 	}
 	return ""
+}
+
+func (x *Context) GetLocation() *FormRef {
+	if x != nil {
+		return x.Location
+	}
+	return nil
 }
 
 type Attack struct {
@@ -2104,7 +2113,7 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x04time\x18\v \x01(\rR\x04time\x12\x1d\n" +
 	"\n" +
 	"look_pitch\x18\f \x01(\x11R\tlookPitch\x12\x1a\n" +
-	"\bskeleton\x18\r \x01(\fR\bskeleton\"\xa0\x02\n" +
+	"\bskeleton\x18\r \x01(\fR\bskeleton\"\xd3\x02\n" +
 	"\aContext\x12:\n" +
 	"\rinterior_cell\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\finteriorCell\x125\n" +
 	"\n" +
@@ -2116,7 +2125,8 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\n" +
 	"shapeshift\x18\x05 \x01(\x0e2\x18.playerhub.v1.ShapeshiftR\n" +
 	"shapeshift\x12\x12\n" +
-	"\x04idle\x18\x06 \x01(\tR\x04idle\"x\n" +
+	"\x04idle\x18\x06 \x01(\tR\x04idle\x121\n" +
+	"\blocation\x18\a \x01(\v2\x15.playerhub.v1.FormRefR\blocation\"x\n" +
 	"\x06Attack\x122\n" +
 	"\x06action\x18\x01 \x01(\x0e2\x1a.playerhub.v1.AttackActionR\x06action\x12:\n" +
 	"\tdirection\x18\x02 \x01(\x0e2\x1c.playerhub.v1.PowerDirectionR\tdirection\"\xb3\x02\n" +
@@ -2375,49 +2385,50 @@ var file_playerhub_v1_state_proto_depIdxs = []int32{
 	10, // 1: playerhub.v1.Context.worldspace:type_name -> playerhub.v1.FormRef
 	10, // 2: playerhub.v1.Context.furniture:type_name -> playerhub.v1.FormRef
 	4,  // 3: playerhub.v1.Context.shapeshift:type_name -> playerhub.v1.Shapeshift
-	5,  // 4: playerhub.v1.Attack.action:type_name -> playerhub.v1.AttackAction
-	6,  // 5: playerhub.v1.Attack.direction:type_name -> playerhub.v1.PowerDirection
-	13, // 6: playerhub.v1.Action.attack:type_name -> playerhub.v1.Attack
-	7,  // 7: playerhub.v1.Action.beast:type_name -> playerhub.v1.BeastAction
-	10, // 8: playerhub.v1.Action.power:type_name -> playerhub.v1.FormRef
-	10, // 9: playerhub.v1.HeadPart.form:type_name -> playerhub.v1.FormRef
-	15, // 10: playerhub.v1.Tint.color:type_name -> playerhub.v1.Color
-	8,  // 11: playerhub.v1.Overlay.area:type_name -> playerhub.v1.OverlayArea
-	15, // 12: playerhub.v1.Overlay.color:type_name -> playerhub.v1.Color
-	15, // 13: playerhub.v1.Overlay.glow_color:type_name -> playerhub.v1.Color
-	10, // 14: playerhub.v1.Appearance.race:type_name -> playerhub.v1.FormRef
-	16, // 15: playerhub.v1.Appearance.head_parts:type_name -> playerhub.v1.HeadPart
-	15, // 16: playerhub.v1.Appearance.hair_color:type_name -> playerhub.v1.Color
-	10, // 17: playerhub.v1.Appearance.face_details:type_name -> playerhub.v1.FormRef
-	15, // 18: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
-	17, // 19: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
-	10, // 20: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.FormRef
-	18, // 21: playerhub.v1.Appearance.overlays:type_name -> playerhub.v1.Overlay
-	10, // 22: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
-	9,  // 23: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
-	10, // 24: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
-	10, // 25: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
-	10, // 26: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
-	10, // 27: playerhub.v1.Hand.enchantment:type_name -> playerhub.v1.FormRef
-	20, // 28: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
-	21, // 29: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
-	10, // 30: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
-	20, // 31: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
-	21, // 32: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
-	21, // 33: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
-	10, // 34: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
-	22, // 35: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
-	21, // 36: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
-	21, // 37: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
-	20, // 38: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
-	10, // 39: playerhub.v1.Equipment.shout:type_name -> playerhub.v1.FormRef
-	10, // 40: playerhub.v1.ActiveEffect.effect:type_name -> playerhub.v1.FormRef
-	24, // 41: playerhub.v1.Effects.effects:type_name -> playerhub.v1.ActiveEffect
-	42, // [42:42] is the sub-list for method output_type
-	42, // [42:42] is the sub-list for method input_type
-	42, // [42:42] is the sub-list for extension type_name
-	42, // [42:42] is the sub-list for extension extendee
-	0,  // [0:42] is the sub-list for field type_name
+	10, // 4: playerhub.v1.Context.location:type_name -> playerhub.v1.FormRef
+	5,  // 5: playerhub.v1.Attack.action:type_name -> playerhub.v1.AttackAction
+	6,  // 6: playerhub.v1.Attack.direction:type_name -> playerhub.v1.PowerDirection
+	13, // 7: playerhub.v1.Action.attack:type_name -> playerhub.v1.Attack
+	7,  // 8: playerhub.v1.Action.beast:type_name -> playerhub.v1.BeastAction
+	10, // 9: playerhub.v1.Action.power:type_name -> playerhub.v1.FormRef
+	10, // 10: playerhub.v1.HeadPart.form:type_name -> playerhub.v1.FormRef
+	15, // 11: playerhub.v1.Tint.color:type_name -> playerhub.v1.Color
+	8,  // 12: playerhub.v1.Overlay.area:type_name -> playerhub.v1.OverlayArea
+	15, // 13: playerhub.v1.Overlay.color:type_name -> playerhub.v1.Color
+	15, // 14: playerhub.v1.Overlay.glow_color:type_name -> playerhub.v1.Color
+	10, // 15: playerhub.v1.Appearance.race:type_name -> playerhub.v1.FormRef
+	16, // 16: playerhub.v1.Appearance.head_parts:type_name -> playerhub.v1.HeadPart
+	15, // 17: playerhub.v1.Appearance.hair_color:type_name -> playerhub.v1.Color
+	10, // 18: playerhub.v1.Appearance.face_details:type_name -> playerhub.v1.FormRef
+	15, // 19: playerhub.v1.Appearance.body_tint:type_name -> playerhub.v1.Color
+	17, // 20: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
+	10, // 21: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.FormRef
+	18, // 22: playerhub.v1.Appearance.overlays:type_name -> playerhub.v1.Overlay
+	10, // 23: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
+	9,  // 24: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
+	10, // 25: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
+	10, // 26: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
+	10, // 27: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
+	10, // 28: playerhub.v1.Hand.enchantment:type_name -> playerhub.v1.FormRef
+	20, // 29: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
+	21, // 30: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
+	10, // 31: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
+	20, // 32: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
+	21, // 33: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
+	21, // 34: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
+	10, // 35: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
+	22, // 36: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
+	21, // 37: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
+	21, // 38: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
+	20, // 39: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
+	10, // 40: playerhub.v1.Equipment.shout:type_name -> playerhub.v1.FormRef
+	10, // 41: playerhub.v1.ActiveEffect.effect:type_name -> playerhub.v1.FormRef
+	24, // 42: playerhub.v1.Effects.effects:type_name -> playerhub.v1.ActiveEffect
+	43, // [43:43] is the sub-list for method output_type
+	43, // [43:43] is the sub-list for method input_type
+	43, // [43:43] is the sub-list for extension type_name
+	43, // [43:43] is the sub-list for extension extendee
+	0,  // [0:43] is the sub-list for field type_name
 }
 
 func init() { file_playerhub_v1_state_proto_init() }
