@@ -188,12 +188,15 @@ that outlive a restart.
 - **Password:** `admin_password_hash` holds
   `pbkdf2-sha256$<iterations>$<salt>$<key>` (unpadded standard base64; salt at
   least 16 bytes, key 32, iterations 100000..10000000); anything else is a
-  configuration error. `--hash-password` makes one with 600000 iterations
+  configuration error. `cmd/hashpassword` makes one with 600000 iterations
   (OWASP's PBKDF2-HMAC-SHA256 figure; about 70 ms per check) and a fresh
   16-byte salt, from a password of at least 12 characters read twice without
-  echo from a terminal, or as one line of standard input otherwise, and exits.
-  PBKDF2 is in Go's standard library, so the hash needs no dependency; the
-  hidden prompt uses `golang.org/x/term`. Empty (the default) leaves the
+  echo from a terminal, or as one line of standard input otherwise. It is run
+  from the source tree, not shipped in the server archive or image: the salt
+  lives in the hash and the server holds no secret of its own (no pepper,
+  unsigned random login tokens), so a hash made on any machine works on any
+  server. PBKDF2 is in Go's standard library; only the tool's hidden prompt
+  uses `golang.org/x/term`, which stays out of the server binary. Empty (the default) leaves the
   address open as before, with a startup warning, so a local or development
   server needs no setup.
 - **Gate:** `adminauth.Gate` wraps the admin mux inside the guard. It serves

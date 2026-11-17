@@ -45,7 +45,7 @@ func HashPassword(password string) (string, error) {
 		encoding.EncodeToString(key)), nil
 }
 
-var errFormat = errors.New("not a hash from --hash-password (" + scheme + "$iterations$salt$key)")
+var errFormat = errors.New("not a hash from cmd/hashpassword (" + scheme + "$iterations$salt$key)")
 
 func ParsePassword(encoded string) (Password, error) {
 	parts := strings.Split(encoded, "$")

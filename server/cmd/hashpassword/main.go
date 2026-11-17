@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -11,6 +12,22 @@ import (
 
 	"playerhub/server/internal/adminauth"
 )
+
+func main() {
+	flag.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage: hashpassword\n\n"+
+			"Reads an admin password and prints the admin_password_hash line for the server's configuration.")
+	}
+	flag.Parse()
+	if flag.NArg() > 0 {
+		flag.Usage()
+		os.Exit(2)
+	}
+	if err := printPasswordHash(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
 
 // printPasswordHash reads the password twice without echo from a terminal, or once from a
 // line of standard input otherwise, so it can be piped in.

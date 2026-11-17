@@ -18,8 +18,7 @@ trade items, chat, and talk to the players near them.
 without Docker. Voice chat needs `voice.listen`'s UDP port open in the host's
 firewall. Copy
 `server/config.example.toml` to `server/config.toml`, add
-`admin_ui_directory = "/app/admin-ui"` and the `admin_password_hash` line
-that `docker compose run --rm server --hash-password` prints
+`admin_ui_directory = "/app/admin-ui"` and an `admin_password_hash`
 ([Admin login](server/README.md#admin-login)), then run the published image:
 
 ```sh

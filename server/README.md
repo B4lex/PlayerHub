@@ -59,7 +59,7 @@ different links differ only in this file.
 listen = "0.0.0.0:14201"
 admin_listen = "127.0.0.1:3001"   # admin panel, API, and pprof; "" serves none of them
 admin_hosts = []            # host names besides localhost and IP addresses that may reach admin_listen, e.g. ["panel.lan"]
-admin_password_hash = ""    # from --hash-password; "" leaves the admin panel and API without a login
+admin_password_hash = ""    # from cmd/hashpassword; "" leaves the admin panel and API without a login
 trusted_proxies = []        # e.g. ["127.0.0.1"] behind a local proxy; X-Forwarded-For then names the player
 recordings_directory = "recordings"
 admin_ui_directory = "../admin-ui/dist"
@@ -142,11 +142,13 @@ Unknown keys are an error, so a typo does not silently keep a default.
 
 ## Admin login
 
-Make a hash of the admin password (at least 12 characters) and put the line
-it prints into the configuration:
+Make a hash of the admin password (at least 12 characters) on any machine
+with this checkout and put the line it prints into the server's
+configuration. The hash holds its own random salt and the server keeps no
+secret of its own, so it works on whichever server it is copied to:
 
 ```sh
-go run ./cmd/server --hash-password      # asks twice without echo; or pipe one line in
+go run ./cmd/hashpassword                # asks twice without echo; or pipe one line in
 ```
 
 The panel then shows a login page. A login lasts 7 days from logging in and
@@ -205,7 +207,8 @@ go run ./cmd/tradebot --kit
 | --- | --- |
 | `cmd/server` | Entry point and wiring |
 | `cmd/loadgen`, `cmd/tradebot` | Networked bots: load testing, a trade partner |
-| `internal/adminclient` | The admin API for tools: issuing sessions, reading players |
+| `cmd/hashpassword` | Makes an `admin_password_hash`; not shipped with the server |
+| `internal/adminclient` | The admin API for tools: logging in, issuing sessions, reading players |
 | `internal/config` | TOML configuration and defaults |
 | `internal/session` | WebSocket accept, hello and session authentication, reader, writer, liveness, limits |
 | `internal/auth` | Session store: tokens, unique display names, expiry |

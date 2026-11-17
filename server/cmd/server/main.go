@@ -38,16 +38,7 @@ func main() {
 	adminListen := flag.String("admin-listen", "", "address of the admin panel and API, overriding the configuration")
 	verbose := flag.Bool("verbose", false, "log debug messages")
 	profile := flag.Bool("pprof", false, "serve net/http/pprof under /debug/pprof/ on the admin address")
-	hashPassword := flag.Bool("hash-password", false, "read an admin password and print its admin_password_hash")
 	flag.Parse()
-
-	if *hashPassword {
-		if err := printPasswordHash(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(2)
-		}
-		return
-	}
 
 	level := slog.LevelInfo
 	if *verbose {
