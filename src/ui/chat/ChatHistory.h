@@ -45,6 +45,7 @@ namespace UI
             // Where in the label the role's mark goes: before the player's name.
             std::size_t markOffset{ 0 };
             std::string text;
+            std::vector<ChatRoster::Mention> mentions;
             Multiplayer::PlayerIdentity player;
             // Of the label's player when the line arrived.
             Multiplayer::RoleID role{ 0 };

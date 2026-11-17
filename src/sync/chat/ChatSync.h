@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol/ChatMessage.h"
+#include "sync/chat/ChatRoster.h"
 
 #include <cstddef>
 #include <expected>
@@ -18,6 +19,8 @@ namespace ChatSync
         std::size_t nameOffset{ 0 };
         std::string text;
         Multiplayer::PlayerIdentity player;
+        // Of players online when the line arrived.
+        std::vector<ChatRoster::Mention> mentions;
         bool outgoing{ false };
     };
 

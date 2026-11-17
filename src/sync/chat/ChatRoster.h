@@ -32,14 +32,16 @@ namespace ChatRoster
         RoleMark role;
     };
 
-    struct Addressee
+    struct Mention
     {
-        Player player;
-        std::size_t nameLength{ 0 };
-        std::string_view text;
+        // Of the `@`, which the length includes.
+        std::size_t offset{ 0 };
+        std::size_t length{ 0 };
+        bool local{ false };
     };
 
-    [[nodiscard]] std::optional<Addressee> FindAddressee(std::string_view a_text);
+    // In text order.
+    void FindMentions(std::string_view a_text, std::vector<Mention>& a_mentions);
 
     [[nodiscard]] std::optional<Player> Resolve(const Player& a_player);
 

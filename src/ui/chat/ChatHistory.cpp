@@ -2,12 +2,15 @@
 #include "sync/filters/PlayerFilters.h"
 #include "text/Text.h"
 #include "ui/Fonts.h"
+#include "ui/Theme.h"
 #include "ui/chat/ChatStyle.h"
 #include "ui/widgets/RoleBadge.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <cmath>
 #include <format>
+#include <span>
 #include <utility>
 
 namespace UI
@@ -130,9 +133,120 @@ namespace UI
             return (std::max)(cut, wrapped);
         }
 
-        void DrawAfterLabel(const std::string& a_text, const ImVec4& a_color, float a_labelWidth)
+        // Calls a_piece(begin, end, mention or null) for the row's runs of plain text and of mentions, in order.
+        template <class Piece>
+        void ForEachPiece(const char* a_row, const char* a_rowEnd, const char* a_text,
+            std::span<const ChatRoster::Mention> a_mentions, Piece&& a_piece)
         {
-            const char* row = a_text.c_str();
+            const char* piece = a_row;
+            for (const auto& mention : a_mentions)
+            {
+                if (a_text + mention.offset >= a_rowEnd)
+                {
+                    break;
+                }
+                const char* const begin = (std::max)(a_text + mention.offset, piece);
+                const char* const end = (std::min)(a_text + mention.offset + mention.length, a_rowEnd);
+                if (begin != piece)
+                {
+                    a_piece(piece, begin, nullptr);
+                }
+                a_piece(begin, end, &mention);
+                piece = end;
+            }
+            if (piece != a_rowEnd)
+            {
+                a_piece(piece, a_rowEnd, nullptr);
+            }
+        }
+
+        // The heading face, or the current font without it.
+        ImFont* GetMentionFont()
+        {
+            auto* heading = Fonts::GetHeading();
+            return heading != nullptr ? heading : ImGui::GetFont();
+        }
+
+        bool HasMention(const char* a_row, const char* a_rowEnd, const char* a_text,
+            std::span<const ChatRoster::Mention> a_mentions)
+        {
+            return !a_mentions.empty() && a_text + a_mentions.front().offset < a_rowEnd
+                && a_text + a_mentions.front().offset + a_mentions.front().length > a_row;
+        }
+
+        float MeasureMentionRow(const char* a_row, const char* a_rowEnd, const char* a_text,
+            std::span<const ChatRoster::Mention> a_mentions)
+        {
+            auto* font = ImGui::GetFont();
+            auto* mentionFont = GetMentionFont();
+            const auto fontSize = ImGui::GetFontSize();
+            float width = 0.0F;
+            ForEachPiece(a_row, a_rowEnd, a_text, a_mentions,
+                [&](const char* a_begin, const char* a_end, const ChatRoster::Mention* a_mention) {
+                    width += (a_mention != nullptr ? mentionFont : font)
+                                 ->CalcTextSizeA(fontSize, FLT_MAX, 0.0F, a_begin, a_end)
+                                 .x;
+                });
+            return width;
+        }
+
+        // FindRowEnd measures in the text face; a row whose mentions in the heading face no
+        // longer fit gives up words from its end. A single word stays.
+        const char* FitMentionRow(const char* a_row, const char* a_rowEnd, const char* a_text,
+            std::span<const ChatRoster::Mention> a_mentions, float a_width)
+        {
+            while (HasMention(a_row, a_rowEnd, a_text, a_mentions)
+                && MeasureMentionRow(a_row, a_rowEnd, a_text, a_mentions) > a_width)
+            {
+                const char* last = a_rowEnd;
+                while (last != a_row && last[-1] == ' ')
+                {
+                    --last;
+                }
+                while (last != a_row && last[-1] != ' ')
+                {
+                    --last;
+                }
+                if (last == a_row)
+                {
+                    break;
+                }
+                a_rowEnd = last;
+            }
+            return a_rowEnd;
+        }
+
+        // Draws the row as TextUnformatted would, with its mentions in the heading face.
+        void DrawMentionRow(const char* a_row, const char* a_rowEnd, const char* a_text,
+            std::span<const ChatRoster::Mention> a_mentions, const ImVec4& a_color)
+        {
+            ImGui::Dummy(ImVec2{ MeasureMentionRow(a_row, a_rowEnd, a_text, a_mentions), ImGui::GetTextLineHeight() });
+            if (!ImGui::IsItemVisible())
+            {
+                return;
+            }
+            auto* font = ImGui::GetFont();
+            auto* mentionFont = GetMentionFont();
+            const auto fontSize = ImGui::GetFontSize();
+            const auto min = ImGui::GetItemRectMin();
+            auto* drawList = ImGui::GetWindowDrawList();
+            const auto color = ImGui::GetColorU32(a_color);
+            const auto accent = ImGui::GetColorU32(ChatStyle::WithAlpha(Theme::GetAccent(), a_color.w));
+            auto x = min.x;
+            ForEachPiece(a_row, a_rowEnd, a_text, a_mentions,
+                [&](const char* a_begin, const char* a_end, const ChatRoster::Mention* a_mention) {
+                    auto* pieceFont = a_mention != nullptr ? mentionFont : font;
+                    const auto pieceColor = a_mention != nullptr && a_mention->local ? accent : color;
+                    drawList->AddText(pieceFont, fontSize, ImVec2{ x, min.y }, pieceColor, a_begin, a_end);
+                    x += pieceFont->CalcTextSizeA(fontSize, FLT_MAX, 0.0F, a_begin, a_end).x;
+                });
+        }
+
+        void DrawAfterLabel(const std::string& a_text, std::span<const ChatRoster::Mention> a_mentions,
+            const ImVec4& a_color, float a_labelWidth)
+        {
+            const char* const text = a_text.c_str();
+            const char* row = text;
             const char* const end = row + a_text.size();
             const auto& style = ImGui::GetStyle();
             const auto full = ImGui::GetContentRegionAvail().x;
@@ -141,7 +255,21 @@ namespace UI
             ImGui::PushStyleColor(ImGuiCol_Text, a_color);
             while (row != end)
             {
-                const char* const rowEnd = FindRowEnd(row, end, width, full);
+                // Mentions before this row are behind it for good.
+                while (!a_mentions.empty() && text + a_mentions.front().offset + a_mentions.front().length <= row)
+                {
+                    a_mentions = a_mentions.subspan(1);
+                }
+                auto rowEnd = FindRowEnd(row, end, width, full);
+                if (HasMention(row, rowEnd, text, a_mentions))
+                {
+                    rowEnd = FitMentionRow(row, rowEnd, text, a_mentions, width);
+                    // A word beside the label that no longer fits there starts the next row.
+                    if (width < full && MeasureMentionRow(row, rowEnd, text, a_mentions) > width)
+                    {
+                        rowEnd = row;
+                    }
+                }
                 if (rowEnd != row)
                 {
                     if (width < full)
@@ -152,7 +280,14 @@ namespace UI
                     {
                         ImGui::SetCursorPosY(ImGui::GetCursorPosY() - style.ItemSpacing.y);
                     }
-                    ImGui::TextUnformatted(row, rowEnd);
+                    if (HasMention(row, rowEnd, text, a_mentions))
+                    {
+                        DrawMentionRow(row, rowEnd, text, a_mentions, a_color);
+                    }
+                    else
+                    {
+                        ImGui::TextUnformatted(row, rowEnd);
+                    }
                     row = SkipSpaces(rowEnd, end);
                 }
                 width = full;
@@ -204,6 +339,7 @@ namespace UI
                 .label = std::format("{}:", line.sender),
                 .markOffset = line.nameOffset,
                 .text = std::move(line.text),
+                .mentions = std::move(line.mentions),
                 .player = whisperable ? std::move(line.player) : Multiplayer::PlayerIdentity{},
                 .role = role,
                 .roleMark = ChatRoster::FindRoleMark(role),
@@ -362,7 +498,7 @@ namespace UI
                             picked = line.player;
                         }
                     }
-                    DrawAfterLabel(line.text, textColor, labelWidth);
+                    DrawAfterLabel(line.text, line.mentions, textColor, labelWidth);
                     ImGui::EndGroup();
                     if (line.player.playerID != 0 && ImGui::IsItemHovered(kHover)
                         && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
@@ -464,7 +600,7 @@ namespace UI
             const auto alpha = GetRecentAlpha(line.receivedAt, a_now);
             const auto labelWidth = DrawLabel(line.label, line.roleMark, line.markOffset,
                 ChatStyle::WithAlpha(ChatStyle::GetChannelColor(line.channel), alpha));
-            DrawAfterLabel(line.text, ChatStyle::WithAlpha(textColor, alpha), labelWidth);
+            DrawAfterLabel(line.text, line.mentions, ChatStyle::WithAlpha(textColor, alpha), labelWidth);
         }
         ImGui::PopStyleVar();
     }

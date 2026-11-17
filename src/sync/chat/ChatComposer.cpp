@@ -1,9 +1,11 @@
 #include "sync/chat/ChatComposer.h"
+#include "protocol/Session.h"
 #include "sync/chat/ChatRoster.h"
-#include "text/Text.h"
 
 #include <algorithm>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
 
 namespace ChatSync
@@ -19,15 +21,9 @@ namespace ChatSync
             return ChatTarget{ .channel = Multiplayer::ChatChannel::kWhisper, .player = a_player };
         }
 
-        std::optional<std::string_view> AfterWhisperPrefix(std::string_view a_draft)
+        bool IsNameCharacter(std::string_view a_text, std::size_t a_index)
         {
-            const auto prefix = a_draft.find_first_not_of(' ');
-            if (prefix == std::string_view::npos || a_draft[prefix] != '@')
-            {
-                return std::nullopt;
-            }
-            const auto text = a_draft.find_first_not_of(' ', prefix + 1);
-            return text == std::string_view::npos ? std::string_view{} : a_draft.substr(text);
+            return a_index < a_text.size() && Multiplayer::IsDisplayNameCharacter(a_text[a_index]);
         }
     }
 
@@ -59,58 +55,65 @@ namespace ChatSync
         SetTarget(targets[static_cast<std::size_t>(((index + a_direction) % count + count) % count)]);
     }
 
-    bool Composer::OnEdited(std::string& a_draft)
+    void Composer::OnEdited()
     {
         dismissed = false;
         recalled = sent.size();
         notes.clear();
-        bool rewritten = false;
-        for (;;)
+        ClearListing();
+        stale = true;
+    }
+
+    void Composer::Update(std::string_view a_draft, std::size_t a_caret)
+    {
+        a_caret = (std::min)(a_caret, a_draft.size());
+        if (!stale && a_caret == updatedCaret)
         {
-            const auto typed = AfterWhisperPrefix(a_draft);
-            if (!typed)
-            {
-                ClearListing();
-                return rewritten;
-            }
-            ListPlayers(*typed);
-            const auto addressee = suggestions.empty() ? ChatRoster::FindAddressee(*typed) : std::nullopt;
-            if (!addressee || addressee->nameLength == typed->size())
-            {
-                return rewritten;
-            }
-            SetTarget(Whisper(addressee->player));
-            a_draft = std::string{ addressee->text };
-            rewritten = true;
+            return;
         }
+        stale = false;
+        updatedCaret = a_caret;
+
+        // As ChatRoster::FindMentions reads them: an `@` that does not end a word, then name characters.
+        auto start = a_caret;
+        while (start > 0 && IsNameCharacter(a_draft, start - 1))
+        {
+            --start;
+        }
+        if (start == 0 || a_draft[start - 1] != '@' || (start > 1 && IsNameCharacter(a_draft, start - 2)))
+        {
+            ClearListing();
+            return;
+        }
+        auto end = a_caret;
+        while (IsNameCharacter(a_draft, end))
+        {
+            ++end;
+        }
+        const auto prefix = a_draft.substr(start, a_caret - start);
+        if (mention && mention->offset == start - 1 && mention->prefix == prefix)
+        {
+            mention->end = end;
+            return;
+        }
+        mention = TypedMention{ .offset = start - 1, .end = end, .prefix = std::string{ prefix } };
+        suggestions.clear();
+        ChatRoster::Complete(prefix, suggestions, kMaximumSuggestions);
+        // A name typed in full has nothing left to pick, so Enter sends.
+        if (suggestions.size() == 1 && ChatRoster::FoldName(suggestions.front().name) == ChatRoster::FoldName(prefix))
+        {
+            suggestions.clear();
+        }
+        selection = 0;
     }
 
     Composer::SubmitResult Composer::Submit(std::string& a_draft)
     {
         notes.clear();
-        if (IsListing() && !suggestions.empty())
+        if (IsListing())
         {
             AcceptSuggestion(selection, a_draft);
             return SubmitResult::kStayOpen;
-        }
-
-        if (const auto typed = AfterWhisperPrefix(a_draft))
-        {
-            if (typed->empty())
-            {
-                Fail(std::string{ Text::Get(Text::Id::kChatWhisperNeedsName) });
-                return SubmitResult::kStayOpen;
-            }
-            const auto addressee = ChatRoster::FindAddressee(*typed);
-            if (!addressee)
-            {
-                Fail(std::string{ Text::Get(Text::Id::kChatNoPlayerNamed) });
-                return SubmitResult::kStayOpen;
-            }
-            SetTarget(Whisper(addressee->player));
-            a_draft = std::string{ addressee->text };
-            ClearListing();
-            return a_draft.empty() ? SubmitResult::kStayOpen : Submit(a_draft);
         }
 
         const auto text = Multiplayer::TrimChatText(a_draft);
@@ -122,6 +125,7 @@ namespace ChatSync
         Remember(text);
         a_draft.clear();
         ClearListing();
+        stale = true;
         return SubmitResult::kClose;
     }
 
@@ -141,15 +145,32 @@ namespace ChatSync
             ((static_cast<std::ptrdiff_t>(selection) + a_direction) % count + count) % count);
     }
 
-    void Composer::AcceptSuggestion(std::size_t a_index, std::string& a_draft)
+    bool Composer::AcceptSuggestion(std::size_t a_index, std::string& a_draft)
     {
-        if (a_index >= suggestions.size())
+        if (a_index >= suggestions.size() || !mention || mention->end > a_draft.size())
         {
-            return;
+            return false;
         }
-        SetTarget(Whisper(suggestions[a_index]));
-        a_draft.clear();
+        const auto& name = suggestions[a_index].name;
+        const bool spaced = mention->end < a_draft.size() && a_draft[mention->end] == ' ';
+        auto written = a_draft.substr(0, mention->offset) + '@' + name;
+        const auto caret = written.size() + 1;
+        written.append(spaced ? "" : " ").append(a_draft, mention->end);
+        if (Multiplayer::CountChatCharacters(written) > Multiplayer::kMaximumChatTextCharacters)
+        {
+            DismissListing();
+            return false;
+        }
+        a_draft = std::move(written);
+        placedCaret = caret;
         ClearListing();
+        stale = true;
+        return true;
+    }
+
+    std::optional<std::size_t> Composer::TakePlacedCaret()
+    {
+        return std::exchange(placedCaret, std::nullopt);
     }
 
     bool Composer::RecallPrevious(std::string& a_draft)
@@ -166,7 +187,7 @@ namespace ChatSync
         --recalled;
         SetTarget(sent[recalled].target);
         a_draft = sent[recalled].text;
-        ClearListing();
+        Recalled(a_draft);
         return true;
     }
 
@@ -180,21 +201,21 @@ namespace ChatSync
         const auto& line = recalled == sent.size() ? unsent : sent[recalled];
         SetTarget(line.target);
         a_draft = line.text;
-        ClearListing();
+        Recalled(a_draft);
         return true;
     }
 
-    void Composer::ListPlayers(std::string_view a_prefix)
+    void Composer::Recalled(std::string_view a_draft)
     {
-        suggestions.clear();
-        ChatRoster::Complete(a_prefix, suggestions, kMaximumSuggestions);
-        listing = true;
-        selection = 0;
+        // A recalled line ending in a name does not list players, so Up and Down keep recalling.
+        ClearListing();
+        stale = false;
+        updatedCaret = a_draft.size();
     }
 
     void Composer::ClearListing()
     {
-        listing = false;
+        mention.reset();
         suggestions.clear();
         selection = 0;
     }

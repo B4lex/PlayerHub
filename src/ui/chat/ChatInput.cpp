@@ -145,13 +145,14 @@ namespace UI
         }
         auto& composer = self.composer;
         const std::string_view typed{ a_data->Buf, static_cast<std::size_t>(a_data->BufTextLen) };
-        bool rewritten = false;
         if (typed != self.draft)
         {
             self.draft.assign(typed);
-            rewritten = composer.OnEdited(self.draft);
+            composer.OnEdited();
+            composer.Update(self.draft, static_cast<std::size_t>(a_data->CursorPos));
         }
 
+        bool rewritten = false;
         const bool listed = composer.IsListing();
         if (a_data->EventFlag == ImGuiInputTextFlags_CallbackCompletion)
         {
@@ -159,10 +160,9 @@ namespace UI
             {
                 composer.CycleTarget(1);
             }
-            else if (!composer.GetSuggestions().empty())
+            else
             {
-                composer.AcceptSuggestion(composer.GetSelection(), self.draft);
-                rewritten = true;
+                rewritten = composer.AcceptSuggestion(composer.GetSelection(), self.draft);
             }
         }
         else
@@ -196,12 +196,15 @@ namespace UI
             a_data->InsertChars(0, self.draft.c_str(), self.draft.c_str() + self.draft.size());
         }
         // Taking the keyboard selects the whole text, which the next key
-        // would then replace.
+        // would then replace. A name picked by a click or Enter, which leave
+        // the field, puts the caret after it once the field is back.
         if (rewritten || a_data->EventActivated)
         {
-            a_data->CursorPos = a_data->BufTextLen;
+            const auto placed = composer.TakePlacedCaret();
+            a_data->CursorPos = placed ? static_cast<int>((std::min)(*placed, self.draft.size())) : a_data->BufTextLen;
             a_data->ClearSelection();
         }
+        composer.Update(self.draft, static_cast<std::size_t>(a_data->CursorPos));
         self.caretPosition = a_data->CursorPos;
         self.selectionStart = a_data->SelectionStart;
         self.selectionEnd = a_data->SelectionEnd;
@@ -315,7 +318,7 @@ namespace UI
         }
         const auto suggestions = composer.GetSuggestions();
         const auto& style = ImGui::GetStyle();
-        const auto rows = static_cast<float>((std::max)(suggestions.size(), std::size_t{ 1 }));
+        const auto rows = static_cast<float>(suggestions.size());
         const ImVec2 size{ ImGui::GetContentRegionAvail().x,
             rows * ImGui::GetTextLineHeightWithSpacing() + style.WindowPadding.y * 2.0F - style.ItemSpacing.y };
 
@@ -327,14 +330,11 @@ namespace UI
         if (ImGui::BeginChild("##ChatListing", size, ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding,
                 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
         {
-            if (suggestions.empty())
-            {
-                DrawRow(Text::Get(Text::Id::kChatNoPlayerNamed), ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), false);
-            }
+            const auto& color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
             for (std::size_t index = 0; index < suggestions.size(); ++index)
             {
                 ImGui::PushID(static_cast<int>(index));
-                if (DrawRow(suggestions[index].name, ChatStyle::kWhisperColor, index == composer.GetSelection())
+                if (DrawRow(suggestions[index].name, color, index == composer.GetSelection())
                         .clicked)
                 {
                     accepted = index;
@@ -494,7 +494,7 @@ namespace UI
                 return Outcome::kNone;
             }
             draft = draftWhenOpened;
-            composer.OnEdited(draft);
+            composer.OnEdited();
             Measure(draft, draft.size());
             return Outcome::kClose;
         }

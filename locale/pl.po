@@ -1447,10 +1447,6 @@ msgstr[0] "Na jednym serwerze możesz ukryć najwyżej {} gracza"
 msgstr[1] "Na jednym serwerze możesz ukryć najwyżej {} graczy"
 msgstr[2] "Na jednym serwerze możesz ukryć najwyżej {} graczy"
 
-msgctxt "ChatWhisperNeedsName"
-msgid "Type a player's name after @, then your message"
-msgstr "Wpisz nazwę gracza po @, a potem wiadomość"
-
 msgctxt "ChatRateLimited"
 msgid "You are sending messages too quickly"
 msgstr "Wysyłasz wiadomości zbyt szybko"

@@ -1435,10 +1435,6 @@ msgid "You can vanish at most {} player on a server"
 msgid_plural "You can vanish at most {} players on a server"
 msgstr[0] "1つのサーバーで非表示にできるプレイヤーは最大{}人です"
 
-msgctxt "ChatWhisperNeedsName"
-msgid "Type a player's name after @, then your message"
-msgstr "@ の後にプレイヤー名、続けてメッセージを入力してください"
-
 msgctxt "ChatRateLimited"
 msgid "You are sending messages too quickly"
 msgstr "メッセージの送信が速すぎます"

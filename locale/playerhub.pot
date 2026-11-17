@@ -1400,10 +1400,6 @@ msgid_plural "You can vanish at most {} players on a server"
 msgstr[0] ""
 msgstr[1] ""
 
-msgctxt "ChatWhisperNeedsName"
-msgid "Type a player's name after @, then your message"
-msgstr ""
-
 msgctxt "ChatRateLimited"
 msgid "You are sending messages too quickly"
 msgstr ""

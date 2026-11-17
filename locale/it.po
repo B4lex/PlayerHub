@@ -1457,10 +1457,6 @@ msgid_plural "You can vanish at most {} players on a server"
 msgstr[0] "Puoi far sparire al massimo {} giocatore per server"
 msgstr[1] "Puoi far sparire al massimo {} giocatori per server"
 
-msgctxt "ChatWhisperNeedsName"
-msgid "Type a player's name after @, then your message"
-msgstr "Scrivi il nome di un giocatore dopo @, poi il tuo messaggio"
-
 msgctxt "ChatRateLimited"
 msgid "You are sending messages too quickly"
 msgstr "Stai inviando messaggi troppo in fretta"

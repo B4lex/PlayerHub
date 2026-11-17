@@ -102,6 +102,7 @@ namespace ChatSync
                 .text = std::move(message.text),
                 .player = other,
                 .outgoing = message.outgoing };
+            ChatRoster::FindMentions(line.text, line.mentions);
             // A note to oneself is not a conversation, and a muted player's whispers are
             // hidden, so neither makes a whisper partner.
             if (whisper && message.sender.playerID != message.recipient.playerID

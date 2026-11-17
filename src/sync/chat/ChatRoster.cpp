@@ -1,6 +1,7 @@
 #include "sync/chat/ChatRoster.h"
 #include "network/ServerClient.h"
 #include "protocol/AppearanceState.h"
+#include "protocol/Session.h"
 #include "text/Utf8Case.h"
 
 #include <algorithm>
@@ -186,24 +187,45 @@ namespace ChatRoster
         }
     }
 
-    std::optional<Addressee> FindAddressee(std::string_view a_text)
+    void FindMentions(std::string_view a_text, std::vector<Mention>& a_mentions)
     {
+        auto at = a_text.find('@');
+        if (at == std::string_view::npos)
+        {
+            return;
+        }
         const std::scoped_lock lock{ s_lock };
         RefreshLocked();
-        for (auto end = a_text.size(); end != std::string_view::npos && end > 0; end = a_text.rfind(' ', end - 1))
+        std::string folded;
+        for (; at != std::string_view::npos; at = a_text.find('@', at + 1))
         {
-            if (end > Multiplayer::PlayerAppearance::kMaximumNameLength)
+            const auto name = a_text.substr(at + 1, Multiplayer::PlayerAppearance::kMaximumNameLength);
+            if ((at > 0 && Multiplayer::IsDisplayNameCharacter(a_text[at - 1])) || name.empty()
+                || !Multiplayer::IsDisplayNameCharacter(name.front()))
             {
                 continue;
             }
-            if (const auto* entry = FindByNameLocked(a_text.substr(0, end)))
+            // Folding keeps every byte where it was, so a folded prefix is a prefix of the name.
+            folded = Fold(name);
+            for (auto end = name.size(); end > 0; --end)
             {
-                return Addressee{ .player = entry->player,
-                    .nameLength = end,
-                    .text = Multiplayer::TrimChatText(a_text.substr(end)) };
+                if (end < name.size()
+                    && (Multiplayer::IsDisplayNameCharacter(name[end]) || (name[end] & 0xC0) == 0x80))
+                {
+                    continue;
+                }
+                const auto candidate = std::string_view{ folded }.substr(0, end);
+                const auto entry = std::ranges::lower_bound(s_entries, candidate, {}, &Entry::folded);
+                if (entry != s_entries.end() && entry->folded == candidate)
+                {
+                    a_mentions.push_back(Mention{ .offset = at,
+                        .length = end + 1,
+                        .local = entry->player.playerID == s_roster.localPlayerID });
+                    at += end;
+                    break;
+                }
             }
         }
-        return std::nullopt;
     }
 
     std::optional<Player> Resolve(const Player& a_player)

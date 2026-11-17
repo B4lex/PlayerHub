@@ -1415,10 +1415,6 @@ msgid "You can vanish at most {} player on a server"
 msgid_plural "You can vanish at most {} players on a server"
 msgstr[0] "每個伺服器最多只能隱藏 {} 名玩家"
 
-msgctxt "ChatWhisperNeedsName"
-msgid "Type a player's name after @, then your message"
-msgstr "請在 @ 後輸入玩家名稱，再輸入訊息"
-
 msgctxt "ChatRateLimited"
 msgid "You are sending messages too quickly"
 msgstr "你傳送訊息的速度太快了"

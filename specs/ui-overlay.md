@@ -46,7 +46,7 @@ src/ui/
   hud/NoticeStack             # notices on the right edge, friends coming online
   hud/VoiceIndicator          # the microphone while the player is heard
   chat/ChatWindow             # open and closed chat, focus by its keys, the manager alone, the send target's channel kept shown
-  chat/ChatHistory            # lines, channel filters, unread marks, scrolling, the line menu
+  chat/ChatHistory            # lines and their mentions, channel filters, unread marks, scrolling, the line menu
   chat/ChatInput              # target chip and its menu, text field, name list, notes
   chat/ChatSize               # the open chat's size, the drag that sets it, saving it
   chat/ChatPosition           # the open chat's corner, the drag that moves it, saving it
@@ -69,8 +69,8 @@ src/ui/
   render/Gpu                  # frame target, runtime-compiled full-screen passes, image blend modes
   render/Backdrop             # the game's frame blurred and darkened behind a full-screen window
 src/sync/chat/ChatSync        # send to a target and why it failed, the server's rejections, lines to display
-src/sync/chat/ChatRoster      # connected players by name, completion, whisper partners, the list's copy, the server's roles and their marks
-src/sync/chat/ChatComposer    # send target, the `@` prefix, name list, notes, sent lines
+src/sync/chat/ChatRoster      # connected players by name, completion, mentions in a line, whisper partners, the list's copy, the server's roles and their marks
+src/sync/chat/ChatComposer    # send target, the mention at the caret, name list, notes, sent lines
 src/sync/notices/Notices      # the notices queue any feature posts to
 src/sync/nameplates/NameplateSync # per peer: head node, line of sight, fade, label, voice level; the pass's plates
 src/sync/voicechat/VoiceChatSync # speaking levels, the local microphone's state, audio devices (voice-chat.md)
@@ -992,15 +992,16 @@ Players talk in plain text on three channels. Chat is presentation only. The
 wire, the roster, routing, and server rules are in [Network](network.md#chat).
 
 Goal: talk to everyone, to players nearby, or to one player; always see where
-the next line goes and change it with a key, a prefix, or a click;
-whisper by a few letters of a name, and keep whispering the same player
-without naming it again; see who is online and whisper one from a list; tell the channels apart at a glance, and turn each
+the next line goes and change it with a key or a click; keep whispering the
+same player without naming it again; see who is online and whisper one from
+a list; [mention](#mentions) a player by a few letters of its name, and see
+at a glance a line that mentions oneself; tell the channels apart at a glance, and turn each
 off and on; see as many lines as the player wants, by dragging the chat larger;
 place the chat elsewhere on the screen.
 Non-goals: chat
-commands (text starting with `/` is sent as written; Tab, the chip, the
-`@` prefix, and the player list cover what they did), chat
-history for late joiners, and a saved log.
+commands (text starting with `/` is sent as written; Tab, the chip, and the
+player list cover what they did), a whisper by an `@` prefix (`@` mentions
+instead, the user's choice), chat history for late joiners, and a saved log.
 
 | Channel | Reaches | Color |
 | --- | --- | --- |
@@ -1025,7 +1026,6 @@ placeholder points to Tab.
 | Input | Effect |
 | --- | --- |
 | Tab, Shift+Tab | The next or previous of Global, Nearby, and the 3 latest whisper partners, most recent first. A whisper target that is not among them yet stands after Nearby |
-| `@` as the first character | Opens the [name list](#name-list) |
 | A click on the chip | A menu of Global, Nearby, and the 5 latest partners |
 | A click on a sender's name, or the whisper item in a line's menu | A whisper to that player |
 
@@ -1033,11 +1033,6 @@ placeholder points to Tab.
   naming the partner for a whisper. `DrawRow` reports the row's
   `ImGuiHoveredFlags_ForTooltip` hover from its selectable, so the whole row
   shows it, not only its text.
-- The `@` prefix, after any spaces, is removed from the text once its name
-  binds ([Name list](#name-list)), or on Enter, where the chat then stays
-  open. `Composer::OnEdited` applies it after every edit, so the chip is
-  always where Enter sends. Removing one can uncover another, as in
-  `@Ulf @Bera hi`, which is applied in the same edit.
 - `ChatRoster` keeps the whisper partners, at most 8, moved to the front by
   every whisper sent or received except one to oneself, and compared by name
   as well as slot, since a player who connects again has another slot.
@@ -1090,29 +1085,38 @@ contains a line break.
 
 ### Name list
 
-While the text starts with `@`, a list above the field offers the
-connected players whose names start with what follows, at most 8.
+While the caret ends a [mention](#mentions) being typed, `@` and the name
+characters (`Multiplayer::IsDisplayNameCharacter`) before it, a list above
+the field offers the connected players whose names start with what is typed
+after the `@`, at most 8, as soon as the `@` is typed.
 
+- `Composer::Update` finds that mention from the text and the caret, which
+  the field's callback passes every frame. It looks again only after an
+  edit or a caret move, and asks `ChatRoster` again only when the mention
+  or what is typed of it changes. A line recalled with Up or Down lists
+  nothing until the caret moves or the text changes, so Up and Down keep
+  recalling.
 - `ChatRoster` copies the roster from the transport when its revision changes
   ([Network](network.md#client)) and sorts it by folded name. `Complete`
   returns the player named exactly as typed, then whisper partners, then
   players within Nearby chat ([Network](network.md#nearby-players),
   `Network::CopyNearbyPlayers`), then
-  the rest by name, without the local player. It runs when the text changes,
-  not per frame.
+  the rest by name, without the local player. The channel does not narrow it.
 - Names are folded by a table for ASCII, Latin-1, Latin Extended-A, Greek,
   and Cyrillic, and compared byte for byte otherwise. The server's lower-casing
   is not needed here: both sides of every comparison are folded the same way.
-- Up and Down move the selection, and the field's caret stays; Tab, Enter, or a click accept it, which sets
-  the target and empties the field, and the chat stays open. Escape hides the
-  list until the text changes.
-- A name typed in full binds at its space once no other name continues what
-  is typed: with `Ulf` and `Ulf Stone` online, `@Ulf ` still lists
-  `Ulf Stone`, and `@Ulf h` whispers `Ulf` with `h` left as the text.
-  `ChatRoster::FindAddressee` takes the longest name followed by a space or
-  the end.
-- With nobody matching, the list is one row saying so, and Enter shows that
-  as a failure note and keeps the text.
+- The list shows only while it has a name to offer. With nobody matching, or
+  with a name typed in full that no other name continues, it hides, so Enter
+  sends.
+- Up and Down move the selection, and the field's caret stays; Tab, Enter, or
+  a click accept it (`Composer::AcceptSuggestion`). That replaces the whole
+  mention, the name characters after the caret too, with `@` and the name as
+  the player has it, then a space unless one follows already, and puts the
+  caret after that space, keeping the send target and the chat open. Enter
+  and a click leave the field, so the caret is placed when the field takes
+  the keyboard again (`Composer::TakePlacedCaret`). A name that would take
+  the text past its [limit](#text-field) is not written and the list hides.
+- Escape hides the list until the text changes.
 
 ### Sending
 
@@ -1225,6 +1229,43 @@ never a line, so the history holds only what players said.
   starts where the text before it ends, beside the label too, and is cut at
   each row's end by character (`ImFont::CalcTextSizeA`), leaving no row
   short.
+
+### Mentions
+
+A mention is `@` and a connected player's name in a line's text. It is
+plain text on the wire ([Network](network.md#chat)), so the line holds it as
+sent and only how it is drawn differs.
+
+- `ChatRoster::FindMentions` finds them when a line arrives
+  (`ChatSync::DrainLines`, into `ChatLine::mentions`, offsets into the text).
+  An `@` counts when it does not follow a name character, as in an address,
+  and is followed by one. Its name is the longest folded match of a roster
+  name that ends before a character that is not a name character, or at the
+  text's end, so `@Ulf,` mentions `Ulf` and `@Ulfric` does not. The case
+  need not match. Names are display names
+  ([Network](network.md#sessions)); a bot's name with spaces matches as
+  well. A mention is `local` when it names the local player.
+- They are found once per line, against the roster of that moment: a name
+  that is not connected then stays plain, and one that leaves later stays a
+  mention.
+- `ChatHistory` draws every mention in the heading face
+  ([Themed faces](#themed-faces)), as a line's label is, in the theme's text
+  color, or, for a mention of the local player, in the accent
+  ([Accent color](#accent-color)); without the heading face only the color
+  sets it apart. The closed chat's recent lines fade them with the line.
+- A row that holds a mention is drawn in pieces (`DrawMentionRow`): a
+  `Dummy` as wide as the row measures with its mentions in the heading face,
+  then each piece through the window's draw list in its own face. Rows
+  without a mention stay one `TextUnformatted`, and a row out of view draws
+  nothing.
+- The heading face is wider than the text face, so a row is first broken as
+  any other ([Lines and filters](#lines-and-filters)) and then, while its
+  mentions make it wider than its room, gives up words from its end
+  (`FitMentionRow`). A row beside the label whose first word no longer fits
+  there starts on the next row. A single word wider than a whole row stays
+  and is cut at the chat's edge.
+- A mention does nothing on its own: no notice, sound, or unread mark (the
+  user's choice), and a click on it does nothing.
 
 ### Player list
 
@@ -1939,8 +1980,8 @@ neither touches an engine object.
 Goal: players can talk while trading without cancelling it, with the chat
 in view beside the trade. Non-goals: the [player list](#player-list) and
 the [player manager](#player-manager) during a trade (the user's choice:
-the list would cover the panel; names in the lines, Tab, and `@` still
-pick a whisper target), and resizing or moving the docked chat.
+the list would cover the panel; names in the lines and Tab still
+pick a whisper target, and `@` still mentions), and resizing or moving the docked chat.
 
 - In each frame the trade window draws its panel, it gives the chat its
   layout's left column and font size (`TradeDock::Set`; `TradeDock::Get`
@@ -2793,7 +2834,7 @@ none does.
   places the name or key where its word order needs.
 - What stays English: the INI file's comments and header, so the file is the
   same whatever the language ([Schema](configuration.md#schema)); config keys
-  and values; wire values; log lines; and the `@` prefix. Chat lines are shown
+  and values; wire values; log lines; and the `@` of a mention. Chat lines are shown
   as they were sent. Item, race, and effect names come from the game's own
   data and so are in its language already, as are the tempering tiers in
   [trade](trade.md#item-details) item names, which come from the
@@ -3121,30 +3162,41 @@ Not confirmed in game:
     on the chat's edges and knots, the move cursor while the chat is dragged,
     and the I-beam over a text field, whose lines turn the accent with
     `BorderColor = Accent`. No other cursor shows under or beside it.
-11. With `Ulf Stone` online, `@u` lists it; Tab or Enter turns the chip to
-    a whisper to that player and empties the field, and a line reaches only
-    that player, labeled in violet as sent to it for the sender and as from
-    the sender for the recipient. Enter, text, Enter whispers the same player again.
-    Backspace in the empty field leaves the chip as it is. A name nobody has shows one row
-    saying so. Once the player disconnects, a note above the field says it
-    is offline and the chat stays open with the text.
-12. Up in the field recalls the last sent line with its target, and Down
+11. With `Ulf` online, a click on its name in a line turns the chip to a
+    whisper to that player, and a line reaches only that player, labeled in
+    violet as sent to it for the sender and as from the sender for the
+    recipient. Enter, text, Enter whispers the same player again.
+    Backspace in the empty field leaves the chip as it is. Once the player
+    disconnects, a note above the field says it is offline and the chat
+    stays open with the text.
+12. With `Ulf` and `Ulfar` online, `hi @u` lists both above the field and
+    `@` alone lists up to 8 others online; Tab, Enter, or a click writes
+    `hi @Ulf ` with the caret at the end, keeps the chip, and keeps the chat
+    open. Picking a name with the caret after `@Ul` in `@Ulxyz` replaces the
+    whole word. `@ulfar` typed in full hides the list and Enter sends. `@zz`,
+    which no name starts, shows no list. The sent line shows `@Ulf` in
+    the heading face for every player, in the theme's text color, and in the
+    accent for `Ulf`, also among the closed chat's recent lines, and a long
+    line with mentions still wraps inside the chat; `mail@Ulf`
+    and, with nobody of that name online, `@Ulfric` stay plain. Up recalls a line ending in `@Ulf` without
+    listing names.
+13. Up in the field recalls the last sent line with its target, and Down
     returns the text that was being written. In a text of several lines Up
     and Down first move the caret to the first or last line. Closing and
     opening the chat clears a note.
-13. A text longer than the field's width wraps, and the field grows upward
+14. A text longer than the field's width wraps, and the field grows upward
     by a line at a time while the chat keeps its size and shows fewer lines;
     at 7 lines it stops growing and the text scrolls inside it. Typing or
     pasting stops at 512 characters, in Cyrillic too, with no message, and
     the 512 characters reach the other player whole. A pasted line break
     becomes a space, and Shift+Enter sends.
-14. Moving the mouse in the open chat shows a cursor in the middle of the
+15. Moving the mouse in the open chat shows a cursor in the middle of the
     chat, and the character does not turn or attack. A click on another
     player's name turns the chip to that player; a right click on its line
     offers whisper, mute, and vanish; a click on the chip lists
     Global, Nearby, and the latest partners. Typing continues after each click,
     and a click outside the chat changes nothing.
-15. The Global, Nearby, and Whisper filters are all on at first. A
+16. The Global, Nearby, and Whisper filters are all on at first. A
     click on Global turns its chip grey and leaves the other two and the
     send target as they were; a global line then shows neither in the open
     chat nor among the closed chat's lines, and Global gets a dot on its
@@ -3153,7 +3205,7 @@ Not confirmed in game:
     channel again with the lines that arrived meanwhile. With Global off,
     Tab to Global turns it on, and so does the player's own global line coming
     back. With all three off no line shows.
-16. With the default accent the open chat has no blue and no square corners,
+17. With the default accent the open chat has no blue and no square corners,
     at 1080p and 4K: the
     field is a faint rounded tint, the chip is rounded in its channel's
     color, the name list and both menus have a rounded `FF9000` border with
@@ -3162,7 +3214,7 @@ Not confirmed in game:
     and a grey outline when off, and a rule under the filters separates them
     from the lines. The filters, the lines, and the chip start at one column,
     and the rule and the field end at one.
-17. A chat line wider than the chat continues from the left edge under its
+18. A chat line wider than the chat continues from the left edge under its
     sender's name, in the open chat and among the closed chat's lines. Over
     each of the open chat's edges and knots the cursor is a resize one; a
     drag grows or shrinks the chat with the cursor from the opposite edge or
@@ -3176,7 +3228,7 @@ Not confirmed in game:
     are as wide, the chat has that size after the game restarts, and the
     `[UI]` page shows neither key. After a left or bottom drag the `[UI]`
     page's position sliders show the new place.
-18. The open chat's filter row ends with a chip showing a person and the
+19. The open chat's filter row ends with a chip showing a person and the
     number of players online, or that it is offline while disconnected. A click opens
     a framed list right of the chat and as high, with a search field on the
     filters' row and the other players by name, the ones nearby first and
@@ -3189,7 +3241,7 @@ Not confirmed in game:
     scrolls it and not the lines, and with the chat dragged to the screen's
     right edge the list is still on the screen. With hundreds of players
     online the frame rate with the list open is the same as with it closed.
-19. A right click on another player's name in the list or on its chat line
+20. A right click on another player's name in the list or on its chat line
     offers mute and vanish; on the local player's line, neither. After
     a mute no notice shows, the player's lines vanish from the open and
     closed chat, earlier ones included, and its new lines and whispers do
@@ -3199,7 +3251,7 @@ Not confirmed in game:
     or restarts. The list marks the player with a struck bubble or eye.
     Unmuting shows every held line again, and unvanishing brings the
     character back where the player stands, if it is in range.
-20. The button at the bottom of the player list opens a framed window in
+21. The button at the bottom of the player list opens a framed window in
     the middle of the screen over the open chat, with a tab each for
     friends, muted, and vanished players. Each lists the connected server's
     players, offline ones included, those connected first with a green dot
@@ -3211,7 +3263,7 @@ Not confirmed in game:
     whisper disabled. Escape closes the window
     and leaves the chat open; closing the chat closes it too. Connecting to
     another server lists only that server's players.
-21. Adding another player as a friend from its menu, in the chat, the
+22. Adding another player as a friend from its menu, in the chat, the
     player list, or the world, adds it to the friends tab with no notice,
     and the menu then offers to remove it; the other player is told nothing.
     When that player next connects, a notice on the right says so, with the
@@ -3219,7 +3271,7 @@ Not confirmed in game:
     announced. An offline friend shows its last name in the friends tab.
     A friend stays one after either game restarts, and muting or vanishing
     a friend keeps the friend.
-22. Pressing E on another player's character, or the horse it rides,
+23. Pressing E on another player's character, or the horse it rides,
     shows a cursor and a menu at the crosshair with the player's name, race,
     and level, then whisper, mute, and vanish, and no dialogue starts. Mute
     and vanish act as in the chat's menu. Whisper opens the chat with the
@@ -3227,7 +3279,7 @@ Not confirmed in game:
     that player. Escape, E again, or a click outside closes the menu without
     opening the journal or activating anything, and the character moves
     again at once.
-23. On the `[UI]` page, a click on the blue swatch turns the settings window's
+24. On the `[UI]` page, a click on the blue swatch turns the settings window's
     sidebar mark, switches, slider, and hovered widgets blue at once, and
     with `BorderColor` at `Accent` its frame and the open chat's too; the
     open chat's player list button and lists follow. `PlayerHub.ini` then
@@ -3236,14 +3288,14 @@ Not confirmed in game:
     release, then the whole window, and a typed hex color applies on Enter.
     A dark custom color gives the connection button light text. Amber returns the
     default look. The status panel stays as it was.
-24. The menus a right click opens on a player's chat line or on its name in
+25. The menus a right click opens on a player's chat line or on its name in
     the player list look like the one E opens: its name in bold in the
     accent color with its level after it, then a line with a pin naming
     where the player is, also for a player far away, whose details fill in
     a moment later without the menu changing height. A place from a plugin
     the local game lacks shows as unknown. With the accent changed, the
     name and the pin follow it.
-25. A new install connects to the official server, and its URL appears
+26. A new install connects to the official server, and its URL appears
     nowhere in the settings window or `PlayerHub.ini`. Switching
     `CustomServer` on while connected keeps the connection and remote
     players, and a URL field without a label appears under it. Disconnecting
@@ -3252,7 +3304,7 @@ Not confirmed in game:
     joins that server; an endpoint without `http://` turns red. Switching
     `CustomServer` off while connected to the custom server keeps that
     connection; disconnecting and connecting join the official server.
-26. Activating a nearby player and picking trade shows both players the
+27. Activating a nearby player and picking trade shows both players the
     prompt at the top, which `Y` and `N` answer for the other player,
     without moving the character or opening a game menu. Accepting opens
     the trade window on both screens with the cursor, also over an open
@@ -3277,7 +3329,7 @@ Not confirmed in game:
     without it. Enter in the search field or a count popup does not focus the
     chat. At 1920×1080 and 3440×1440, at `Scale` 100 and 130, chat, panel,
     and preview column look the same, centered, with nothing cut off.
-27. Both trade grids fill with thumbnails of the offered items within a
+28. Both trade grids fill with thumbnails of the offered items within a
     second or two, each on a dark cell, enchanted or not,
     every one textured within about 2 s (`latest.log` shows `pending=0`
     on each `Item thumbnail captured` line), and keep them while the
@@ -3291,12 +3343,12 @@ Not confirmed in game:
     afterwards. An item's thumbnail and preview model look equally bright
     in a dark interior, outside by day, and outside at night, with no face
     left black, and the world's lighting is unchanged while they capture.
-28. Notices stack on the right edge from 40% of the screen's height, at
+29. Notices stack on the right edge from 40% of the screen's height, at
     1080p and 4K, each with a strip in the accent: a completed trade, the
     other player's decline, a friend connecting. Each fades after about 5 s, a long one later; the same
     notice twice shows twice; a fifth pushes out the oldest. They show over the inventory and under the open chat or trade
     window, and never add a chat line.
-29. The open trade takes the screen at 1080p, 1440p, 4K, and 21:9: the
+30. The open trade takes the screen at 1080p, 1440p, 4K, and 21:9: the
     game behind it, HUD included, is blurred and darker and keeps moving,
     the panel takes the same share of the screen's height on each, and the
     preview column sits to its right; nothing else on screen changes, and
@@ -3311,7 +3363,7 @@ Not confirmed in game:
     from there, and it keeps its angle after other items were hovered
     and the grid thumbnails captured. The item picker's model shows on its
     dark panel and spins too.
-30. The settings window's sidebar lists `[Connection]`, `[DefaultOutfit]`,
+31. The settings window's sidebar lists `[Connection]`, `[DefaultOutfit]`,
     `[UI]`, `[Controls]`, and `[Advanced]`. `[UI]` shows its settings under
     the Display, Players, Chat, and Items headings, and `[Advanced]` under
     Performance, Custom animations, and Diagnostics, `StatusPanel` alone in
@@ -3332,7 +3384,7 @@ Not confirmed in game:
     Defaults button is disabled with the default keys; after rebinding any,
     a click restores `F4`, `Enter`, `O`, `Y`, and `N`, saves them, and is
     disabled again.
-31. With `OpenChat` bound to `T`, `T` opens the chat with an empty field and
+32. With `OpenChat` bound to `T`, `T` opens the chat with an empty field and
     Enter and keypad Enter reach the game; Enter still sends and closes it.
     Backspace on `OpenChat`'s button restores `Enter`. `O` opens the player
     manager alone in the middle of the screen with the cursor shown and the
@@ -3340,12 +3392,12 @@ Not confirmed in game:
     and Escape or its close button returns input to the game. Clicking an
     online friend's name there closes it and opens the chat whispering
     that friend. With `ManagePlayers` unbound, `O` reaches the game.
-32. On Windows with English and Ukrainian layouts, switching the input
+33. On Windows with English and Ukrainian layouts, switching the input
     language with the Windows hotkey while the chat's field is open makes
     the next letters Cyrillic, and switching back makes them Latin, without
     closing the chat. The log shows the new layout with the first
     character typed in it.
-33. Another player standing in view within 30 m has their display name
+34. Another player standing in view within 30 m has their display name
     above their head, following it while they walk, run, sit, ride, or
     crouch, in third and first person, at 1080p and 4K. A friend's name is
     in the accent and changes at once when the friend is added or removed.
@@ -3357,21 +3409,21 @@ Not confirmed in game:
     with the HUD hidden (`tm`), behind the trade window, or with
     `Nameplates` off. Many players in view do not lower the frame rate
     noticeably.
-34. The `Scale` slider at the top of the `[UI]` page shows 100% and moves
+35. The `Scale` slider at the top of the `[UI]` page shows 100% and moves
     in steps of 5 between 80 and 130. Releasing it at 130 makes the text and
     every overlay window, the chat, notices, and nameplates larger from the
     next frame and writes `Scale = 130`; the open settings window grows
     around its center and stays on the display, and the cursor moves at the
     same speed. At 80 all of them shrink the same way. `Scale = 107` or
     `150` in the file warns in the log and loads `100`.
-35. In a game with an empty `DisplayName`, the framed hint at the top center
+36. In a game with an empty `DisplayName`, the framed hint at the top center
     names the `OpenSettings` key and the `[Connection]` page; rebinding
     `OpenSettings` changes the key it names. It is gone in the pause,
     inventory, and map menus, in dialogue, with the HUD hidden (`tm`), and
     while the chat or settings window is open. Pressing the key opens
     `[Connection]` with the keyboard in the field, and applying a name there
     leaves no hint after the window closes. Clearing the name brings it back.
-36. The `[UI]` page's `ChatPositionHorizontal` and `ChatPositionVertical`
+37. The `[UI]` page's `ChatPositionHorizontal` and `ChatPositionVertical`
     sliders show 1% and 8%, with the chat above the magicka bar; at `50` and `40`
     the open chat and the recent lines sit around the
     screen's middle, in the same column, at 1080p and 4K alike; a chat
@@ -3383,14 +3435,14 @@ Not confirmed in game:
     against the lower left corner, over the magicka bar. Defaults puts it back
     above the magicka bar, and the positions are in `PlayerHub.ini` after a
     restart.
-37. The settings window first opens centered at 54 × 36 font sizes
+38. The settings window first opens centered at 54 × 36 font sizes
     (864 × 576 px at a 16 px font). Each of its four corners and edges resizes
     it with the resize cursor, keeping the opposite corner or edge in place.
     Dragged to a corner, resized, closed, and
     opened again, during gameplay or after another menu, it is where and as
     large as it was left; after a game restart it is centered again at the
     default size.
-38. Dragging the open chat by a gap in the filters' row or the lines away
+39. Dragging the open chat by a gap in the filters' row or the lines away
     from a name moves it with the cursor and
     the move cursor, keeping its size; it stops at each screen edge, wholly on
     the screen. A press on a filter, the players chip, the target chip, the
@@ -3400,7 +3452,7 @@ Not confirmed in game:
     show the new percentages, and the chat is there after a restart. Dragged
     into the upper right corner with the player list open, the list opens on
     the chat's left.
-39. With `sLanguage=GERMAN`, the settings window, chat, player menus, trade
+40. With `sLanguage=GERMAN`, the settings window, chat, player menus, trade
     window and prompt, notices, and status panel are in German, the log has
     `Localization: de.po with <n> of <n> texts translated (0 fuzzy, 0
     rejected) for GERMAN` and `Localization: the game's language GERMAN is
@@ -3421,7 +3473,7 @@ Not confirmed in game:
     restart, shows those texts in Ukrainian and the rest in English, and
     `Language = uk` keeps it after a restart. Removing the file then logs that
     no `uk.po` exists and shows the game's language.
-40. The `BackgroundOpacity` slider on the `[UI]` page shows 75% and moves in
+41. The `BackgroundOpacity` slider on the `[UI]` page shows 75% and moves in
     steps of 5 between 25 and 100. Dragging it changes the background of the
     settings window and its open lists and tooltips together, from the next
     frame. Released at 100, it writes `BackgroundOpacity = 100`, and the
@@ -3431,7 +3483,7 @@ Not confirmed in game:
     them alike, while the status panel and the closed chat's recent lines look
     as they did. `BackgroundOpacity = 20` or `77` in the file warns in the log
     and loads `75`.
-41. With `BackgroundOpacity` at 75 over a detailed scene, the settings
+42. With `BackgroundOpacity` at 75 over a detailed scene, the settings
     window, the open chat and its player list, the player manager, the trade
     prompt, the display name hint, notices, and an open list, menu, or tooltip
     each show the scene blurred behind them, the blur ending at each frame's
@@ -3441,7 +3493,7 @@ Not confirmed in game:
     around them. At 100 nothing is blurred. The status panel and the closed
     chat's recent lines are never blurred. The frame rate with the chat open
     does not drop noticeably.
-42. While the player is heard, the microphone shows near the screen's lower
+43. While the player is heard, the microphone shows near the screen's lower
     left corner, under the chat's default place. With `Indicator` off on
     the `[Voice]` page it never shows, and the page's two position sliders
     are gone. With it on, they show 1% and 5%; pointing at either shows the
@@ -3453,7 +3505,7 @@ Not confirmed in game:
     values are in `PlayerHub.ini` after a restart. The microphone is sharp
     at 1080p and 4K, and with `PlayerHub/fonts/PlayerHub.ttf` removed it
     never shows.
-43. At the default positions, the microphone shows over the blurred
+44. At the default positions, the microphone shows over the blurred
     backdrop while the player is heard in an open trade, and the trade's
     windows draw over it where they overlap.
 
@@ -3542,9 +3594,10 @@ Not confirmed in game:
 - Editing shortcut letters (Ctrl+A/C/V/X/Y/Z) follow physical QWERTY positions,
   not the keyboard layout. Chat lines and player names cannot be selected
   or copied.
-- `@Ulf Stone cold` typed in full whispers `Ulf Stone` while that player is
-  online, since the longest name wins; whispering `Ulf` then takes picking
-  the name from the list.
+- The field shows a mention as plain text while it is written; only the
+  sent line sets it apart. A mention is found against the players online
+  when its line arrives, so naming a player who connects a moment later
+  leaves it plain.
 - The chat is resized with the mouse only. A word wider
   than the chat is cut at the row's end wherever that falls, not at a
   syllable or after punctuation.

@@ -76,6 +76,7 @@ criteria.
 | Kicks and bans | [network](network.md#kicks-and-bans), [recording-and-replay](recording-and-replay.md#admin-api), [ui-overlay](ui-overlay.md#notices), [ui-overlay](ui-overlay.md#connection-controls) |
 | Proximity, exclusions, late join, peer enter and leave, batching | [interest-and-delivery](interest-and-delivery.md), [network](network.md#server-messages), [sync-pipeline](sync-pipeline.md#receive-state) |
 | Chat | [ui-overlay](ui-overlay.md#chat), [network](network.md#chat) |
+| Chat mentions (`@` and a name picked from a list, highlighted for the mentioned player) | [ui-overlay](ui-overlay.md#mentions), [ui-overlay](ui-overlay.md#name-list) |
 | Chat docked in the trade window | [ui-overlay](ui-overlay.md#chat-in-a-trade), [ui-overlay](ui-overlay.md#window) |
 | Nameplates above players' heads | [ui-overlay](ui-overlay.md#nameplates), [sync-pipeline](sync-pipeline.md#frame-sequence), [configuration](configuration.md#ui), [appearance-and-equipment](appearance-and-equipment.md#player-label) |
 | Notices (toasts on the right) and chat notes | [ui-overlay](ui-overlay.md#notices), [ui-overlay](ui-overlay.md#notes), [trade](trade.md#notices) |

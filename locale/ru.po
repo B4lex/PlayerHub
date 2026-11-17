@@ -1450,10 +1450,6 @@ msgstr[0] "На одном сервере можно скрыть не боль�
 msgstr[1] "На одном сервере можно скрыть не больше {} игроков"
 msgstr[2] "На одном сервере можно скрыть не больше {} игроков"
 
-msgctxt "ChatWhisperNeedsName"
-msgid "Type a player's name after @, then your message"
-msgstr "Введите имя игрока после @, а затем сообщение"
-
 msgctxt "ChatRateLimited"
 msgid "You are sending messages too quickly"
 msgstr "Вы отправляете сообщения слишком часто"
