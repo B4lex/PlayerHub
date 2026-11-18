@@ -168,7 +168,22 @@ namespace EquipmentSync
             return nullptr;
         }
 
-        void CaptureWornArmor(RE::Actor& a_actor, bool a_playableOnly, std::size_t a_maximum,
+        bool IsNonPlayable(const RE::TESObjectARMO& a_armor)
+        {
+            return (a_armor.GetFormFlags() & RE::TESObjectARMO::RecordFlags::kNonPlayable) != 0;
+        }
+
+        // Dragon Aspect's script (DLC2DragonbornAspectArtSCRIPT) equips the non-playable
+        // DLC2DragonbornAspectArmor01-03, which use slot 61 only, while its effect lasts; the
+        // receiver's copy of the effect equips them on the remote actor itself.
+        bool IsEffectArmor(const RE::TESObjectARMO& a_armor)
+        {
+            return IsNonPlayable(a_armor)
+                && a_armor.GetSlotMask().underlying()
+                       == static_cast<std::uint32_t>(RE::BGSBipedObjectForm::BipedObjectSlot::kFX01);
+        }
+
+        void CaptureWornArmor(RE::Actor& a_actor, bool a_skipEffectArmor, std::size_t a_maximum,
             std::vector<EquipmentArmor>& a_armor, std::uint32_t& a_skipped)
         {
             const auto inventory = a_actor.GetInventory([](RE::TESBoundObject& a_object) { return a_object.IsArmor(); });
@@ -176,9 +191,7 @@ namespace EquipmentSync
             {
                 const auto& [count, entry] = data;
                 auto* armor = object ? object->As<RE::TESObjectARMO>() : nullptr;
-                if (!armor || count <= 0 || !entry || !entry->IsWorn()
-                    || (a_playableOnly
-                        && (armor->GetFormFlags() & RE::TESObjectARMO::RecordFlags::kNonPlayable) != 0))
+                if (!armor || count <= 0 || !entry || !entry->IsWorn() || (a_skipEffectArmor && IsEffectArmor(*armor)))
                 {
                     continue;
                 }
@@ -544,6 +557,14 @@ namespace EquipmentSync
                         a_playerID, static_cast<unsigned long long>(revision), armor->GetFormID());
                 }
             }
+            for (auto* armor : a_remote.armor)
+            {
+                if (IsNonPlayable(*armor)
+                    && std::ranges::find(a_remote.sentNonPlayableArmor, armor) == a_remote.sentNonPlayableArmor.end())
+                {
+                    a_remote.sentNonPlayableArmor.push_back(armor);
+                }
+            }
             a_remote.rightHand
                 = ResolveHandEntry(a_playerID, revision, "rightHand", equipment.rightHand, equipment.defaultOutfit);
             a_remote.leftHand
@@ -670,15 +691,15 @@ namespace EquipmentSync
                 && IsStaffSpellMatched(a_actor, a_remote.leftHand, true);
         }
 
-        // Peers publish only playable armor outside beast forms, so a non-playable piece the
-        // actor wears comes from its own magic: Dragon Aspect's script
-        // (DLC2DragonbornAspectArtSCRIPT) equips DLC2DragonbornAspectArmor01 and unequips it
-        // when the effect ends, after which the unworn piece is removed as any leftover.
-        bool IsWornEffectArmor(const RE::TESBoundObject* a_object, const RE::InventoryEntryData* a_entry)
+        // A worn non-playable piece no peer sent comes from the actor's own magic, such as
+        // Dragon Aspect's armor, whose script unequips it when the effect ends; the unworn piece
+        // is then removed as any leftover.
+        bool IsWornEffectArmor(
+            const RE::TESBoundObject* a_object, const RE::InventoryEntryData* a_entry, const RemoteState& a_remote)
         {
-            const auto* armor = a_object ? a_object->As<RE::TESObjectARMO>() : nullptr;
-            return armor && a_entry && a_entry->IsWorn()
-                && (armor->GetFormFlags() & RE::TESObjectARMO::RecordFlags::kNonPlayable) != 0;
+            auto* armor = a_object ? a_object->As<RE::TESObjectARMO>() : nullptr;
+            return armor && a_entry && a_entry->IsWorn() && IsNonPlayable(*armor)
+                && std::ranges::find(a_remote.sentNonPlayableArmor, armor) == a_remote.sentNonPlayableArmor.end();
         }
 
         bool IsPresentationMatched(RE::Actor& a_actor, const RemoteState& a_remote)
@@ -699,7 +720,7 @@ namespace EquipmentSync
             RE::TESBoundObject* wornAmmo = nullptr;
             for (const auto* entry : *changes->entryList)
             {
-                if (!entry || !entry->object || !entry->IsWorn() || IsWornEffectArmor(entry->object, entry))
+                if (!entry || !entry->object || !entry->IsWorn() || IsWornEffectArmor(entry->object, entry, a_remote))
                 {
                     continue;
                 }
@@ -1067,7 +1088,7 @@ namespace EquipmentSync
         }
         for (const auto& [object, data] : inventory)
         {
-            if (IsWornEffectArmor(object, data.second.get()))
+            if (IsWornEffectArmor(object, data.second.get(), a_remote))
             {
                 auto& count = required[object];
                 count = (std::max)(count, data.first);

@@ -42,6 +42,9 @@ namespace EquipmentSync
         ResolvedHand beastRightHand;
         ResolvedHand beastLeftHand;
         std::vector<RE::TESObjectARMO*> beastArmor;
+        // Every non-playable armor any revision resolved, kept for the peer's lifetime, so a
+        // piece the source took off is removed rather than kept as the actor's effect armor.
+        std::vector<RE::TESObjectARMO*> sentNonPlayableArmor;
 
         float checkElapsed{ 0.0F };
         float inventoryCheckElapsed{ 0.0F };

@@ -366,8 +366,13 @@ Triggers:
 Capture, when the race has a [playable race](#playable-race):
 
 - `armor`: every worn inventory entry (`ExtraWorn` or `ExtraWornLeft`) whose
-  object is a playable `TESObjectARMO`, including shields, deduplicated after
-  enchantment reduction. Skin armor never appears in inventory.
+  object is a `TESObjectARMO`, including shields, deduplicated after
+  enchantment reduction. Non-playable armor is included, such as the Greybeard
+  robes or the pieces of an outfit set on the player, except effect armor: a
+  non-playable piece whose only slot is 61 (`BipedObjectSlot::kFX01`), as
+  Dragon Aspect's `DLC2DragonbornAspectArmor01`–`03`, which the receiver's own
+  copy of the effect equips ([Reconciliation](#reconciliation)). Skin armor
+  never appears in inventory.
 - Hands from `Actor::GetEquippedObject(false/true)`: a `TESObjectWEAP` other
   than hand-to-hand is `weapon` with its type, and a staff that casts also
   carries the spell it casts and that spell's look
@@ -394,8 +399,8 @@ forms the sender logs `Equipment sync not capturing in a non-playable race` once
 per race. As a vampire lord, whose transformation equips its spells
 and armor, a `SpellItem` in either hand also becomes that `beast_*_hand`,
 with its look, as for a human spell hand; anything else in a hand is unset.
-Every worn armor entry, playable or not, becomes `beast_armor` by the same
-rules as `armor`, at most 8, so a mod that changes the vampire lord's armor
+Every worn armor entry, effect armor included, becomes `beast_armor` by the
+same rules as `armor`, at most 8, so a mod that changes the vampire lord's armor
 shows it to peers who have that mod. Other beast races capture nothing. The human fields thus stay the character's, a human
 actor never takes up the vampire lord's spells, and a late joiner gets both.
 
@@ -467,12 +472,14 @@ worn armor, and equipped hand objects with the resolved set. When they differ:
    dual-wielding one weapon), plus 20 of the resolved ammo.
 2. Every other object, and any excess, is removed and deleted, never
    transferred to a container or the player: gold, leveled items, script items.
-   Worn non-playable armor is kept at its count and is not compared with the
-   worn set: peers publish only playable armor outside beast forms, so it comes
-   from the actor's own magic, such as `Dragonborn.esm`
-   `DLC2DragonbornAspectArmor01`, which Dragon Aspect's script equips and
-   unequips when the effect ends. Once unworn it is removed as any other
-   object.
+   Worn non-playable armor that no revision from this peer resolved is kept
+   at its count and is not compared with the worn set: it comes from the
+   actor's own magic, such as `Dragonborn.esm` `DLC2DragonbornAspectArmor01`,
+   which Dragon Aspect's script equips and unequips when the effect ends.
+   Once unworn it is removed as any other object.
+   `RemoteState::sentNonPlayableArmor` remembers every non-playable piece a
+   revision resolved, for the peer's lifetime, so a piece the source takes off
+   is removed rather than kept as effect armor.
 3. Equipped armor and hand objects outside the set are unequipped. A spell in
    a hand that should be empty is removed with
    `ActorEquipManager::UnequipSpell` (ID 38902, SE 37946, Papyrus
@@ -717,7 +724,8 @@ at runtime from the base's head parts and face data.
 1. A remote actor shows the source's race, sex, weight, hair, eyes, hair color,
    face shape, skin and face tints, and its label, and wears the source's armor,
    clothing, jewelry, shield, hand items, and ammo from any plugin the receiver
-   has. Late joiners see both without the source changing anything.
+   has, non-playable armor and outfits set on the player included. Late
+   joiners see both without the source changing anything.
 2. An appearance change (barber, RaceMenu) updates the actor within a few
    seconds with a single respawn, returning to its locomotion and furniture
    state; a level change does not respawn it or change its label. An
