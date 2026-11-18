@@ -13,6 +13,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <ranges>
 #include <system_error>
 #include <unordered_map>
 #include <vector>
@@ -392,10 +393,19 @@ namespace Text
                 ++outcomes[static_cast<std::size_t>(Translate(*translation, key->second, message, a_name))];
             }
             const auto translated = outcomes[static_cast<std::size_t>(Outcome::kTranslated)];
-            logs::info("Localization: {} with {} of {} texts translated ({} fuzzy, {} rejected){}", a_name, translated,
-                kIdCount - 1, outcomes[static_cast<std::size_t>(Outcome::kFuzzy)],
-                outcomes[static_cast<std::size_t>(Outcome::kRejected)],
+            const auto fuzzy = outcomes[static_cast<std::size_t>(Outcome::kFuzzy)];
+            const auto rejected = outcomes[static_cast<std::size_t>(Outcome::kRejected)];
+            const auto summary = std::format("Localization: {} with {} of {} texts translated ({} fuzzy, {} rejected){}",
+                a_name, translated, kIdCount - 1, fuzzy, rejected,
                 translation->gameName.empty() ? std::string{} : std::format(" for {}", translation->gameName));
+            if (translated == kIdCount - 1 && fuzzy == 0 && rejected == 0)
+            {
+                logs::debug("{}", summary);
+            }
+            else
+            {
+                logs::info("{}", summary);
+            }
             return translation;
         }
 
@@ -487,6 +497,13 @@ namespace Text
                     std::string{ ownName == s_english.text[static_cast<std::size_t>(Id::kLanguageName)] ? code : ownName } });
                 s_translations.push_back(std::move(translation));
             }
+            std::string codes;
+            for (const auto& language : s_languages | std::views::drop(1))
+            {
+                codes += codes.empty() ? language.code : std::format(", {}", language.code);
+            }
+            logs::info("Localization: loaded {} translations{}{}", s_languages.size() - 1, codes.empty() ? "" : ": ",
+                codes);
         }
 
         const Table& GetTable(Language a_language)

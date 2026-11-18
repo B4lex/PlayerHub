@@ -12,6 +12,8 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -68,6 +70,9 @@ namespace Audio
             Device playback;
             std::string captureName;
             std::string playbackName;
+            // Devices reopen on every connection; each is logged once until another one opens.
+            std::string loggedCaptureDevice;
+            std::string loggedPlaybackDevice;
             bool foreground{ true };
             ma_uint32 sinceForegroundCheck{ 0 };
         };
@@ -212,8 +217,13 @@ namespace Audio
                     a_type == ma_device_type_capture ? "input" : "output", ma_result_description(result));
                 return nullptr;
             }
-            logs::info("Voice opened the {} device \"{}\"", a_type == ma_device_type_capture ? "input" : "output",
-                a_type == ma_device_type_capture ? device->capture.name : device->playback.name);
+            const bool input = a_type == ma_device_type_capture;
+            const std::string_view name = input ? device->capture.name : device->playback.name;
+            if (auto& logged = input ? a_engine.loggedCaptureDevice : a_engine.loggedPlaybackDevice; logged != name)
+            {
+                logged = name;
+                logs::info("Voice opened the {} device \"{}\"", input ? "input" : "output", name);
+            }
             return opened;
         }
 

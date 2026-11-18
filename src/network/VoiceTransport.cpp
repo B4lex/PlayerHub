@@ -397,7 +397,7 @@ namespace Network::VoiceTransport
                 {
                     confirmed = true;
                     nextProbe = lastHeard + kKeepAliveInterval;
-                    logs::info("Voice datagrams reach the relay both ways");
+                    logs::debug("Voice datagrams reach the relay both ways");
                     session.state.store(State::kConnected, std::memory_order_release);
                 }
             }
@@ -436,7 +436,7 @@ namespace Network::VoiceTransport
         {
             previous->stopping.store(true, std::memory_order_release);
         }
-        logs::info("Voice starts: radius={} relay host {}", a_access.radius,
+        logs::debug("Voice starts: radius={} relay host {}", a_access.radius,
             a_access.host.empty() ? "is the server's" : "is named by the server");
         if (datagrams)
         {
@@ -455,7 +455,7 @@ namespace Network::VoiceTransport
         if (previous)
         {
             previous->stopping.store(true, std::memory_order_release);
-            logs::info("Voice stops with the connection");
+            logs::debug("Voice stops with the connection");
         }
     }
 

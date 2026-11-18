@@ -2528,7 +2528,10 @@ and share a language without a plugin build.
   from English (see above) is rejected with a warning naming its file and
   line. Each file then logs `Localization: <file> with <n> of <total> texts
   translated (<f> fuzzy, <r> rejected)`, followed by ` for <sLanguage>` when
-  it has `X-Skyrim-Language`.
+  it has `X-Skyrim-Language`: at info when the file leaves a text
+  untranslated, fuzzy, or rejected, and at debug when it is complete. After
+  the last file, `Localization: loaded <n> translations: <codes>` lists the
+  loaded codes in one line.
 - `Text::Gettext::Parse` reads what `msgmerge` and PO editors write:
   `msgctxt`, `msgid`, `msgid_plural`, `msgstr` and `msgstr[N]`, continuation
   lines, comments, and the `fuzzy` flag. It skips obsolete `#~` entries and
@@ -2946,18 +2949,17 @@ IDs matched against 1.5.97 where given.
     a restart. Dragged into the upper right corner, the player list opens on
     the chat's left.
 40. With `sLanguage=GERMAN`, the overlay's text is German, the log has
-    `Localization: de.po with <n> of <n> texts translated (0 fuzzy, 0
-    rejected) for GERMAN` and `Localization: the game's language GERMAN is
-    de`, and `PlayerHub.ini` keeps its English comments. With
-    `sLanguage=JAPANESE`, Han characters have their Japanese shapes and a long
-    Japanese effect description wraps inside the item card. A language without
-    a table shows English. Picking another language in `[UI] Language`
-    switches the open windows in the next frame, saves the code, and survives
-    a restart, also changing the Han shapes; Defaults returns to the game's
-    language. A community `.po` made from the deployed template appears in the
-    combo by its `LanguageName` after a restart, with untranslated texts in
-    English; removing it logs that no file exists and shows the game's
-    language.
+    `Localization: loaded <n> translations: de, …` and `Localization: the
+    game's language GERMAN is de`, and `PlayerHub.ini` keeps its English
+    comments. With `sLanguage=JAPANESE`, Han characters have their Japanese
+    shapes and a long Japanese effect description wraps inside the item
+    card. A language without a table shows English. Picking another language
+    in `[UI] Language` switches the open windows in the next frame, saves the
+    code, and survives a restart, also changing the Han shapes; Defaults
+    returns to the game's language. A community `.po` made from the deployed
+    template appears in the combo by its `LanguageName` after a restart, with
+    untranslated texts in English; removing it logs that no file exists and
+    shows the game's language.
 41. Dragging `BackgroundOpacity` changes the background of the settings
     window and its lists and tooltips together from the next frame; on
     release it saves, and every surface in

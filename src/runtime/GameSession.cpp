@@ -17,7 +17,7 @@ namespace GameSession
         {
             return;
         }
-        logs::info("Game {}", a_inGame ? "started" : "ended");
+
     }
 
     bool IsInGame()

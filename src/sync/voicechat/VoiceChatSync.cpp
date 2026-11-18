@@ -112,14 +112,20 @@ namespace VoiceChatSync
             .activationLevel = static_cast<float>(voice.activationLevel) / 100.0F };
         if (!s_configured || settings != s_settings)
         {
-            if (settings.active != s_settings.active || !s_configured)
+            if (settings.active)
             {
-                logs::info("Voice {}: mode={} relay={}", settings.active ? "is on" : "is off",
-                    settings.voiceActivation ? "voice activation" : "push to talk",
-                    state == State::kConnected     ? "connected"
-                    : state == State::kConnecting  ? "connecting"
-                    : state == State::kUnreachable ? "unreachable"
-                                                   : "none");
+                if (!s_configured || !s_settings.active)
+                {
+                    logs::info("Voice is on: mode={}", settings.voiceActivation ? "voice activation" : "push to talk");
+                }
+            }
+            else if (s_configured && s_settings.active)
+            {
+                const auto* relay = state == State::kConnected     ? "connected"
+                                  : state == State::kConnecting  ? "connecting"
+                                  : state == State::kUnreachable ? "unreachable"
+                                                                 : "none";
+                logs::info("Voice is off: relay={}", relay);
             }
             s_configured = true;
             s_settings = settings;

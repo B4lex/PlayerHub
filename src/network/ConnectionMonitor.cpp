@@ -119,8 +119,10 @@ namespace Network
         {
             if (phase != Phase::kConnected)
             {
-                logs::info("Server connection established after {} reconnect attempts: connectionGeneration={}",
-                    reconnectAttempts, static_cast<unsigned long long>(GetConnectionGeneration()));
+                if (reconnectAttempts > 0)
+                {
+                    logs::info("Server connection restored after {} reconnect attempts", reconnectAttempts);
+                }
                 EnterPhase(Phase::kConnected);
                 reconnectAttempts = 0;
             }
@@ -164,13 +166,17 @@ namespace Network
             {
                 return;
             }
-            requirementsConfigRevision = revision;
+            const bool first = !std::exchange(requirementsConfigRevision, revision).has_value();
             const auto config = Config::Get();
             const bool nameSet = !config->connection.displayName.empty();
             const bool hasAddress = Config::HasServerAddress(config->connection);
             if (displayNameSet.exchange(nameSet, std::memory_order_acq_rel) != nameSet)
             {
-                logs::info("Display name {}", nameSet ? "set" : "cleared; not connecting without one");
+                // The startup state is in the game start line.
+                if (!first)
+                {
+                    logs::info("Display name {}", nameSet ? "set" : "cleared; not connecting without one");
+                }
                 if (!nameSet)
                 {
                     // Applying one again must not connect by itself.
@@ -201,20 +207,6 @@ namespace Network
             const bool hasAddress = addressSet.load(std::memory_order_acquire);
             const bool connect = autoConnect && nameSet && hasAddress;
             connectionEnabled.store(connect, std::memory_order_release);
-            const auto* next = "waiting for the player to connect";
-            if (connect)
-            {
-                next = "connecting automatically";
-            }
-            else if (autoConnect && !nameSet)
-            {
-                next = "waiting for the player to enter a display name and connect";
-            }
-            else if (autoConnect)
-            {
-                next = "waiting for the player to enter a custom server address and connect";
-            }
-            logs::info("Game started; {}", next);
         }
 
         bool IsConnectionWanted()
@@ -349,7 +341,7 @@ namespace Network
         }
         if (connectionEnabled.exchange(a_enabled, std::memory_order_acq_rel) != a_enabled)
         {
-            logs::info("Player {} the server", a_enabled ? "connected to" : "disconnected from");
+            logs::debug("Player {} the server", a_enabled ? "connected to" : "disconnected from");
         }
     }
 

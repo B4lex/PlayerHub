@@ -12,6 +12,7 @@
 #include <mutex>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <system_error>
 #include <utility>
@@ -226,11 +227,18 @@ namespace Config
                 {
                     CSimpleIniA::TNamesDepend keys;
                     file.GetAllKeys(remainingSection.pItem, keys);
+                    if (keys.empty())
+                    {
+                        continue;
+                    }
+                    keys.sort(CSimpleIniA::Entry::LoadOrder());
+                    std::string names;
                     for (const auto& key : keys)
                     {
-                        logs::warn("Config {}: ignoring unknown setting [{}] {}", kFileName, remainingSection.pItem,
-                            key.pItem);
+                        names += names.empty() ? key.pItem : std::format(", {}", key.pItem);
                     }
+                    logs::warn("Config {}: ignoring unknown settings in [{}]: {}", kFileName, remainingSection.pItem,
+                        names);
                 }
             }
 

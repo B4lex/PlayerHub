@@ -201,8 +201,8 @@ namespace Network
                 logs::error("Could not encode the hello for the server");
                 return;
             }
-            logs::info("Sending hello: displayName=\"{}\" session={} vanished={}", config->connection.displayName,
-                token ? "kept" : "none, asking for a new one", vanished.size());
+            logs::debug("Sending hello: session={} vanished={}", token ? "kept" : "none, asking for a new one",
+                vanished.size());
             if (const auto info = a_socket.sendBinary(hello); info.success)
             {
                 CountSentBytes(info.wireSize);
@@ -789,7 +789,7 @@ namespace Network
                 {
                     PROFILE_THREAD_NAME("Server connection");
                     transportOpen.store(true, std::memory_order_release);
-                    logs::info("WebSocket connected.");
+                    logs::debug("WebSocket connected");
                     if (const auto current = GetSocket())
                     {
                         SendHello(*current);
@@ -889,7 +889,7 @@ namespace Network
                 const std::scoped_lock lock{ socketLock };
                 socket = next;
             }
-            logs::info("Opening WebSocket connection.");
+            logs::debug("Opening WebSocket connection");
             next->start();
         }
     }
@@ -1276,7 +1276,7 @@ namespace Network
             try
             {
                 StopSocket();
-                logs::info("Server connection closed on request");
+                logs::debug("Server connection closed on request");
             }
             catch (const std::exception& a_exception)
             {
