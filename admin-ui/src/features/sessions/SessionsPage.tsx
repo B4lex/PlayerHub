@@ -233,8 +233,9 @@ export function SessionsPage() {
   const role = parameters.get("role");
   useTicker(30_000); // re-render so relative times ("5 min ago") stay current
   const now = Date.now();
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
+  // An initial search in the address lets the Statistics page link to a session.
+  const [searchInput, setSearchInput] = useState(() => parameters.get("search") ?? "");
+  const [search, setSearch] = useState(() => (parameters.get("search") ?? "").trim());
   const [offset, setOffset] = useState(0);
   const [revision, setRevision] = useState(0);
   const [page, setPage] = useState<LoadedPage | null>(null);

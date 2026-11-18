@@ -114,6 +114,10 @@ invite_seconds = 30         # an unanswered invitation expires
 database = "sessions.db"    # SQLite file of player sessions; "" keeps them in memory
 lifetime_days = 30          # a session unused for this long is gone, with its display name
 
+[metrics]
+database = "metrics.db"     # SQLite file of the history the Statistics page shows; "" keeps it in memory
+retention_days = 365        # connections and hourly figures older than this are deleted; minutes go after 14 days
+
 [voice]
 enabled = true              # false gives clients no voice
 listen = "0.0.0.0:14201"    # UDP; the same port number as the TCP listen is fine
@@ -127,6 +131,9 @@ packet_burst = 25
 Players are identified by sessions (`../specs/network.md`, Sessions). The
 session database is created on first start, with its write-ahead log next to
 it. Deleting it gives every player a new session and frees every display name.
+The metrics database is created the same way and copies each kept session's
+creation time on first start; deleting it only clears the history
+(`../specs/metrics.md`).
 
 `config.example.toml` is a starting point for a 50 Mbit/s upload behind a
 proxy on the same host: copy it to an untracked `*.toml` in this directory,
@@ -223,12 +230,13 @@ go run ./cmd/tradebot --kit
 | `internal/recording` | Format version 4, store, captures, timeline markers |
 | `internal/playback` | Virtual players and replay sessions |
 | `internal/loadtest` | In-server bot batches |
+| `internal/metrics` | Connection log, refusals, minute samples, the statistics report |
 | `internal/admin` | REST API, event feed, panel files |
 
 ## Admin panel
 
 The panel (`admin-ui/`, see its README) shows connected players, live Global
-chat, sessions, roles, captures, replays, and load-test batches. Commands are REST
+chat, the server's history, sessions, roles, captures, replays, and load-test batches. Commands are REST
 calls under `/api`; live state is a server-sent event stream at `/api/events`
 that pushes a full snapshot on connect and after changes, at most twice a
 second, and each Global chat line as it is relayed.
@@ -240,6 +248,7 @@ second, and each Global chat line as it is relayed.
 | `POST /api/logout` | End this login and clear its cookie |
 | `GET /api/state` | Everything the panel shows |
 | `GET /api/events` | Event stream of the same snapshot (`state`) and Global chat lines (`chat`) |
+| `GET /api/statistics?range=&tz=` | History over `24h`, `7d` (default), `30d`, `90d`, or `all`, with days in the IANA zone `tz` (default UTC); see `../specs/metrics.md` |
 | `GET /api/recordings/{id}` | One recording with its timeline markers |
 | `POST /api/recordings` `{playerId, label?}` | Start capturing a connected player |
 | `POST /api/recordings/{id}/stop` | Stop a capture |

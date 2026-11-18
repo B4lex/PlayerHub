@@ -125,7 +125,8 @@ http://127.0.0.1:3001/admin/ (admin_listen). It has no login until
 admin_password_hash is set; make one with "go run ./cmd/hashpassword" in the
 server directory of the source repository. Until then, keep that address off
 the public Internet. The session
-database (sessions.db) and recordings/ are created in the working directory.
+database (sessions.db), the metrics database (metrics.db), and recordings/ are
+created in the working directory.
 
 Every setting is in config.toml at its default; the server reads that file
 from the working directory. To let players on other computers connect, allow

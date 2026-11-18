@@ -13,6 +13,7 @@ import (
 	"playerhub/server/internal/delivery"
 	"playerhub/server/internal/hub"
 	"playerhub/server/internal/loadtest"
+	"playerhub/server/internal/metrics"
 	"playerhub/server/internal/playback"
 	"playerhub/server/internal/recording"
 	"playerhub/server/internal/session"
@@ -29,8 +30,11 @@ type Context struct {
 	Batches     *loadtest.Manager
 	Sessions    *auth.Store
 	Connections *session.Server
-	StartedAt   time.Time
-	OnChange    func()
+	Metrics     *metrics.Store
+	// Zero when the budget is off.
+	UplinkBytesPerSecond float64
+	StartedAt            time.Time
+	OnChange             func()
 
 	rates rateTracker
 }

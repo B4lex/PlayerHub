@@ -20,6 +20,7 @@ import (
 	"playerhub/server/internal/auth"
 	"playerhub/server/internal/config"
 	"playerhub/server/internal/hub"
+	"playerhub/server/internal/metrics"
 	"playerhub/server/internal/wire/pb"
 )
 
@@ -778,5 +779,65 @@ func TestBannedAddressLearnsOfTheBanOnAFullServer(t *testing.T) {
 	refusedFrom.send(hello("Aela", nil))
 	if code, _ := closeStatus(t, refusedFrom); code != StatusBanned {
 		t.Fatalf("got %d", code)
+	}
+}
+
+func TestConnectionsAndRefusalsAreRecorded(t *testing.T) {
+	s := startServer(t, config.Default())
+	store, err := metrics.Open("", 365*24*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+	recorder, err := metrics.NewRecorder(store, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.server.UseMetrics(recorder)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		recorder.Run(ctx, func() (metrics.Gauges, bool) { return metrics.Gauges{}, true })
+		close(done)
+	}()
+
+	mismatched := dial(t, s)
+	mismatched.send(&pb.ClientMessage{Message: &pb.ClientMessage_Hello{Hello: &pb.Hello{ProtocolVersion: 99, DisplayName: "Lydia"}}})
+	closeStatus(t, mismatched)
+	kicked, welcome := resume(t, s, "Lydia", nil)
+	leaving, _ := join(t, s, "Serana")
+	s.server.Kick(welcome.GetSlot())
+	closeStatus(t, kicked)
+	leaving.conn.Close(websocket.StatusNormalClosure, "")
+
+	// The recorder writes each second.
+	deadline := time.Now().Add(5 * time.Second)
+	var report metrics.Report
+	for {
+		if report, err = store.Report("24h", time.UTC, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		if len(report.Disconnects) == 2 || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	cancel()
+	<-done
+	reasons := map[string]int{}
+	for _, r := range report.Disconnects {
+		reasons[r.Reason] = r.Count
+	}
+	if reasons[metrics.ReasonKicked] != 1 || reasons[metrics.ReasonLeft] != 1 {
+		t.Fatalf("disconnects %v", reasons)
+	}
+	if report.Summary.UniquePlayers != 2 || report.Summary.NewPlayers != 2 {
+		t.Errorf("unique %d, new %d", report.Summary.UniquePlayers, report.Summary.NewPlayers)
+	}
+	if report, err = store.Report("24h", time.UTC, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Refusals) != 1 || report.Refusals[0].Reason != metrics.RefusedProtocolMismatch {
+		t.Errorf("refusals %+v", report.Refusals)
 	}
 }

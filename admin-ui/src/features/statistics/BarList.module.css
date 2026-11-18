@@ -1,0 +1,40 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 13rem) 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.label {
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The bar takes what the value label leaves, so the label never overlaps it. */
+.track {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.bar {
+  flex-shrink: 1;
+  min-width: 2px;
+  max-width: calc(100% - 4rem);
+  height: 14px;
+  border-radius: 0 4px 4px 0;
+  background: var(--series-1);
+}

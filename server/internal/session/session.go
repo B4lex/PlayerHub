@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -21,6 +22,7 @@ import (
 	"playerhub/server/internal/delivery"
 	"playerhub/server/internal/hub"
 	"playerhub/server/internal/limit"
+	"playerhub/server/internal/metrics"
 	"playerhub/server/internal/validate"
 	"playerhub/server/internal/voice"
 	"playerhub/server/internal/wire"
@@ -55,6 +57,9 @@ type Server struct {
 	trusted  []netip.Prefix
 	refusals *rejectionLog
 	voice    *voice.Relay
+	metrics  *metrics.Recorder
+
+	bytesIn, bytesOut atomic.Uint64
 
 	// Held over a role's change in the store and its publication, so the hub's roles follow
 	// the store's in order.
@@ -72,8 +77,14 @@ type connection struct {
 	session     uint64
 	displayName string
 	address     netip.Addr
+	// The first reason given for ending the connection.
+	ended atomic.Pointer[string]
 	// Reader goroutine only.
 	heard bool
+}
+
+func (c *connection) end(reason string) {
+	c.ended.CompareAndSwap(nil, &reason)
 }
 
 func NewServer(loop *hub.Loop, store *auth.Store, c config.Config, log *slog.Logger) *Server {
@@ -99,6 +110,16 @@ func (s *Server) UseVoice(r *voice.Relay) {
 	s.voice = r
 }
 
+// UseMetrics records every later connection and refusal.
+func (s *Server) UseMetrics(r *metrics.Recorder) {
+	s.metrics = r
+}
+
+// Traffic gives the WebSocket payload bytes read and written since the start.
+func (s *Server) Traffic() (in, out uint64) {
+	return s.bytesIn.Load(), s.bytesOut.Load()
+}
+
 func (s *Server) SetLoop(loop *hub.Loop) {
 	s.loop = loop
 }
@@ -112,6 +133,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	address := admission.ClientAddress(r, s.trusted)
 	if err := s.gate.BeginHello(address); err != nil {
 		s.refusals.note(err.Error())
+		s.metrics.Refused(metrics.RefusedJoiningBusy)
 		if errors.Is(err, admission.ErrAddressPendingHellos) {
 			http.Error(w, "too many connections from your address are joining; try again", http.StatusTooManyRequests)
 		} else {
@@ -187,6 +209,7 @@ func (s *Server) serve(parent context.Context, conn *websocket.Conn, address net
 		conn.Close(websocket.StatusGoingAway, "server stopping")
 		return
 	}
+	metricsID := s.metrics.Connected(identity.Session, identity.DisplayName, time.Now())
 	log := s.log.With("slot", slot, "session", identity.Session)
 	log.Info("player connected", "address", address, "display_name", identity.DisplayName, "new_session", identity.Token != nil)
 	if replaced != nil {
@@ -199,15 +222,17 @@ func (s *Server) serve(parent context.Context, conn *websocket.Conn, address net
 	go func() {
 		err := s.write(ctx, conn, outbox)
 		if errors.Is(err, errBacklog) {
+			current.end(metrics.ReasonBacklog)
 			conn.Close(StatusBacklog, "backlog")
 		}
 		cancel()
 		writerDone <- err
 	}()
-	go s.keepAlive(ctx, conn, cancel)
+	go s.keepAlive(ctx, current, cancel)
 
 	err = s.read(ctx, current, slot, outbox, log)
 	if errors.Is(err, errRateLimited) {
+		current.end(metrics.ReasonRateLimited)
 		conn.Close(StatusRateLimited, "rate limited")
 	}
 	cancel()
@@ -224,7 +249,38 @@ func (s *Server) serve(parent context.Context, conn *websocket.Conn, address net
 	if writeErr := <-writerDone; errors.Is(writeErr, errBacklog) {
 		err = writeErr
 	}
+	s.metrics.Ended(metricsID, time.Now(), endReason(current, parent, err))
 	log.Info("player disconnected", "reason", err)
+}
+
+func endReason(c *connection, parent context.Context, err error) string {
+	switch {
+	case c.ended.Load() != nil:
+		return *c.ended.Load()
+	case parent.Err() != nil:
+		return metrics.ReasonServerStopped
+	case websocket.CloseStatus(err) != -1:
+		return metrics.ReasonLeft
+	default:
+		return metrics.ReasonDropped
+	}
+}
+
+var refusalReasons = map[websocket.StatusCode]string{
+	StatusProtocolMismatch:          metrics.RefusedProtocolMismatch,
+	StatusDisplayNameTaken:          metrics.RefusedDisplayNameTaken,
+	StatusDisplayNameInvalid:        metrics.RefusedDisplayNameInvalid,
+	StatusServerFull:                metrics.RefusedServerFull,
+	StatusTooManyNewSessions:        metrics.RefusedTooManyNewSessions,
+	StatusAddressFull:               metrics.RefusedAddressFull,
+	StatusBanned:                    metrics.RefusedBanned,
+	websocket.StatusPolicyViolation: metrics.RefusedInvalidHello,
+	websocket.StatusInternalError:   metrics.RefusedServerError,
+}
+
+func (s *Server) refuse(conn *websocket.Conn, status websocket.StatusCode, reason string) {
+	s.metrics.Refused(refusalReasons[status])
+	conn.Close(status, reason)
 }
 
 func (s *Server) readHello(ctx context.Context, conn *websocket.Conn) (*pb.Hello, error) {
@@ -233,16 +289,17 @@ func (s *Server) readHello(ctx context.Context, conn *websocket.Conn) (*pb.Hello
 	defer cancel()
 	typ, data, err := conn.Read(helloContext)
 	if err != nil {
+		s.metrics.Refused(metrics.RefusedNoHello)
 		return nil, err
 	}
 	var message pb.ClientMessage
 	if typ != websocket.MessageBinary || proto.Unmarshal(data, &message) != nil || message.GetHello() == nil {
-		conn.Close(websocket.StatusPolicyViolation, "expected hello")
+		s.refuse(conn, websocket.StatusPolicyViolation, "expected hello")
 		return nil, errors.New("first message is not a hello")
 	}
 	hello := message.GetHello()
 	if version := hello.GetProtocolVersion(); version != uint32(pb.Protocol_PROTOCOL_VERSION) {
-		conn.Close(StatusProtocolMismatch, fmt.Sprintf("protocol %d", pb.Protocol_PROTOCOL_VERSION))
+		s.refuse(conn, StatusProtocolMismatch, fmt.Sprintf("protocol %d", pb.Protocol_PROTOCOL_VERSION))
 		return nil, fmt.Errorf("protocol %d, server has %d", version, pb.Protocol_PROTOCOL_VERSION)
 	}
 	return hello, nil
@@ -258,16 +315,16 @@ func (s *Server) join(ctx context.Context, conn *websocket.Conn, address netip.A
 	if banned, err := s.store.AddressBanned(admission.AddressKey(address)); err != nil || banned {
 		if err == nil {
 			err = errAddressBanned
-			conn.Close(StatusBanned, "banned")
+			s.refuse(conn, StatusBanned, "banned")
 		} else {
 			s.log.Error("session store failed", "error", err)
-			conn.Close(websocket.StatusInternalError, "session store unavailable")
+			s.refuse(conn, websocket.StatusInternalError, "session store unavailable")
 		}
 		return hello, hub.Identity{}, err
 	}
 	if len(hello.GetSessionToken()) == 0 {
 		if err := s.gate.CheckNew(address); err != nil {
-			refuseAdmission(conn, err)
+			s.refuseAdmission(conn, err)
 			return hello, hub.Identity{}, err
 		}
 	}
@@ -276,7 +333,7 @@ func (s *Server) join(ctx context.Context, conn *websocket.Conn, address netip.A
 		return hello, hub.Identity{}, err
 	}
 	if err := s.gate.Admit(identity.Session, address); err != nil {
-		refuseAdmission(conn, err)
+		s.refuseAdmission(conn, err)
 		if identity.Token != nil {
 			if _, err := s.store.Abandon(identity.Session); err != nil {
 				s.log.Error("cannot delete the unused session", "error", err)
@@ -287,20 +344,20 @@ func (s *Server) join(ctx context.Context, conn *websocket.Conn, address netip.A
 	return hello, identity, nil
 }
 
-func refuseAdmission(conn *websocket.Conn, err error) {
+func (s *Server) refuseAdmission(conn *websocket.Conn, err error) {
 	status := StatusServerFull
 	if errors.Is(err, admission.ErrAddressFull) {
 		status = StatusAddressFull
 	}
-	conn.Close(status, err.Error())
+	s.refuse(conn, status, err.Error())
 }
 
 func (s *Server) authenticate(conn *websocket.Conn, hello *pb.Hello, address netip.Addr) (hub.Identity, error) {
 	if err := validate.Hello(hello); err != nil {
 		if errors.Is(err, validate.ErrDisplayName) {
-			conn.Close(StatusDisplayNameInvalid, err.Error())
+			s.refuse(conn, StatusDisplayNameInvalid, err.Error())
 		} else {
-			conn.Close(websocket.StatusPolicyViolation, err.Error())
+			s.refuse(conn, websocket.StatusPolicyViolation, err.Error())
 		}
 		return hub.Identity{}, err
 	}
@@ -309,17 +366,17 @@ func (s *Server) authenticate(conn *websocket.Conn, hello *pb.Hello, address net
 	session, issued, err := s.store.Authenticate(hello.GetSessionToken(), hello.GetDisplayName(), now, mayIssue)
 	switch {
 	case errors.Is(err, auth.ErrDisplayNameTaken):
-		conn.Close(StatusDisplayNameTaken, err.Error())
+		s.refuse(conn, StatusDisplayNameTaken, err.Error())
 		return hub.Identity{}, err
 	case errors.Is(err, auth.ErrBanned):
-		conn.Close(StatusBanned, err.Error())
+		s.refuse(conn, StatusBanned, err.Error())
 		return hub.Identity{}, err
 	case errors.Is(err, auth.ErrIssueRefused):
-		conn.Close(StatusTooManyNewSessions, err.Error())
+		s.refuse(conn, StatusTooManyNewSessions, err.Error())
 		return hub.Identity{}, err
 	case err != nil:
 		s.log.Error("session store failed", "error", err)
-		conn.Close(websocket.StatusInternalError, "session store unavailable")
+		s.refuse(conn, websocket.StatusInternalError, "session store unavailable")
 		return hub.Identity{}, err
 	}
 	return hub.Identity{Session: session.ID, DisplayName: session.DisplayName, Role: session.Role, Token: issued}, nil
@@ -343,6 +400,14 @@ func (s *Server) settle(c *connection, issued bool, log *slog.Logger) {
 
 // Closing waits for the peer, which may be gone, so callers run it on a goroutine of its own.
 func (c *connection) close(status websocket.StatusCode, reason string) {
+	switch status {
+	case StatusKicked:
+		c.end(metrics.ReasonKicked)
+	case StatusBanned:
+		c.end(metrics.ReasonBanned)
+	case StatusReplaced:
+		c.end(metrics.ReasonReplaced)
+	}
 	c.conn.Close(status, reason)
 	c.cancel()
 }
@@ -505,6 +570,7 @@ func (s *Server) read(ctx context.Context, c *connection, slot uint32, outbox *d
 			return err
 		}
 		c.heard = true
+		s.bytesIn.Add(uint64(len(data)))
 		if !rate.Allow(time.Now(), s.config.Limits.MessagesPerSecond, s.config.Limits.MessageBurst) {
 			return errRateLimited
 		}
@@ -551,6 +617,7 @@ func (s *Server) write(ctx context.Context, conn *websocket.Conn, outbox *delive
 			return err
 		}
 		outbox.AddWritten(len(frame))
+		s.bytesOut.Add(uint64(len(frame)))
 		return nil
 	}
 	deferred := time.NewTimer(time.Hour)
@@ -585,7 +652,7 @@ func (s *Server) write(ctx context.Context, conn *websocket.Conn, outbox *delive
 	}
 }
 
-func (s *Server) keepAlive(ctx context.Context, conn *websocket.Conn, cancel context.CancelFunc) {
+func (s *Server) keepAlive(ctx context.Context, c *connection, cancel context.CancelFunc) {
 	interval := time.Duration(s.config.Liveness.PingIntervalSeconds * float64(time.Second))
 	timeout := time.Duration(s.config.Liveness.TimeoutSeconds * float64(time.Second))
 	ticker := time.NewTicker(interval)
@@ -597,9 +664,13 @@ func (s *Server) keepAlive(ctx context.Context, conn *websocket.Conn, cancel con
 		case <-ticker.C:
 		}
 		pingContext, cancelPing := context.WithTimeout(ctx, timeout)
-		err := conn.Ping(pingContext)
+		err := c.conn.Ping(pingContext)
+		timedOut := ctx.Err() == nil && errors.Is(pingContext.Err(), context.DeadlineExceeded)
 		cancelPing()
 		if err != nil {
+			if timedOut {
+				c.end(metrics.ReasonTimeout)
+			}
 			cancel()
 			return
 		}

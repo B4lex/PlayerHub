@@ -10,6 +10,8 @@ import type {
   RecordingDetail,
   Role,
   SessionPage,
+  Statistics,
+  StatisticsRange,
 } from "./types";
 
 /** A failed API call, carrying the server's explanation. */
@@ -90,6 +92,11 @@ export const api = {
     kick: (id: string) => request<void>("POST", `/api/players/${enc(id)}/kick`),
     /** Disconnect a player and refuse their session, and with `address` everyone from their address. */
     ban: (id: string, address: boolean) => request<Ban>("POST", `/api/players/${enc(id)}/ban`, { address }),
+  },
+  statistics: {
+    /** History over a range, with days and hours in the IANA time zone `tz`. */
+    get: (range: StatisticsRange, tz: string) =>
+      request<Statistics>("GET", `/api/statistics?${new URLSearchParams({ range, tz })}`),
   },
   sessions: {
     /**

@@ -21,6 +21,7 @@ import (
 	"playerhub/server/internal/config"
 	"playerhub/server/internal/hub"
 	"playerhub/server/internal/loadtest"
+	"playerhub/server/internal/metrics"
 	"playerhub/server/internal/playback"
 	"playerhub/server/internal/recording"
 	"playerhub/server/internal/session"
@@ -50,8 +51,13 @@ func startStack(t *testing.T) *stack {
 		t.Fatal(err)
 	}
 	connections := session.NewServer(loop, identities, config.Default(), log)
+	metricsStore, err := metrics.Open("", 365*24*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
 	c := &Context{Loop: loop, Store: store, Captures: captures, Playbacks: playbacks, Batches: batches,
-		Sessions: identities, Connections: connections, StartedAt: time.Now(), OnChange: func() {}}
+		Sessions: identities, Connections: connections, Metrics: metricsStore, UplinkBytesPerSecond: 6_250_000,
+		StartedAt: time.Now(), OnChange: func() {}}
 	feed = NewFeed(c.State)
 	mux := http.NewServeMux()
 	mux.Handle("GET /ws", connections)
@@ -66,6 +72,7 @@ func startStack(t *testing.T) *stack {
 		server.Close()
 		cancel()
 		identities.Close()
+		metricsStore.Close()
 	})
 	return &stack{t: t, server: server}
 }
@@ -745,5 +752,30 @@ func TestManageRoles(t *testing.T) {
 	s.call("GET", "/api/state", nil, &state)
 	if len(state.Roles) != 0 || state.Players[0].RoleID != nil {
 		t.Fatalf("state after the delete: roles %+v players %+v", state.Roles, state.Players)
+	}
+}
+
+func TestStatisticsReport(t *testing.T) {
+	s := startStack(t)
+	var report struct {
+		Range                string   `json:"range"`
+		UplinkBytesPerSecond *float64 `json:"uplinkBytesPerSecond"`
+		Coarse               struct {
+			AtMs []int64 `json:"atMs"`
+		} `json:"coarse"`
+		Heatmap    [][]*float64 `json:"heatmap"`
+		TopPlayers []any        `json:"topPlayers"`
+	}
+	if status := s.call("GET", "/api/statistics?range=7d&tz=Europe/Kyiv", nil, &report); status != http.StatusOK {
+		t.Fatalf("status %d", status)
+	}
+	if report.Range != "7d" || len(report.Coarse.AtMs) != 7 || len(report.Heatmap) != 7 || report.TopPlayers == nil ||
+		report.UplinkBytesPerSecond == nil || *report.UplinkBytesPerSecond != 6_250_000 {
+		t.Fatalf("got %+v", report)
+	}
+	for _, query := range []string{"range=1y", "tz=Mars/Olympus", "tz=Local"} {
+		if status := s.call("GET", "/api/statistics?"+query, nil, nil); status != http.StatusUnprocessableEntity {
+			t.Errorf("%s answered %d", query, status)
+		}
 	}
 }

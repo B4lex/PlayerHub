@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	"math"
+	"sync/atomic"
 	"time"
 )
 
@@ -14,6 +15,9 @@ type Loop struct {
 	done             chan struct{}
 	interval         time.Duration
 	interestInterval time.Duration
+
+	busy  atomic.Int64
+	worst atomic.Int64
 }
 
 func NewLoop(h *Hub, sendRateHz float64) *Loop {
@@ -39,13 +43,36 @@ func (l *Loop) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case f := <-l.work:
+			start := time.Now()
 			f(l.hub)
+			l.measure(start)
 		case <-ticker.C:
+			start := time.Now()
 			l.hub.Tick()
+			l.measure(start)
 		case <-interestTicker.C:
+			start := time.Now()
 			l.hub.UpdateInterest()
+			l.measure(start)
 		}
 	}
+}
+
+func (l *Loop) measure(start time.Time) {
+	elapsed := int64(time.Since(start))
+	l.busy.Add(elapsed)
+	for {
+		worst := l.worst.Load()
+		if elapsed <= worst || l.worst.CompareAndSwap(worst, elapsed) {
+			return
+		}
+	}
+}
+
+// Load gives the time the loop spent working since it started, and its longest pass since the
+// previous call.
+func (l *Loop) Load() (busy, worst time.Duration) {
+	return time.Duration(l.busy.Load()), time.Duration(l.worst.Swap(0))
 }
 
 func (l *Loop) Submit(f func(*Hub)) bool {

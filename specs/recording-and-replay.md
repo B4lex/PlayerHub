@@ -4,8 +4,8 @@
 
 The server hosts an admin panel that captures a connected player's behavior,
 replays recordings as virtual players every client sees, runs load-test batches
-of replayed bots, manages sessions, roles, kicks, and bans, and shows Global
-chat live. Replays and bots enter the hub through the same methods as
+of replayed bots, manages sessions, roles, kicks, and bans, shows Global
+chat live, and charts the server's history ([Metrics](metrics.md)). Replays and bots enter the hub through the same methods as
 connections ([Interest and delivery](interest-and-delivery.md)), so nothing in
 the plugin distinguishes them from real players. `cmd/loadgen` runs bots as
 real WebSocket clients out of process.
@@ -21,7 +21,7 @@ real WebSocket clients out of process.
 | `internal/adminauth` | Password hash, logins, login routes, the gate in front of the API |
 | `internal/adminclient` | The admin API for `cmd/loadgen` and `cmd/tradebot`: login, issuing sessions, reading players |
 | `cmd/loadgen` | Networked bots, latency and throughput measurement |
-| `admin-ui/` | React and TypeScript panel: login, Dashboard, Sessions, Roles, Replay management, Load testing |
+| `admin-ui/` | React and TypeScript panel: login, Dashboard, Statistics, Sessions, Roles, Replay management, Load testing |
 
 ## Recordings
 
@@ -259,6 +259,9 @@ Changes cost nothing while no panel listens.
   (`components/ConfirmDialog`); the ban dialog's checkbox also bans the address
   and is disabled when the snapshot has none. Directed exclusions have no
   control and are set through the API.
+- **Statistics** (`features/statistics/StatisticsPage`): the server's history
+  over a range, fetched from `GET /api/statistics`
+  ([Statistics page](metrics.md#statistics-page)).
 - **Sessions** (`features/sessions/SessionsPage`): the store's sessions
   ([Sessions](network.md#sessions)), 50 per page. Not in the snapshot, which
   would grow with every session kept: the page fetches
@@ -272,7 +275,8 @@ Changes cost nothing while no panel listens.
   `{sessions, total}`; a session is `{id, displayName, createdAtMs,
   lastUsedAtMs, expiresAtMs, banned, playerId, roleId}`, `expiresAtMs` null
   when banned, `playerId` and `roleId` null when absent. The role filter lives
-  in the page address (`?role=`), which the Roles page links to. A row's menu
+  in the page address (`?role=`), which the Roles page links to; `?search=`
+  fills the search when the page opens, which the Statistics page links to. A row's menu
   renames (disabled while connected), sets the role, lifts bans (only when
   banned), and deletes. Set role (`features/roles/SetRoleDialog`, shared with
   the Dashboard) applies to a connected player at once. The rename dialog

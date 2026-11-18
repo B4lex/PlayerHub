@@ -288,6 +288,25 @@ func (s *Store) Sessions(search string, role uint32, offset, limit int, now time
 	return records, total, rows.Err()
 }
 
+// CreatedTimes gives every kept session's creation time.
+func (s *Store) CreatedTimes() (map[uint64]time.Time, error) {
+	rows, err := s.db.Query(`SELECT id, created_at FROM sessions`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	created := map[uint64]time.Time{}
+	for rows.Next() {
+		var id uint64
+		var at int64
+		if err := rows.Scan(&id, &at); err != nil {
+			return nil, err
+		}
+		created[id] = time.Unix(at, 0)
+	}
+	return created, rows.Err()
+}
+
 func (s *Store) Rename(id uint64, displayName string, now time.Time) error {
 	return s.transact(func(tx *sql.Tx) error {
 		if err := s.purge(tx, now); err != nil {

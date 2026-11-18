@@ -21,7 +21,7 @@ Voice follows the subscriptions within a radius
 | `interest.Grid` | Placed players by space and square cell of the leave radius |
 | `interest.Hidden`, `interest.Pairs` | The admin exclusion rules |
 | `hub.Hub` | All world state; subscriptions; turns accepted messages into outbox traffic. Methods run on one goroutine and take an injectable clock |
-| `hub.Loop` | Runs a hub: submitted work in order, a tick per send phase, and the interest pass at `interest.update_hz` |
+| `hub.Loop` | Runs a hub: submitted work in order, a tick per send phase, and the interest pass at `interest.update_hz`; measures its working time for [metrics](metrics.md#recording) |
 | `delivery.Outbox` | One recipient's pending traffic: latest-wins checkpoints, ordered messages, latest-wins presentation; rate classes, the budget's choice of checkpoints, per-peer pose references |
 | `voice.Relay`, `voice.Endpoint` | Forwards a speaker's frames to the listeners the hub sets ([Voice listeners](#voice-listeners)) |
 | `delivery.Budget` | The uplink shared by every recipient |

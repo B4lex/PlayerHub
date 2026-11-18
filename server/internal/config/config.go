@@ -29,6 +29,12 @@ type Config struct {
 	Trade               Trade    `toml:"trade"`
 	Sessions            Sessions `toml:"sessions"`
 	Voice               Voice    `toml:"voice"`
+	Metrics             Metrics  `toml:"metrics"`
+}
+
+type Metrics struct {
+	Database      string  `toml:"database"`
+	RetentionDays float64 `toml:"retention_days"`
 }
 
 type Voice struct {
@@ -122,6 +128,7 @@ func Default() Config {
 		Chat:     Chat{NearbyRadius: 8192},
 		Trade:    Trade{RequestRadius: 400, KeepRadius: 1000, InviteSeconds: 30},
 		Sessions: Sessions{Database: "sessions.db", LifetimeDays: 30},
+		Metrics:  Metrics{Database: "metrics.db", RetentionDays: 365},
 		Voice: Voice{Enabled: true, Listen: "0.0.0.0:14201", Radius: 3072, PacketsPerSecond: 60,
 			PacketBurst: 25},
 	}
@@ -185,6 +192,8 @@ func (c Config) Validate() error {
 		return errors.New("trade.invite_seconds must be positive")
 	case c.Sessions.LifetimeDays <= 0:
 		return errors.New("sessions.lifetime_days must be positive")
+	case c.Metrics.RetentionDays < 1:
+		return errors.New("metrics.retention_days must be at least 1")
 	case c.Voice.Enabled && c.Voice.Listen == "":
 		return errors.New("voice.listen must name a UDP address when voice is enabled")
 	case c.Voice.PublicPort < 0 || c.Voice.PublicPort > 65535:

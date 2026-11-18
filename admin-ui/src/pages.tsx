@@ -5,6 +5,7 @@ import { LoadTestPage } from "./features/loadtest/LoadTestPage";
 import { ReplaysPage } from "./features/replays/ReplaysPage";
 import { RolesPage } from "./features/roles/RolesPage";
 import { SessionsPage } from "./features/sessions/SessionsPage";
+import { StatisticsPage } from "./features/statistics/StatisticsPage";
 
 export interface PageDefinition {
   id: string;
@@ -23,6 +24,7 @@ export interface PageDefinition {
  */
 export const pages: readonly PageDefinition[] = [
   { id: "dashboard", path: "/", label: "Dashboard", icon: "dashboard", element: <DashboardPage /> },
+  { id: "statistics", path: "/statistics", label: "Statistics", icon: "chart", element: <StatisticsPage /> },
   { id: "sessions", path: "/sessions", label: "Sessions", icon: "key", element: <SessionsPage /> },
   { id: "roles", path: "/roles", label: "Roles", icon: "badge", element: <RolesPage /> },
   { id: "replays", path: "/replays", label: "Replay management", icon: "replay", element: <ReplaysPage /> },

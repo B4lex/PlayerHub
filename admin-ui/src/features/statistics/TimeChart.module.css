@@ -1,0 +1,120 @@
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  list-style: none;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.lineKey,
+.dashKey,
+.swatch {
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.lineKey {
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.dashKey {
+  width: 14px;
+  border-top: 1px dashed currentColor;
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.plot {
+  position: relative;
+  min-width: 0;
+}
+
+/* uPlot sizes itself to the container's width. */
+.plot > div:first-child {
+  width: 100%;
+}
+
+.tooltip {
+  position: absolute;
+  z-index: 2;
+  min-width: 10rem;
+  padding: 0.5rem 0.65rem;
+  pointer-events: none;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.tooltipTitle {
+  margin-bottom: 0.3rem;
+  color: var(--text-muted);
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.tooltipLabel {
+  color: var(--text-muted);
+}
+
+.tableWrap {
+  max-height: 20rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.table th,
+.table td {
+  padding: 0.4rem 0.75rem;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.table th[scope="row"],
+.table th:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.table tbody tr:last-child > * {
+  border-bottom: 0;
+}

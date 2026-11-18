@@ -53,6 +53,7 @@ func (c *Context) Routes(mux *http.ServeMux) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
+	mux.HandleFunc("GET /api/statistics", c.statistics)
 	mux.HandleFunc("GET /api/sessions", c.listSessions)
 	mux.HandleFunc("POST /api/sessions", c.issueSession)
 	mux.HandleFunc("PATCH /api/sessions/{id}", c.renameSession)

@@ -1,0 +1,43 @@
+.grid {
+  display: grid;
+  grid-template-columns: 2.5rem repeat(24, minmax(0, 1fr));
+  gap: 2px;
+}
+
+/* Rows place their children straight into the grid. */
+.row {
+  display: contents;
+}
+
+.hour {
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.day {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.cell {
+  min-height: 1.15rem;
+  border-radius: 2px;
+}
+
+.cell:hover,
+.cell:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -1px;
+}
+
+.empty {
+  background: var(--surface-raised);
+}
+
+.readout {
+  margin-top: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}

@@ -32,6 +32,7 @@ overlay logs a warning and does not install there. `Status` and
 | [configuration.md](configuration.md) | `PlayerHub.ini`, schema, snapshots, saving | `src/config/` |
 | [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, localization, theme, background opacity, menu frame, cursor, logo, nameplates, status panel, display name hint, notices, chat, friends, mute and vanish, role badges, player menu, player menu in the world, settings window, community links, item picker and preview | `src/ui/`, `src/text/`, `locale/`, `sync/chat/`, `sync/filters/`, `sync/nameplates/`, `sync/notices/`, `assets/` |
 | [performance.md](performance.md) | Frame cost of the plugin and its growth with remote actors, what bounds it, Tracy profiling | `runtime/Profiling.h`, `runtime/Profiling.cpp`, `runtime/ProfilingMemory.cpp`, `runtime/PluginTime` |
+| [metrics.md](metrics.md) | Server history: connection log, refusals, minute samples, rollups, the statistics report and page | `server/internal/metrics`, `admin-ui/src/features/statistics/` |
 | [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel and its login | `server/internal/{recording,playback,loadtest,admin,adminauth,adminclient}`, `server/cmd/`, `admin-ui/` |
 
 ## Features
@@ -76,6 +77,7 @@ criteria.
 | Admin panel login (one password from `admin_password_hash`, in-memory logins) | [recording-and-replay](recording-and-replay.md#admin-login) |
 | Session management in the admin panel (list, rename, delete) | [network](network.md#sessions), [recording-and-replay](recording-and-replay.md#admin-api) |
 | Player roles (a name and a color given in the admin panel, shown in game as a badge by the holder's name) | [network](network.md#roles), [ui-overlay](ui-overlay.md#roles), [recording-and-replay](recording-and-replay.md#admin-api) |
+| Statistics in the admin panel (players online, players per day, play times, returns, when people play, bandwidth, hub load, refusals, disconnects) | [metrics](metrics.md), [network](network.md#server), [recording-and-replay](recording-and-replay.md#panel-pages) |
 | Kicks and bans | [network](network.md#kicks-and-bans), [recording-and-replay](recording-and-replay.md#admin-api), [ui-overlay](ui-overlay.md#notices), [ui-overlay](ui-overlay.md#connection-controls) |
 | Proximity, exclusions, late join, peer enter and leave, batching | [interest-and-delivery](interest-and-delivery.md), [network](network.md#server-messages), [sync-pipeline](sync-pipeline.md#receive-state) |
 | Chat | [ui-overlay](ui-overlay.md#chat), [network](network.md#chat) |

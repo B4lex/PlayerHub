@@ -22,7 +22,8 @@ export type IconName =
   | "more"
   | "chat"
   | "badge"
-  | "plus";
+  | "plus"
+  | "chart";
 
 // 24x24 outline icons; `fill` ones are solid shapes.
 const glyphs: Record<IconName, { fill?: boolean; body: ReactNode }> = {
@@ -161,6 +162,14 @@ const glyphs: Record<IconName, { fill?: boolean; body: ReactNode }> = {
   },
   plus: {
     body: <path d="M12 5v14M5 12h14" />,
+  },
+  chart: {
+    body: (
+      <>
+        <path d="M4 4v16h16" />
+        <path d="M7.5 15l3.5-4.5 3 2.5 4.5-6" />
+      </>
+    ),
   },
   more: {
     fill: true,

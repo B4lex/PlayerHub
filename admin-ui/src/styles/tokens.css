@@ -35,6 +35,13 @@
   --marker-equipment: #b48cf0;
   --marker-appearance: #ee7fb5;
 
+  /* Chart series in fixed order (validated for the surface), and the heatmap's one-hue ramp. */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --heat-low: #1d2a3c;
+  --heat-high: #9ec5f4;
+
   --radius-sm: 6px;
   --radius: 10px;
   --radius-lg: 14px;
@@ -78,6 +85,12 @@
     --info-soft: rgba(43, 108, 196, 0.1);
     --warning: #9a6608;
     --warning-soft: rgba(154, 102, 8, 0.11);
+
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --heat-low: #e3eefc;
+    --heat-high: #184f95;
 
     --marker-attack: #d13b3a;
     --marker-weapon: #b27408;

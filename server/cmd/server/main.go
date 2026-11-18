@@ -22,11 +22,13 @@ import (
 	"playerhub/server/internal/hub"
 	"playerhub/server/internal/interest"
 	"playerhub/server/internal/loadtest"
+	"playerhub/server/internal/metrics"
 	"playerhub/server/internal/playback"
 	"playerhub/server/internal/recording"
 	"playerhub/server/internal/session"
 	"playerhub/server/internal/voice"
 	"playerhub/server/internal/wire/pb"
+	"playerhub/server/internal/world"
 )
 
 const defaultConfigPath = "config.toml"
@@ -97,9 +99,29 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 	}
 	defer identities.Close()
 
+	metricsStore, err := metrics.Open(c.Metrics.Database, time.Duration(c.Metrics.RetentionDays*24*float64(time.Hour)))
+	if err != nil {
+		return fmt.Errorf("cannot open the metrics database %q: %w", c.Metrics.Database, err)
+	}
+	defer metricsStore.Close()
+	if metricsStore.Fresh() {
+		created, err := identities.CreatedTimes()
+		if err == nil {
+			err = metricsStore.AddPlayers(created)
+		}
+		if err != nil {
+			return fmt.Errorf("cannot copy the sessions' first connections into the metrics database: %w", err)
+		}
+	}
+	recorder, err := metrics.NewRecorder(metricsStore, log)
+	if err != nil {
+		return fmt.Errorf("cannot read the metrics database %q: %w", c.Metrics.Database, err)
+	}
+
 	store := recording.NewStore(c.RecordingsDirectory, log)
 	captures := recording.NewCaptures(store, log, changed)
 	sessions := session.NewServer(nil, identities, c, log)
+	sessions.UseMetrics(recorder)
 	var entersPerSecond float64
 	if c.Budget.Enabled {
 		sessions.UseBudget(delivery.NewBudget(c.Budget.UplinkBytesPerSecond, c.Budget.PerRecipientBytesPerSecond))
@@ -144,11 +166,25 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 	batches := loadtest.NewManager(store, loop, log, changed)
 	adminContext := &admin.Context{
 		Loop: loop, Store: store, Captures: captures, Playbacks: playbacks, Batches: batches, Sessions: identities,
-		Connections: sessions, StartedAt: time.Now(), OnChange: changed,
+		Connections: sessions, Metrics: metricsStore, StartedAt: time.Now(), OnChange: changed,
+	}
+	if c.Budget.Enabled {
+		adminContext.UplinkBytesPerSecond = c.Budget.UplinkBytesPerSecond
 	}
 	feed = admin.NewFeed(adminContext.State)
 	go feed.Run(loopContext)
 	go sessions.Maintain(loopContext)
+	recorderContext, stopRecorder := context.WithCancel(context.Background())
+	recorderDone := make(chan struct{})
+	go func() {
+		defer close(recorderDone)
+		recorder.Run(recorderContext, func() (metrics.Gauges, bool) { return probe(loop, sessions) })
+	}()
+	// After the servers, so connections they close are recorded as ended before the rest are.
+	defer func() {
+		stopRecorder()
+		<-recorderDone
+	}()
 	if c.Voice.Enabled {
 		relay, err := voice.Listen(voice.Config{Listen: c.Voice.Listen, PublicHost: c.Voice.PublicHost,
 			PublicPort: c.Voice.PublicPort, Radius: c.Voice.Radius, PacketsPerSecond: c.Voice.PacketsPerSecond,
@@ -215,6 +251,23 @@ func run(ctx context.Context, c config.Config, log *slog.Logger, profile bool) e
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func probe(loop *hub.Loop, sessions *session.Server) (metrics.Gauges, bool) {
+	var g metrics.Gauges
+	ok := loop.Call(func(h *hub.Hub) {
+		h.Players(func(p *world.Player, _ int, _ *delivery.Outbox) {
+			if p.Kind == world.KindClient {
+				g.Players++
+				if p.InWorld {
+					g.InWorld++
+				}
+			}
+		})
+	})
+	g.BytesIn, g.BytesOut = sessions.Traffic()
+	g.LoopBusy, g.LoopWorst = loop.Load()
+	return g, ok
 }
 
 func newServer(ctx context.Context, address string, handler http.Handler) *http.Server {

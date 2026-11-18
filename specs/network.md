@@ -464,6 +464,9 @@ When each is sent and in what order is
 - Messages are decoded and validated on the connection's reader goroutine and
   applied in arrival order by the hub. `Ping` is answered by the connection
   itself.
+- The server reports each joined connection, why it ended, and each refusal
+  to the metrics recorder, and counts the payload bytes it reads and writes
+  ([Recording](metrics.md#recording)).
 
 ### Sessions
 

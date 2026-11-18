@@ -226,3 +226,63 @@ export interface CreateBatchRequest {
   rateSpread?: number;
   rampUpSeconds?: number;
 }
+
+export type StatisticsRange = "24h" | "7d" | "30d" | "90d" | "all";
+
+/** Shares of the players first seen in the range whose following day or week has passed. */
+export interface ReturnShare {
+  returned: number;
+  eligible: number;
+}
+
+/**
+ * The server's history over a range. Series hold one value per bucket starting at the matching
+ * `atMs`; null where the server kept no sample.
+ */
+export interface Statistics {
+  range: StatisticsRange;
+  fromMs: number;
+  toMs: number;
+  /** Bytes per second the budget plans for, or null with the budget off. */
+  uplinkBytesPerSecond: number | null;
+  summary: {
+    peakPlayers: number;
+    peakAtMs: number | null;
+    uniquePlayers: number;
+    newPlayers: number;
+    returningPlayers: number;
+    playSeconds: number;
+    playSessions: number;
+    medianSessionSeconds: number | null;
+    returnedNextDay: ReturnShare;
+    returnedWithinWeek: ReturnShare;
+  };
+  fine: {
+    stepMinutes: number;
+    atMs: number[];
+    playersAvg: (number | null)[];
+    playersMax: (number | null)[];
+    inWorldAvg: (number | null)[];
+    bytesOutAvg: (number | null)[];
+    bytesOutPeak: (number | null)[];
+    bytesInAvg: (number | null)[];
+    /** Fraction of the time the hub loop worked. */
+    loopBusy: (number | null)[];
+    loopWorstMs: (number | null)[];
+  };
+  coarse: {
+    stepMinutes: number;
+    atMs: number[];
+    unique: number[];
+    new: number[];
+    returning: number[];
+    peakPlayers: (number | null)[];
+  };
+  /** Average players by local weekday (Monday first) and hour. */
+  heatmap: (number | null)[][];
+  /** maxSeconds is null for the last, open-ended bucket. */
+  sessionLengths: { maxSeconds: number | null; count: number }[];
+  topPlayers: { sessionId: string; displayName: string; playSeconds: number; connections: number }[];
+  disconnects: { reason: string; count: number }[];
+  refusals: { reason: string; total: number; counts: number[] }[];
+}

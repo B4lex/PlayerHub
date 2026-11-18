@@ -1,0 +1,137 @@
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.ranges {
+  display: inline-flex;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.range {
+  padding: 0.3rem 0.8rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+}
+
+.range:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.selected,
+.selected:hover {
+  color: var(--accent-text);
+  background: var(--accent);
+}
+
+.error {
+  color: var(--danger);
+  font-size: 0.875rem;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 4rem 0;
+}
+
+/* A refetch keeps the previous figures in place, dimmed, so nothing jumps. */
+.refreshing {
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+/* Six tiles: one row, two rows of three, or three of two, never a lone tile on its own row. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 110rem) {
+  .tiles {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 52rem) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+  gap: 1.5rem;
+}
+
+.columns > * {
+  min-width: 0;
+}
+
+.section {
+  margin-top: 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 650;
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.reasons {
+  margin-top: 1.25rem;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  padding: 0.65rem 1.25rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+
+.table td {
+  padding: 0.7rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table .number {
+  text-align: right;
+}
+
+.id {
+  color: var(--text-faint);
+}
