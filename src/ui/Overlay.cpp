@@ -44,6 +44,23 @@ namespace UI::Overlay
         float appliedScale = 0.0F;
         std::optional<std::uint64_t> appliedLanguageRevision;
 
+        // Empty draw data still costs the DX11 backend's buffer maps and state
+        // backup, and the output merger swap around it.
+        bool HasWork(const ImDrawData& a_drawData)
+        {
+            if (a_drawData.TotalVtxCount > 0)
+            {
+                return true;
+            }
+            return a_drawData.Textures
+                && std::ranges::any_of(*a_drawData.Textures,
+                    [](const ImTextureData* a_texture) {
+                        return a_texture->Status == ImTextureStatus_WantCreate
+                            || a_texture->Status == ImTextureStatus_WantUpdates
+                            || a_texture->Status == ImTextureStatus_WantDestroy;
+                    });
+        }
+
         void ApplyLanguage()
         {
             const auto revision = Config::GetRevision();
@@ -179,8 +196,13 @@ namespace UI::Overlay
                 Cursor::Draw();
                 ImGui::Render();
             }
+            auto& drawData = *ImGui::GetDrawData();
+            if (!HasWork(drawData))
+            {
+                return;
+            }
             PROFILE_SCOPE("Overlay render");
-            Backdrop::BlurPopups(*ImGui::GetDrawData());
+            Backdrop::BlurPopups(drawData);
 
             // The DX11 backend restores the pipeline state it changes, except the
             // output merger, so target the frame and restore it here.
@@ -189,7 +211,7 @@ namespace UI::Overlay
             data.context->OMGetRenderTargets(1, &previousTarget, &previousDepthStencil);
 
             data.context->OMSetRenderTargets(1, &frameTarget, nullptr);
-            ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+            ImGui_ImplDX11_RenderDrawData(&drawData);
             data.context->OMSetRenderTargets(1, &previousTarget, previousDepthStencil);
 
             if (previousTarget)
