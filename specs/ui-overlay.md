@@ -851,16 +851,22 @@ action on a notice. What answers the chat's own input is a
   that frame's other notices. Automatic reconnects are announced too, and the
   notice does not name the server. A generation that ended before the stack
   saw it is not announced.
+- `NoticeStack` also announces the end of each connection it announced, when
+  `Network::IsConnected` stops holding or a newer generation replaces it, ahead
+  of the next connection's notice. Every end has the same notice, whatever
+  ended it: Disconnect, a loss the client reconnects after, or a refusal such
+  as a kick, which has no notice of its own. An end found while
+  `GameSession::IsInGame` does not hold, as when the player leaves for the
+  main menu, is not announced.
 - `NoticeStack` also announces a `kAddressFull`
-  ([Network](network.md#admission)) or `kKicked`
-  ([Network](network.md#kicks-and-bans)) refusal when
+  ([Network](network.md#admission)) refusal when
   `Network::GetConnectionRefusal` starts returning it (`GetRefusalNotice`),
-  since these can end a connection the player did not start, with the
-  settings window closed. Like every refusal they wait for Connect
-  ([Connection controls](#connection-controls)), and the kick notice names
-  no reason. Other refusals, `kBanned` included, show only in the connection
-  controls. A refusal cleared and set again between two frames the stack
-  draws is announced once.
+  since it can refuse a reconnect the player did not start, with the
+  settings window closed. Like every refusal it waits for Connect
+  ([Connection controls](#connection-controls)). Other refusals, `kBanned`
+  included, show only in the connection controls, and `kKicked` only as the
+  end of the connection. A refusal cleared and set again between two frames
+  the stack draws is announced once.
 - Every notice is its own toast, a repeat too. Notices, [notes](#notes), and
   a trade row's reason share their texts: a chat rejection is a note or a
   notice depending on whether the chat is open, and a reason is both the item
@@ -2082,7 +2088,7 @@ empty, so the rows below do not move:
 | --- | --- |
 | The field's text is not a display name ([Network](network.md#sessions)); the filter leaves being too short as the only way | the minimum length, as an error |
 | Disconnected because the server refused the connection (`kDisplayNameTaken`, `kDisplayNameInvalid`, `kClientOutdated`, `kServerOutdated`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`, `kAddressFull`, `kBanned`) | the reason of `Network::GetConnectionRefusal` (`FormatRefusal`), as an error, until the button connects again. `kClientOutdated` and `kServerOutdated` tell whether the server runs a newer or older version of the mod, without protocol numbers |
-| Disconnected by a kick (`kKicked`) | nothing; the [notice](#notices) told the player |
+| Disconnected by a kick (`kKicked`) | nothing; the disconnect [notice](#notices) told the player |
 
 The sidebar's summary (`ConnectionControls::DrawSummary`) is a state
 indicator (`Theme::kPositive` connected, `kWarning` pulsing while connecting,
@@ -2871,7 +2877,10 @@ IDs matched against 1.5.97 where given.
     decline, a friend connecting. Each fades after a time that grows with its
     length, the same notice twice shows twice, and a fifth pushes out the
     oldest. They show over menus and the trade window and never add a chat
-    line.
+    line. Connecting, and reconnecting after the server restarts, show a
+    connected notice; Disconnect, a server stop, and a kick each show one
+    disconnected notice before any other; quitting to the main menu shows
+    none.
 30. The open trade takes the screen at any resolution and aspect: the game
     behind it is blurred and darker and keeps moving, the panel takes the
     same share of the screen's height, and the game looks normal after the

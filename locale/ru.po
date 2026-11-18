@@ -756,13 +756,14 @@ msgctxt "NoticeConnected"
 msgid "Connected to the server"
 msgstr "Подключено к серверу"
 
+msgctxt "NoticeDisconnected"
+msgid "Disconnected from the server"
+msgstr "Отключено от сервера"
+
 msgctxt "NoticeRefusedAddressFull"
 msgid "Not connected: too many players from your IP address are on this server"
 msgstr "Нет подключения: с вашего IP-адреса на этом сервере слишком много игроков"
 
-msgctxt "NoticeKicked"
-msgid "You have been kicked from the server"
-msgstr "Вас выгнали с сервера"
 
 #. {} is a player's name
 #, c++-format

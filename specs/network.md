@@ -579,8 +579,8 @@ in-server bots do not pass through it and do not count.
 Goal: an admin can remove a connected player from the server, and keep one
 out, from the admin API
 ([Recording and replay](recording-and-replay.md#admin-api)). Non-goals: timed
-bans, a reason the player sees (clients show a fixed message,
-[UI overlay](ui-overlay.md#notices)), banning a player who is not connected,
+bans, a reason the player sees (clients show only that the connection
+ended, [UI overlay](ui-overlay.md#notices)), banning a player who is not connected,
 and stopping a player who changes both session and address.
 
 - `session.Server.Kick` closes the player's connection with 4011 `kicked`.

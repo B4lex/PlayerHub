@@ -38,15 +38,11 @@ namespace UI
 
         std::optional<Text::Id> GetRefusalNotice(Network::RefusalReason a_reason)
         {
-            switch (a_reason)
+            if (a_reason == Network::RefusalReason::kAddressFull)
             {
-                case Network::RefusalReason::kAddressFull:
-                    return Text::Id::kNoticeRefusedAddressFull;
-                case Network::RefusalReason::kKicked:
-                    return Text::Id::kNoticeKicked;
-                default:
-                    return std::nullopt;
+                return Text::Id::kNoticeRefusedAddressFull;
             }
+            return std::nullopt;
         }
 
         struct Toast
@@ -88,11 +84,21 @@ namespace UI
             {
                 // Every welcome, a reconnect's too, starts a generation; one that already ended is not announced.
                 const auto generation = Network::GetConnectionGeneration();
+                const bool connected = Network::IsConnected();
+                if (announcedConnection && (!connected || generation != connectionGeneration))
+                {
+                    announcedConnection = false;
+                    if (GameSession::IsInGame())
+                    {
+                        Add(std::string{ Text::Get(Text::Id::kNoticeDisconnected) }, a_now);
+                    }
+                }
                 if (generation != connectionGeneration)
                 {
                     connectionGeneration = generation;
-                    if (Network::IsConnected())
+                    if (connected)
                     {
+                        announcedConnection = true;
                         Add(std::string{ Text::Get(Text::Id::kNoticeConnected) }, a_now);
                     }
                 }
@@ -177,6 +183,7 @@ namespace UI
 
             std::vector<Toast> toasts;
             std::uint64_t connectionGeneration{ 0 };
+            bool announcedConnection{ false };
             std::optional<Network::RefusalReason> announcedRefusal;
             std::vector<std::string> incoming;
             std::vector<Multiplayer::PlayerIdentity> friends;

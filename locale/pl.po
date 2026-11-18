@@ -754,13 +754,14 @@ msgctxt "NoticeConnected"
 msgid "Connected to the server"
 msgstr "Połączono z serwerem"
 
+msgctxt "NoticeDisconnected"
+msgid "Disconnected from the server"
+msgstr "Rozłączono z serwerem"
+
 msgctxt "NoticeRefusedAddressFull"
 msgid "Not connected: too many players from your IP address are on this server"
 msgstr "Nie połączono: z twojego adresu IP jest na tym serwerze zbyt wielu graczy"
 
-msgctxt "NoticeKicked"
-msgid "You have been kicked from the server"
-msgstr "Wyrzucono cię z serwera"
 
 #. {} is a player's name
 #, c++-format

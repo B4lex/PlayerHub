@@ -745,13 +745,14 @@ msgctxt "NoticeConnected"
 msgid "Connected to the server"
 msgstr "サーバーに接続しました"
 
+msgctxt "NoticeDisconnected"
+msgid "Disconnected from the server"
+msgstr "サーバーから切断されました"
+
 msgctxt "NoticeRefusedAddressFull"
 msgid "Not connected: too many players from your IP address are on this server"
 msgstr "未接続：あなたのIPアドレスからこのサーバーにいるプレイヤーが多すぎます"
 
-msgctxt "NoticeKicked"
-msgid "You have been kicked from the server"
-msgstr "サーバーからキックされました"
 
 #. {} is a player's name
 #, c++-format
