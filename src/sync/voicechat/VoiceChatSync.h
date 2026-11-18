@@ -25,7 +25,7 @@ namespace VoiceChatSync
     struct RemoteState
     {
         std::optional<FilterRevision> filterRevision;
-        bool muted{ false };
+        bool silenced{ false };
         bool occluded{ false };
         float occlusionCheckRemaining{ 0.0F };
         bool mouthOpen{ false };

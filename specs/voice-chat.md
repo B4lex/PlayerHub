@@ -128,9 +128,15 @@ as datagrams; `VoiceTransport::GetState` gives the link state.
 ## Playback
 
 `VoiceChatSync::UpdatePeers` passes every speaker in reach to the mixer once
-per pass (`Audio::SetSpeakers`): a peer whose remote actor is ready, not muted
-([UI overlay](ui-overlay.md#mute-and-vanish)), and within the relay's radius.
-Frames of anyone else are dropped on arrival and their buffers freed.
+per pass (`Audio::SetSpeakers`): a peer within the relay's radius, neither
+muted nor vanished ([UI overlay](ui-overlay.md#mute-and-vanish)), placed at its
+remote actor once ready. A peer in the local coordinate space without a ready
+actor, such as one waiting to spawn, being respawned, or hidden in
+[shared furniture](native-interactions.md#shared-furniture), is placed at its
+played pose instead, without lip sync. Vanish is applied by the server
+([Network](network.md#vanish)); the client also checks it, so a vanished
+peer is silent before it leaves. Frames of anyone else are dropped on arrival
+and their buffers freed.
 
 - **Gain**: full within 300 units, then `(300 / distance)^0.7`, gentler than
   physical falloff so a voice carries across a camp, times a fade over the last
@@ -212,21 +218,22 @@ otherwise. A listener receives about the same per speaker heard
    also with a menu open, and never after alt-tabbing with the key held.
 3. With voice activation, a player is heard when speaking above the activation
    level, first syllable included, and not otherwise.
-4. A muted player is not heard; a vanished player's voice ends with its
-   character.
-5. A player whose UDP is blocked is told in the settings window, holds no
+4. A muted or vanished player is not heard.
+5. A player in the same space is heard while its character is not shown:
+   before it spawns, while it respawns, and while it is hidden in furniture.
+6. A player whose UDP is blocked is told in the settings window, holds no
    audio device open, and gets voice without reconnecting once datagrams pass.
-6. A speaker shows the speaking glyph on its nameplate and in the player list,
+7. A speaker shows the speaking glyph on its nameplate and in the player list,
    and its character's mouth moves.
-7. Changing a device applies without a restart; a disconnected game holds no
+8. Changing a device applies without a restart; a disconnected game holds no
    audio device open.
 
 ## Known limitations
 
 - No echo cancellation: a player on speakers may be heard twice.
 - Lip sync follows loudness, not phonemes.
-- A speaker without a ready remote actor (spawning, or beyond the visible cap)
-  is not heard.
+- A speaker whose cell or worldspace does not resolve locally (its plugin is
+  not loaded) is not heard, since it has no actor or local space to place it.
 - The radius is horizontal like interest, so a player on another floor of a
   tower is heard when near enough horizontally; occlusion muffles it.
 - Datagram keys last one connection and are sent over the WebSocket, so a

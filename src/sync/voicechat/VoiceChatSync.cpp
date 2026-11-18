@@ -12,6 +12,7 @@
 #include "sync/PeerState.h"
 #include "sync/chat/ChatRoster.h"
 #include "sync/filters/PlayerFilters.h"
+#include "sync/movement/MovementSync.h"
 
 #include <algorithm>
 #include <cmath>
@@ -72,7 +73,8 @@ namespace VoiceChatSync
             }
             a_state.filterRevision = a_revision;
             const auto player = ChatRoster::Find(a_playerID);
-            a_state.muted = player && PlayerFilters::IsMuted(player->session);
+            a_state.silenced
+                = player && (PlayerFilters::IsMuted(player->session) || PlayerFilters::IsVanished(player->session));
         }
 
         void CloseMouth(RemoteState& a_state, RE::Actor* a_actor)
@@ -170,15 +172,27 @@ namespace VoiceChatSync
         const FilterRevision revision{ .roster = ChatRoster::GetRevision(), .filters = PlayerFilters::GetRevision() };
         std::uint32_t rays = 0;
 
+        const auto localCellID = a_cell.GetFormID();
+        const auto localWorldspaceID = MovementSync::GetWorldspaceID(a_player);
         for (auto& [playerID, peer] : a_peers)
         {
             auto& state = peer.voiceChat;
             const auto& remote = peer.lifecycle.actor;
             const auto actor = remote && remote->ready ? remote->handle.get() : nullptr;
-            if (!actor)
+            RE::NiPoint3 position;
+            if (actor)
+            {
+                position = actor->GetPosition();
+            }
+            else
             {
                 state.mouthOpen = false;
-                continue;
+                if (!MovementSync::IsSameCoordinateSpace(
+                        peer.space.cellID, peer.space.worldspaceID, localCellID, localWorldspaceID))
+                {
+                    continue;
+                }
+                position = peer.playout.GetPose().position;
             }
             if (!active)
             {
@@ -186,8 +200,7 @@ namespace VoiceChatSync
                 continue;
             }
             RefreshFilter(state, playerID, revision);
-            const auto position = actor->GetPosition();
-            const auto gain = state.muted ? 0.0F : Attenuate(playerPosition.GetDistance(position), radius);
+            const auto gain = state.silenced ? 0.0F : Attenuate(playerPosition.GetDistance(position), radius);
             const auto level = gain > 0.0F ? FindLevel(playerID) : 0.0F;
             if (gain > 0.0F)
             {
@@ -206,6 +219,10 @@ namespace VoiceChatSync
                     .slot = playerID, .gain = gain, .pan = pan, .occlusion = state.occluded ? 1.0F : 0.0F });
             }
 
+            if (!actor)
+            {
+                continue;
+            }
             if (level > kSpeakingLevel)
             {
                 ActorLipSync::Apply(*actor, level);

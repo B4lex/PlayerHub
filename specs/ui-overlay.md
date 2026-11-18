@@ -1356,10 +1356,10 @@ chat (mute covers chat), and admin moderation.
   only when `PlayerFilters`' revision changes. A muted line marks no filter
   unread. A muted player's whisper does not become a whisper partner
   (`ChatSync::DrainLines`).
-- Muting also silences the player's voice: `VoiceChatSync` leaves a muted
-  speaker out of the mixer, so its frames are dropped on arrival
-  ([Voice chat](voice-chat.md#playback)). A vanished player's voice ends with
-  its character, since the server stops relaying it.
+- Muting and vanishing also silence the player's voice: `VoiceChatSync`
+  leaves a muted or vanished speaker out of the mixer, so its frames are
+  dropped on arrival ([Voice chat](voice-chat.md#playback)). The server also
+  stops relaying a vanished player's voice.
 - Vanishing is the server's: the client stops receiving the player
   ([Interest and delivery](interest-and-delivery.md#subscriptions)), so its
   remote actor leaves as for any `EXCLUDED` peer and returns, if in range,

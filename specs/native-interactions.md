@@ -190,6 +190,7 @@ Skyrim drops holds ownership at most 10 s before it is released and retried.
 When a remote actor would block the local player or share a marker, it is
 hidden locally: retired like any respawn while its source keeps using the
 furniture, and not respawned while its checkpoint still names that reference.
+Its player stays audible from the seat ([Voice chat](voice-chat.md#playback)).
 
 **Local player activation.** Skyrim runs the player's furniture activation
 (`TESFurniture::Activate`, vfunc 0x37) on a worker thread. A hook there reads,
