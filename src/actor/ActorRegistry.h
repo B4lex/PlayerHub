@@ -97,14 +97,6 @@ namespace ActorRegistry
     [[nodiscard]] GraphOutputObservation ObserveGraphOutputEvent(const RE::TESObjectREFR* a_holder,
         std::string_view a_eventName, bool a_isJumpLandEnd, bool a_shouldTraceWeaponEvent);
 
-    struct UpdatePolicy
-    {
-        bool authoritativeJumping{ false };
-        bool dead{ false };
-    };
-
-    [[nodiscard]] std::optional<UpdatePolicy> GetUpdatePolicy(const RE::Actor* a_actor);
-    void SetAuthoritativeJumpState(const RemoteActor& a_remote, bool a_jumping);
     void SetAuthoritativeDirection(const RemoteActor& a_remote);
     [[nodiscard]] std::optional<float> GetAuthoritativeDirection(const RE::Actor* a_actor);
     void SetAuthoritativeWeaponDrawnState(const RemoteActor& a_remote, bool a_weaponDrawn);

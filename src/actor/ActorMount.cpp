@@ -246,8 +246,6 @@ namespace ActorMount
 
         // The start sends the riding events into the rider's graph.
         ActorRegistry::SetMounted(a_rider, true);
-        // The engine update reasserts this, and an on-foot jump must not carry over.
-        ActorRegistry::SetAuthoritativeJumpState(a_rider, false);
         if (a_flying)
         {
             AssertFlyingMount(*mountPtr);

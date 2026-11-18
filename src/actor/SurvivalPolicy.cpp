@@ -1,13 +1,11 @@
 #include "actor/SurvivalPolicy.h"
 #include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
-#include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
 
 #include <atomic>
 #include <cmath>
 #include <memory>
-#include <optional>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -17,12 +15,6 @@ namespace SurvivalPolicy
     namespace
     {
         using ActorConstants::ShouldLogOccurrence;
-
-        bool ApplyAuthoritativeJumpState(RE::Actor& a_actor, bool a_jumping)
-        {
-            static const RE::BSFixedString inJumpStateVariable{ "bInJumpState" };
-            return a_actor.SetGraphVariableBool(inJumpStateVariable, a_jumping);
-        }
 
         // A remote actor's own shout reaches itself only through its self effects,
         // which SpellIsolation filters.
@@ -393,34 +385,6 @@ namespace SurvivalPolicy
             }
         }
 
-        struct RemoteActorUpdateHook
-        {
-            static void Thunk(RE::Actor* a_actor, float a_delta)
-            {
-                // Reasserted around Skyrim's actor update, since the local grounded
-                // controller overwrites bInJumpState during it.
-                std::optional<ActorRegistry::UpdatePolicy> policy;
-                if (GameThread::IsAuthoritative())
-                {
-                    policy = ActorRegistry::GetUpdatePolicy(a_actor);
-                }
-                const bool protectRemoteActor = policy && !policy->dead;
-                if (protectRemoteActor)
-                {
-                    ApplyRemoteReplicaPolicy(*a_actor);
-                    (void)ApplyAuthoritativeJumpState(*a_actor, policy->authoritativeJumping);
-                }
-                _original(a_actor, a_delta);
-                if (protectRemoteActor)
-                {
-                    (void)ApplyAuthoritativeJumpState(*a_actor, policy->authoritativeJumping);
-                    EnforceRemoteActorSurvival(*a_actor);
-                }
-            }
-
-            static inline REL::Relocation<decltype(Thunk)> _original;
-        };
-
         RE::FormID GetProcessIdleID(const RE::AIProcess* a_process)
         {
             const auto* high = a_process ? a_process->high : nullptr;
@@ -468,8 +432,6 @@ namespace SurvivalPolicy
     void InstallHooks()
     {
         REL::Relocation<std::uintptr_t> characterVTable{ RE::VTABLE_Character[0] };
-        const auto actorUpdateIndex = REL::Relocate(0xAD, 0xAD, 0xAF);
-        RemoteActorUpdateHook::_original = characterVTable.write_vfunc(actorUpdateIndex, RemoteActorUpdateHook::Thunk);
 
         // TESObjectREFR contributes vtables 0-3. Character vtable 4 is the
         // MagicTarget subobject, whose vfunc 1 attaches a new ActiveEffect.

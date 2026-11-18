@@ -48,7 +48,6 @@ namespace ActorRegistry
             std::uint32_t jumpLandEndCount{ 0 };
             std::uint32_t weaponTransitionEndCount{ 0 };
             std::uint32_t bashExitCount{ 0 };
-            bool authoritativeJumping{ false };
             float authoritativeDirection{ 0.0F };
             bool authoritativeWeaponDrawn{ false };
             bool animationFirewallEnabled{ false };
@@ -250,7 +249,6 @@ namespace ActorRegistry
         registration.magicTarget = a_actor.AsMagicTarget();
         registration.actorValueOwner = a_actor.AsActorValueOwner();
         registration.actorHandle = a_remote.handle.native_handle();
-        registration.authoritativeJumping = a_remote.animation.targetAnimationState.jumping;
         registration.authoritativeDirection = a_remote.movement.animationDirection;
         registration.authoritativeWeaponDrawn = a_remote.animation.targetAnimationState.weaponDrawn;
         registration.furnitureAnimationOwned = a_remote.furniture.furnitureAnimationOwned;
@@ -688,28 +686,6 @@ namespace ActorRegistry
             observation.actorHandle = registration->actorHandle;
         }
         return observation;
-    }
-
-    std::optional<UpdatePolicy> GetUpdatePolicy(const RE::Actor* a_actor)
-    {
-        if (!a_actor)
-        {
-            return std::nullopt;
-        }
-
-        const auto lock = LockSharedUnlessMainThread();
-        const auto* registration = Find(a_actor);
-        if (!registration)
-        {
-            return std::nullopt;
-        }
-
-        return UpdatePolicy{ .authoritativeJumping = registration->authoritativeJumping, .dead = registration->dead };
-    }
-
-    void SetAuthoritativeJumpState(const RemoteActor& a_remote, bool a_jumping)
-    {
-        SetShared(a_remote, &Registration::authoritativeJumping, a_jumping);
     }
 
     void SetAuthoritativeDirection(const RemoteActor& a_remote)

@@ -210,9 +210,9 @@ then the newest checkpoint is replayed and a held idle re-entered
   `kCanDoFavor`, `kCanSpeak`, `kAttackOnSight`, and `kAngryWithPlayer`, and
   disables attacking and casting. Presentation clears `kAttackingDisabled` or
   `kCastingDisabled` only for one synchronous dispatch; a held cast or shout
-  keeps `kCastingDisabled` clear.
-- Immediately before Skyrim's actor update, the AI process is marked as
-  ignoring combat and any combat controller inactive; the update still runs.
+  keeps `kCastingDisabled` clear. It also marks the AI process as ignoring
+  combat and any combat controller inactive, while Skyrim's actor update still
+  runs.
 - `SanitizeRemoteCombatState`, once per pass, stops combat, clears flee flags,
   stops alarms, resets a fear emotion, takes back any engine-selected package
   ([Package takeover](#package-takeover)), and clears the do-nothing

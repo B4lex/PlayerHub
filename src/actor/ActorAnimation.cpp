@@ -1018,7 +1018,6 @@ namespace ActorAnimation
         auto& state = a_remote.animation;
         const auto previousAnimationState = state.targetAnimationState;
         state.targetAnimationState = a_animationState;
-        ActorRegistry::SetAuthoritativeJumpState(a_remote, a_animationState.jumping);
         ActorRegistry::SetAuthoritativeDirection(a_remote);
         ActorRegistry::SetAuthoritativeWeaponDrawnState(a_remote, a_animationState.weaponDrawn);
         RequestAnimationUpdate(state);

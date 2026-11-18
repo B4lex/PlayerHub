@@ -34,8 +34,8 @@ Work elsewhere does not count toward plugin time:
 
 - **Engine hooks** run inside Skyrim's own per-actor work on its animation, AI,
   and actor update threads, for every actor in the loaded area, not only remote
-  ones: graph channel polls, graph input, pose copy, movement isolation, the
-  actor update policy, hostility checks, aim targets, and the speed sampler
+  ones: graph channel polls, graph input, pose copy, movement isolation,
+  hostility checks, aim targets, and the speed sampler
   ([Remote actor](remote-actor.md#graph-channels)). Each call is a registry
   lookup and a small write.
 - **The connection thread** decodes and validates server messages

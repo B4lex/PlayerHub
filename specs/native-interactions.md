@@ -556,8 +556,7 @@ stage that drives the actor:
 - `RemoteCollision` releases placement (`owner=death`).
 - `ActorRegistry::SetDead` marks the registration dead: the `KillImpl`,
   `KillDying`, `HandleHealthDamage`, and health `ModActorValue` guards let calls
-  through, the update hook stops reasserting the survival policy, and the
-  firewall admits every graph event.
+  through, and the firewall admits every graph event.
 - `kEssential` and `kProtected` are cleared.
 - `Actor::KillImpl(nullptr, 0, false, true)` kills it with no attacker and no
   death event, so no local quest, script, crime, or statistic observes it, and
