@@ -72,8 +72,7 @@ msgstr ""
 
 msgctxt "ConnectionServerTlsComment"
 msgid ""
-"Connects to the custom server over TLS, as a server behind an HTTPS proxy\n"
-"requires. Used only while the custom server is on."
+"Connects to the custom server over TLS, as a server behind an HTTPS proxy requires."
 msgstr ""
 
 msgctxt "OutfitComment"
@@ -554,7 +553,7 @@ msgid "Enter a display name"
 msgstr ""
 
 msgctxt "SettingsServerAddressHint"
-msgid "Enter server address (host:port)"
+msgid "Enter server address"
 msgstr ""
 
 msgctxt "SettingsServerAddressInvalid"
@@ -1454,7 +1453,7 @@ msgid "How loud your microphone is."
 msgstr ""
 
 msgctxt "VoiceRelayUnreachable"
-msgid "The voice relay cannot be reached; your network may block UDP"
+msgid "Voice chat is disabled: the voice relay cannot be reached"
 msgstr ""
 
 msgctxt "VoiceActivationLevel"

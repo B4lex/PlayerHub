@@ -75,7 +75,8 @@ sidebar ([UI overlay](ui-overlay.md#settings-window)).
   unsigned value within both limits, not shown in the window, with a plain
   English comment for the file.
 - `ShowNextIf` makes the next setting's row depend on a value described before
-  it; reading and saving ignore it.
+  it, and `ShowRestIf` the rows and group headings after it up to the next
+  section; reading and saving ignore both.
 - `Comment` names a group of the settings after it: a comment line in a new
   file, a group heading in the window.
 - `AudioDevice` is a device's system name, read and saved as a string
@@ -279,7 +280,8 @@ always hit nothing ([Remote actor](remote-actor.md#combat-isolation)).
 groups, Microphone (`Mode`, the input meter, `ActivationLevel`,
 `InputDevice`, `InputVolume`, `NoiseSuppression`), Other players
 (`OutputDevice`, `OutputVolume`), and Indicator (`Indicator`,
-`IndicatorPositionHorizontal`, `IndicatorPositionVertical`).
+`IndicatorPositionHorizontal`, `IndicatorPositionVertical`). The settings
+window shows the groups only while `Enabled` is on.
 
 | Key | Meaning | Default |
 | --- | --- | --- |

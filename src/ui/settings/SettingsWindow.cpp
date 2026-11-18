@@ -72,6 +72,7 @@ namespace UI
         constexpr std::string_view kAdvancedSection = "Advanced";
         constexpr std::string_view kDefaultsSections[]{ kUISection, kControlsSection, kGameplaySection, kVoiceSection,
             kAdvancedSection };
+        constexpr std::string_view kVoiceEnabledKey = "Enabled";
         constexpr std::string_view kInputMeterKey = "InputMeter";
         constexpr std::string_view kIndicatorHorizontalKey = "IndicatorPositionHorizontal";
         constexpr std::string_view kIndicatorVerticalKey = "IndicatorPositionVertical";
@@ -288,6 +289,7 @@ namespace UI
             {
                 EndSection();
                 hideNext = false;
+                hideRest = false;
                 sections.push_back(SectionEntry{ .name = a_name, .title = a_title });
                 if (openSection.empty())
                 {
@@ -327,9 +329,11 @@ namespace UI
 
             void ShowNextIf(bool a_shown) override { hideNext = !a_shown; }
 
+            void ShowRestIf(bool a_shown) override { hideRest = !a_shown; }
+
             void Comment(Text::Id a_comment) override
             {
-                if (!sectionOpen)
+                if (!sectionOpen || hideRest)
                 {
                     return;
                 }
@@ -354,6 +358,10 @@ namespace UI
                 }
                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + controlWidth - Controls::GetToggleWidth());
                 Controls::Toggle("##value", a_value);
+                if (openSection == kVoiceSection && a_key == kVoiceEnabledKey && a_value)
+                {
+                    DrawRelayWarning();
+                }
                 EndRow();
             }
 
@@ -674,14 +682,6 @@ namespace UI
                     return;
                 }
                 const auto status = VoiceChatSync::GetLocalStatus();
-                if (!status.microphoneOpen && status.relayUnreachable)
-                {
-                    ImGui::PushStyleColor(ImGuiCol_Text, Theme::kWarning);
-                    DrawText(Text::Get(Text::Id::kVoiceRelayUnreachable));
-                    ImGui::PopStyleColor();
-                    EndRow();
-                    return;
-                }
                 const auto frameHeight = ImGui::GetFrameHeight();
                 const auto origin = ImGui::GetCursorScreenPos();
                 const auto height = std::floor(frameHeight * kMeterHeightFraction);
@@ -929,9 +929,23 @@ namespace UI
                 sectionOpen = false;
             }
 
+            void DrawRelayWarning()
+            {
+                const auto status = VoiceChatSync::GetLocalStatus();
+                if (status.microphoneOpen || !status.relayUnreachable)
+                {
+                    return;
+                }
+                ImGui::PushTextWrapPos(0.0F);
+                ImGui::PushStyleColor(ImGuiCol_Text, Theme::kNegative);
+                DrawText(Text::Get(Text::Id::kVoiceRelayUnreachable));
+                ImGui::PopStyleColor();
+                ImGui::PopTextWrapPos();
+            }
+
             bool BeginRow(std::string_view a_key, Text::Id a_label, Text::Id a_comment, bool a_labeled = true)
             {
-                const bool hidden = std::exchange(hideNext, false);
+                const bool hidden = std::exchange(hideNext, false) || hideRest;
                 if (!sectionOpen)
                 {
                     return false;
@@ -1060,6 +1074,7 @@ namespace UI
             bool focusConnectionField{ false };
             bool connectRequested{ false };
             bool hideNext{ false };
+            bool hideRest{ false };
             bool captureRejected{ false };
         };
 

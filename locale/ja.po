@@ -75,9 +75,8 @@ msgstr "TLSを使用"
 
 msgctxt "ConnectionServerTlsComment"
 msgid ""
-"Connects to the custom server over TLS, as a server behind an HTTPS proxy\n"
-"requires. Used only while the custom server is on."
-msgstr "カスタムサーバーにTLSで接続します。HTTPSプロキシの背後にあるサーバーではこれが必要です。カスタムサーバーが有効な間だけ使われます。"
+"Connects to the custom server over TLS, as a server behind an HTTPS proxy requires."
+msgstr "カスタムサーバーにTLSで接続します。HTTPSプロキシの背後にあるサーバーではこれが必要です。"
 
 msgctxt "OutfitComment"
 msgid ""
@@ -577,8 +576,8 @@ msgid "Enter a display name"
 msgstr "表示名を入力"
 
 msgctxt "SettingsServerAddressHint"
-msgid "Enter server address (host:port)"
-msgstr "サーバーアドレスを入力（ホスト:ポート）"
+msgid "Enter server address"
+msgstr "サーバーアドレスを入力"
 
 msgctxt "SettingsServerAddressInvalid"
 msgid "Invalid server address."
@@ -1489,8 +1488,8 @@ msgid "How loud your microphone is."
 msgstr "マイクの音量。"
 
 msgctxt "VoiceRelayUnreachable"
-msgid "The voice relay cannot be reached; your network may block UDP"
-msgstr "ボイスリレーに接続できません。ネットワークが UDP をブロックしている可能性があります"
+msgid "Voice chat is disabled: the voice relay cannot be reached"
+msgstr "ボイスチャットは無効です：ボイスリレーに接続できません"
 
 msgctxt "VoiceActivationLevel"
 msgid "Activation level"

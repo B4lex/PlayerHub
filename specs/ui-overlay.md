@@ -1837,10 +1837,11 @@ carried, and played is in [Voice chat](voice-chat.md).
   `VoiceChatSync::GetLocalStatus`, which `InputVolume` does not change, in the
   accent while the player is heard, with a mark at `ActivationLevel` under
   voice activation. While the microphone is closed, as without a connection,
-  the bar stays empty; while `LocalStatus::relayUnreachable`
-  ([Voice chat](voice-chat.md#relay-link)) the row instead tells the player in
-  `Theme::kWarning` that the voice relay cannot be reached and the network
-  may block UDP.
+  the bar stays empty. While `Enabled` is on, the microphone is closed, and
+  `LocalStatus::relayUnreachable` ([Voice chat](voice-chat.md#relay-link)), a
+  line under the `Enabled` row, from the page's left edge, tells the player
+  in `Theme::kNegative` that voice chat is disabled because the voice relay
+  cannot be reached.
 
 ## Settings window
 
@@ -1896,7 +1897,9 @@ peers keep seeing the player.
   setting, as the chat's [size](#size) is, is not drawn at all.
 - A row the schema shows only while a value is true (`ShowNextIf`,
   [Configuration](configuration.md#schema)) is left out while it is false,
-  and its invalid text is dropped, so it does not come back invalid.
+  and its invalid text is dropped, so it does not come back invalid; after
+  `ShowRestIf`, so are the rest of the section's rows and group headings.
+  `[Voice]` so shows only `Enabled` while it is off.
   `[Connection]` so shows `ServerAddress` and `ServerTls` only while
   `CustomServer` is on
   ([Official and custom server](configuration.md#official-and-custom-server)):
