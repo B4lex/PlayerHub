@@ -14,7 +14,7 @@ msgstr "Connexion"
 
 msgctxt "SectionDefaultLook"
 msgid "Default Look"
-msgstr "Apparence par défaut"
+msgstr "Apparence de base"
 
 msgctxt "SectionUI"
 msgid "Interface"
