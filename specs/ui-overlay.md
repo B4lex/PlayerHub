@@ -763,7 +763,8 @@ at all, so the hint stays until one is applied.
 Goal: show each other player's display name above their character's head
 while the character is within `[UI] NameplateDistance` of the player and in
 sight, so players can tell who is who. Friends' names are in the accent, and
-a [role](#roles)'s mark stands before its holder's name.
+a [role](#roles)'s mark stands before its holder's name. A plate hides while
+the crosshair is on its player, since the activation prompt then names them.
 Non-goals: a level, health bar, or other detail on the plate, plates for
 players without a character in the local world, plates through walls, and a
 plate for the player's own character.
@@ -789,9 +790,16 @@ plate for the player's own character.
   to it. At most 8 rays are cast per pass; a peer over that budget is
   tested in a later pass. Out of range a peer's result is cleared, so it
   comes back only after a fresh test.
+- A peer whose actor is the crosshair's target
+  (`CrosshairPickData::GetActiveTarget`, read once per pass) has no plate
+  while it is alive: the HUD's activation prompt names it, at the bottom of
+  the screen in vanilla or above the head with a HUD mod that moves it. A
+  dead peer has no prompt ([Remote actor](remote-actor.md#spawn)), so its
+  plate stays.
 - Each plate fades in and out over 0.2 s of clamped frame time as its result
-  changes. Its label is the peer's roster name with `PlayerLabel::Format`,
-  or the appearance's name for a player the roster lacks, and it is a
+  or its hover changes. Its label is the peer's roster name with
+  `PlayerLabel::Format`, or the appearance's name for a player the roster
+  lacks, and it is a
   friend's by `PlayerFilters::IsFriend` on the roster's session. Its
   [role](#roles)'s mark is `ChatRoster::FindRoleMark` of the roster entry's
   role. All three are
@@ -824,8 +832,8 @@ plate for the player's own character.
   out over the last `kDistanceFadeFraction` of the range; a plate wholly off
   screen is skipped.
 - Per pass the cost is one distance per peer with a character, the budgeted
-  rays, and one roster and filter revision read; nothing allocates once the
-  plates vector has grown. Drawing costs five text draws per plate, and two
+  rays, one crosshair target lookup, and one roster and filter revision
+  read; nothing allocates once the plates vector has grown. Drawing costs five text draws per plate, and two
   rectangles and a glyph for a mark.
 
 ## Notices

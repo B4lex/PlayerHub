@@ -1,4 +1,5 @@
 #include "sync/nameplates/NameplateSync.h"
+#include "actor/ActorRegistry.h"
 #include "config/PluginConfig.h"
 #include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
@@ -36,6 +37,12 @@ namespace NameplateSync
                 return nullptr;
             }
             return a_root.GetObjectByName(head->nodeName);
+        }
+
+        RE::NiPointer<RE::TESObjectREFR> FindCrosshairTarget()
+        {
+            const auto* pick = RE::CrosshairPickData::GetSingleton();
+            return pick ? pick->GetActiveTarget().get() : nullptr;
         }
 
         void Hide(RemoteState& a_state)
@@ -148,6 +155,7 @@ namespace NameplateSync
         const LabelRevision revision{ .roster = ChatRoster::GetRevision(),
             .filters = PlayerFilters::GetRevision(),
             .language = Text::GetLanguage() };
+        const auto crosshairTarget = FindCrosshairTarget();
         std::uint32_t raycasts = 0;
         for (auto& [playerID, peer] : a_peers)
         {
@@ -180,8 +188,11 @@ namespace NameplateSync
                 state.sightCheckRemaining = 0.0F;
             }
 
+            // The activation prompt names the hovered player; a dead one has no prompt.
+            const bool hovered = actor.get() == crosshairTarget.get() && !ActorRegistry::IsDead(actor.get());
             const auto step = delta / kFadeSeconds;
-            state.alpha = state.inSight ? (std::min)(state.alpha + step, 1.0F) : (std::max)(state.alpha - step, 0.0F);
+            state.alpha = state.inSight && !hovered ? (std::min)(state.alpha + step, 1.0F)
+                                                    : (std::max)(state.alpha - step, 0.0F);
             if (state.alpha <= 0.0F)
             {
                 continue;

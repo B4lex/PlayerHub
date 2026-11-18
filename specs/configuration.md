@@ -210,7 +210,7 @@ Four groups: Display (`Language`, `Scale`, `AccentColor`, `BorderColor`,
 | `BorderColor` | Color of the menu frame around the settings window and the open chat ([UI overlay](ui-overlay.md#menu-frame)): `Vanilla`, the grey of the game's menus, or `Accent`, the accent | `Vanilla` |
 | `BorderThickness` | Thickness of that frame, lines and knots together, in percent of what the game draws around its message boxes, `30..100` | `50` |
 | `BackgroundOpacity` | Opacity of the background of the overlay's windows, popups, prompts, and notices in percent, `25..100` in steps of `5`; below `100` the game shows blurred behind them ([UI overlay](ui-overlay.md#background-blur)) | `75` |
-| `Nameplates` | Shows other players' display names above their heads while in sight ([UI overlay](ui-overlay.md#nameplates)) | `true` |
+| `Nameplates` | Shows other players' display names above their heads while in sight and not under the crosshair ([UI overlay](ui-overlay.md#nameplates)) | `true` |
 | `NameplateDistance` | Game units from the player within which nameplates show, `0..4000`, about 70 to a meter; `0` shows none and skips their line-of-sight tests, as `Nameplates = false` does | `2000` |
 | `CloseChatOnSend` | Closes the chat when Enter sends a line; when `false`, the chat stays open and Enter in an empty field does nothing ([UI overlay](ui-overlay.md#sending)) | `true` |
 | `ItemPreview` | Shows the 3D item model in item pickers and the trade window's preview column, and item thumbnails in the trade window's offers; off, the cells show names and the column only the item card | `true` |
