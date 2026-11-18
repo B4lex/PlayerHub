@@ -1856,7 +1856,7 @@ peers keep seeing the player.
   [key binding](#key-bindings) waiting for a key. Any menu taking input
   closes it too.
 - Every opening starts from the live configuration; closing discards unapplied
-  outfit edits and text still being typed. The section that was open stays
+  default look edits and text still being typed. The section that was open stays
   open, except that an opening with no display name applied shows
   `[Connection]` with the keyboard in its field.
 - It is centered the first time it opens in a game session, with a minimum
@@ -1869,7 +1869,7 @@ peers keep seeing the player.
   transparent (`ImGuiCol_SeparatorHovered` and `ImGuiCol_SeparatorActive`
   around `Begin`), so resizing shows the resize cursor only.
 - A sidebar under the [logo](#logo) lists one item per file section in schema
-  order: `[Connection]`, then `[DefaultOutfit]`, `[UI]`, `[Controls]`,
+  order: `[Connection]`, then `[DefaultLook]`, `[UI]`, `[Controls]`,
   `[Gameplay]`, `[Voice]`, and `[Advanced]`. Each section's title is the one
   its schema `Section` call gives ([Schema](configuration.md#schema)). The
   open section's item is marked with the accent strip of
@@ -1919,7 +1919,7 @@ peers keep seeing the player.
   whole percents and shows the value rounded; the value can hold a fraction
   set elsewhere. A percentage's slider runs between its limits; a dragged or
   typed value is clamped and rounded to the nearest step from the minimum.
-- Edits in every section but `[DefaultOutfit]` take effect and are saved as
+- Edits in every section but `[DefaultLook]` take effect and are saved as
   they are made, with no button: a switch, combo, or swatch at once, a key
   when it is bound, a slider when it is released, so a drag neither saves the
   file every frame nor resizes the window's content under the cursor, a color
@@ -1939,19 +1939,19 @@ peers keep seeing the player.
   [key binding](#key-bindings) stops listening, as on any click. `[UI]` keeps
   the chat's [size](#size), which the page does not show. `[Connection]` has
   no footer.
-- `[DefaultOutfit]` keeps its edits until Apply, since an outfit is put
+- `[DefaultLook]` keeps its edits until Apply, since a look is put
   together from several picks and each apply can publish new equipment and
   appearance revisions to peers. Its footer has Defaults, enabled while the
-  edits differ from the built-in outfit, then Revert and Apply, enabled while
-  they differ from the live outfit, Apply as the primary button. Revert
-  returns to the live outfit and Defaults to the built-in one, without
+  edits differ from the built-in look, then Revert and Apply, enabled while
+  they differ from the live look, Apply as the primary button. Revert
+  returns to the live look and Defaults to the built-in one, without
   applying. All three leave the other sections alone, and an edit applied in
-  another section leaves pending outfit edits pending. The footer reports
+  another section leaves pending look edits pending. The footer reports
   unapplied changes, a successful save, or a failed one.
 - `SettingsWindow` holds one draft `Config::PluginConfig`. After drawing, it
   applies the live configuration with the draft's other sections whenever they
   differ and no slider or color picker is active, and Apply does the same
-  with the draft's `defaultOutfit`.
+  with the draft's `defaultLook`.
 - The page is drawn before the sidebar, in one `Config::Describe` pass that
   also collects the section names the sidebar lists. A picked section
   therefore shows from the next frame, after a text field edited until the
@@ -2700,7 +2700,7 @@ IDs matched against 1.5.97 where given.
    editing ends, and a typed display name never connects by itself. A slider
    with a zero name shows it at its left end. Each page's Defaults restores
    only its own settings, leaves the chat's size as dragged, and is disabled
-   again. `[DefaultOutfit]` applies only on Apply, and its Defaults leaves
+   again. `[DefaultLook]` applies only on Apply, and its Defaults leaves
    other sections alone.
 7. The item picker lists only matching items and races. Hovering rows
    switches the spinning model without flicker on the world behind; nothing

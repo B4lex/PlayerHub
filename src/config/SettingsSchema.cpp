@@ -27,22 +27,22 @@ namespace Config
 
 
         // Creation Kit slot names.
-        constexpr std::array<std::string_view, DefaultOutfitSettings::kArmorSlotCount> kArmorSlotNames{ "Head", "Body",
+        constexpr std::array<std::string_view, DefaultLookSettings::kArmorSlotCount> kArmorSlotNames{ "Head", "Body",
             "Hands", "Amulet", "Feet", "Shield", "Circlet", "Backpack" };
         // Creation Kit weapon animation types, indexed by RE::WEAPON_TYPE.
         constexpr std::array<std::string_view, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> kWeaponTypeNames{
             "HandToHandMelee", "OneHandSword", "OneHandDagger", "OneHandAxe", "OneHandMace", "TwoHandSword",
             "TwoHandAxe", "Bow", "Staff", "Crossbow"
         };
-        constexpr std::array<Id, DefaultOutfitSettings::kArmorSlotCount> kArmorSlotLabels{ Id::kOutfitHead,
-            Id::kOutfitBody, Id::kOutfitHands, Id::kOutfitAmulet, Id::kOutfitFeet, Id::kOutfitShield,
-            Id::kOutfitCirclet, Id::kOutfitBackpack };
-        constexpr std::array<bool, DefaultOutfitSettings::kArmorSlotCount> kArmorSlotAllowsNone{ true, false, false,
+        constexpr std::array<Id, DefaultLookSettings::kArmorSlotCount> kArmorSlotLabels{ Id::kLookHead,
+            Id::kLookBody, Id::kLookHands, Id::kLookAmulet, Id::kLookFeet, Id::kLookShield,
+            Id::kLookCirclet, Id::kLookBackpack };
+        constexpr std::array<bool, DefaultLookSettings::kArmorSlotCount> kArmorSlotAllowsNone{ true, false, false,
             false, false, false, true, true };
         // Unarmed has no setting. TwoHandAxe covers warhammers too.
         constexpr std::array<Id, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> kWeaponTypeLabels{ Id::kNone,
-            Id::kOutfitSword, Id::kOutfitDagger, Id::kOutfitWarAxe, Id::kOutfitMace, Id::kOutfitGreatsword,
-            Id::kOutfitBattleaxe, Id::kOutfitBow, Id::kOutfitStaff, Id::kOutfitCrossbow };
+            Id::kLookSword, Id::kLookDagger, Id::kLookWarAxe, Id::kLookMace, Id::kLookGreatsword,
+            Id::kLookBattleaxe, Id::kLookBow, Id::kLookStaff, Id::kLookCrossbow };
         constexpr std::array<Id, UISettings::kFrameColorNames.size()> kFrameColorLabels{ Id::kUIBorderVanilla,
             Id::kUIBorderAccent };
         constexpr std::array<Id, VoiceSettings::kModeNames.size()> kVoiceModeLabels{ Id::kVoiceModePushToTalk,
@@ -250,32 +250,34 @@ namespace Config
                 "ServerTls", Id::kConnectionServerTls, a_settings.serverTls, Id::kConnectionServerTlsComment);
         }
 
-        void DescribeDefaultOutfit(DefaultOutfitSettings& a_settings, SettingsVisitor& a_visitor)
+        void DescribeDefaultLook(DefaultLookSettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("DefaultOutfit", Id::kSectionDefaultOutfit, Id::kOutfitComment);
-            const auto& defaults = GetDefaultConfig().defaultOutfit;
+            a_visitor.Section("DefaultLook", Id::kSectionDefaultLook, Id::kLookComment);
+            const auto& defaults = GetDefaultConfig().defaultLook;
 
-            a_visitor.Comment(Id::kOutfitGroupCharacter);
-            a_visitor.Form("Race", Id::kOutfitRace, a_settings.race, defaults.race, kOutfitRaceFilter, false);
+            a_visitor.Bool("AlwaysUse", Id::kLookAlwaysUse, a_settings.alwaysUse, Id::kLookAlwaysUseComment);
 
-            a_visitor.Comment(Id::kOutfitGroupApparel);
+            a_visitor.Comment(Id::kLookGroupCharacter);
+            a_visitor.Form("Race", Id::kLookRace, a_settings.race, defaults.race, kLookRaceFilter, false);
+
+            a_visitor.Comment(Id::kLookGroupApparel);
             for (std::size_t slot = 0; slot < a_settings.armor.size(); ++slot)
             {
-                a_visitor.Form(GetOutfitArmorKey(slot), kArmorSlotLabels[slot], a_settings.armor[slot],
-                    defaults.armor[slot], GetOutfitArmorFilter(slot), kArmorSlotAllowsNone[slot]);
+                a_visitor.Form(GetLookArmorKey(slot), kArmorSlotLabels[slot], a_settings.armor[slot],
+                    defaults.armor[slot], GetLookArmorFilter(slot), kArmorSlotAllowsNone[slot]);
             }
 
-            a_visitor.Comment(Id::kOutfitGroupWeapons);
+            a_visitor.Comment(Id::kLookGroupWeapons);
             for (std::size_t type = Multiplayer::PlayerEquipment::kMinimumWeaponType; type < a_settings.weapons.size();
                 ++type)
             {
-                a_visitor.Form(GetOutfitWeaponKey(type), kWeaponTypeLabels[type], a_settings.weapons[type],
-                    defaults.weapons[type], GetOutfitWeaponFilter(type), false);
+                a_visitor.Form(GetLookWeaponKey(type), kWeaponTypeLabels[type], a_settings.weapons[type],
+                    defaults.weapons[type], GetLookWeaponFilter(type), false);
             }
 
-            a_visitor.Comment(Id::kOutfitGroupMiscellaneous);
-            a_visitor.Form("Arrow", Id::kOutfitArrow, a_settings.arrow, defaults.arrow, kOutfitArrowFilter, false);
-            a_visitor.Form("Bolt", Id::kOutfitBolt, a_settings.bolt, defaults.bolt, kOutfitBoltFilter, false);
+            a_visitor.Comment(Id::kLookGroupMiscellaneous);
+            a_visitor.Form("Arrow", Id::kLookArrow, a_settings.arrow, defaults.arrow, kLookArrowFilter, false);
+            a_visitor.Form("Bolt", Id::kLookBolt, a_settings.bolt, defaults.bolt, kLookBoltFilter, false);
         }
 
         void DescribeUI(UISettings& a_settings, SettingsVisitor& a_visitor)
@@ -402,7 +404,7 @@ namespace Config
             a_visitor.Unsigned("SpawnsPerSecond", Id::kAdvancedSpawnsPerSecond, a_settings.spawnsPerSecond,
                 Id::kAdvancedSpawnsPerSecondComment, AdvancedSettings::kMaximumSpawnsPerSecond,
                 Id::kAdvancedSpawnsUnlimited, 1);
-            a_visitor.Unsigned("RemoteLights", Id::kAdvancedRemoteLights, a_settings.remoteLights,
+            a_visitor.Unsigned("LightsLimit", Id::kAdvancedRemoteLights, a_settings.remoteLights,
                 Id::kAdvancedRemoteLightsComment, AdvancedSettings::kMaximumRemoteLights, Id::kNone, 1);
 
             a_visitor.Comment(Id::kAdvancedGroupDiagnostics);
@@ -420,7 +422,7 @@ namespace Config
             config.controls.tradeDeclineKey = KeyboardKey::kN;
             config.controls.microphoneKey = kDefaultMicrophoneKey;
 
-            auto& outfit = config.defaultOutfit;
+            auto& look = config.defaultLook;
             const auto skyrim = [](std::uint32_t a_localFormID) {
                 return FormReference{ .plugin = "Skyrim.esm", .localFormID = a_localFormID };
             };
@@ -428,24 +430,24 @@ namespace Config
                 return FormReference{ .plugin = "Dawnguard.esm", .localFormID = a_localFormID };
             };
             // NordRace.
-            outfit.race = skyrim(0x013746);
+            look.race = skyrim(0x013746);
             // Hide armor, a gold necklace, a circlet, and Anniversary Edition's basic
             // backpack, which vanilla lacks.
-            outfit.armor = { skyrim(0x013913), skyrim(0x013911), skyrim(0x013912), skyrim(0x0877D5), skyrim(0x013910),
+            look.armor = { skyrim(0x013913), skyrim(0x013911), skyrim(0x013912), skyrim(0x0877D5), skyrim(0x013910),
                 skyrim(0x013914), skyrim(0x0166D6),
                 FormReference{ .plugin = "ccFSVSSE001-Backpacks.esl", .localFormID = 0x000801 } };
             // Iron weapons, the hunting bow, an unenchanted staff, and the Dawnguard crossbow.
-            outfit.weapons[1] = skyrim(0x012EB7);
-            outfit.weapons[2] = skyrim(0x01397E);
-            outfit.weapons[3] = skyrim(0x013790);
-            outfit.weapons[4] = skyrim(0x013982);
-            outfit.weapons[5] = skyrim(0x01359D);
-            outfit.weapons[6] = skyrim(0x013980);
-            outfit.weapons[7] = skyrim(0x013985);
-            outfit.weapons[8] = skyrim(0x0BE11F);
-            outfit.weapons[9] = dawnguard(0x000801);
-            outfit.arrow = skyrim(0x01397D);
-            outfit.bolt = dawnguard(0x000BB3);
+            look.weapons[1] = skyrim(0x012EB7);
+            look.weapons[2] = skyrim(0x01397E);
+            look.weapons[3] = skyrim(0x013790);
+            look.weapons[4] = skyrim(0x013982);
+            look.weapons[5] = skyrim(0x01359D);
+            look.weapons[6] = skyrim(0x013980);
+            look.weapons[7] = skyrim(0x013985);
+            look.weapons[8] = skyrim(0x0BE11F);
+            look.weapons[9] = dawnguard(0x000801);
+            look.arrow = skyrim(0x01397D);
+            look.bolt = dawnguard(0x000BB3);
             return config;
         }
 
@@ -454,7 +456,7 @@ namespace Config
     void Describe(PluginConfig& a_config, SettingsVisitor& a_visitor)
     {
         DescribeConnection(a_config.connection, a_visitor);
-        DescribeDefaultOutfit(a_config.defaultOutfit, a_visitor);
+        DescribeDefaultLook(a_config.defaultLook, a_visitor);
         DescribeUI(a_config.ui, a_visitor);
         DescribeControls(a_config.controls, a_visitor);
         DescribeGameplay(a_config.gameplay, a_visitor);
@@ -640,38 +642,38 @@ namespace Config
         return key->word == Id::kNone ? key->label : Text::Get(key->word);
     }
 
-    std::string_view GetOutfitArmorKey(std::size_t a_slotIndex)
+    std::string_view GetLookArmorKey(std::size_t a_slotIndex)
     {
         return a_slotIndex < kArmorSlotNames.size() ? kArmorSlotNames[a_slotIndex] : "Unknown";
     }
 
-    std::string_view GetOutfitWeaponKey(std::size_t a_weaponType)
+    std::string_view GetLookWeaponKey(std::size_t a_weaponType)
     {
         return a_weaponType < kWeaponTypeNames.size() ? kWeaponTypeNames[a_weaponType] : "Unknown";
     }
 
-    Forms::ItemFilter GetOutfitArmorFilter(std::size_t a_slotIndex)
+    Forms::ItemFilter GetLookArmorFilter(std::size_t a_slotIndex)
     {
-        if (a_slotIndex >= DefaultOutfitSettings::kArmorSlotCount)
+        if (a_slotIndex >= DefaultLookSettings::kArmorSlotCount)
         {
             return Forms::ItemFilter{ .kind = Forms::ItemKind::kArmor, .baseGameOnly = true };
         }
         std::uint32_t excludedSlotMask = 0;
-        for (const auto slot : DefaultOutfitSettings::kArmorSlotPrecedence)
+        for (const auto slot : DefaultLookSettings::kArmorSlotPrecedence)
         {
             if (slot == a_slotIndex)
             {
                 break;
             }
-            excludedSlotMask |= DefaultOutfitSettings::kArmorSlotMasks[slot];
+            excludedSlotMask |= DefaultLookSettings::kArmorSlotMasks[slot];
         }
         return Forms::ItemFilter{ .kind = Forms::ItemKind::kArmor,
-            .slotMask = DefaultOutfitSettings::kArmorSlotMasks[a_slotIndex],
+            .slotMask = DefaultLookSettings::kArmorSlotMasks[a_slotIndex],
             .excludedSlotMask = excludedSlotMask,
             .baseGameOnly = true };
     }
 
-    Forms::ItemFilter GetOutfitWeaponFilter(std::size_t a_weaponType)
+    Forms::ItemFilter GetLookWeaponFilter(std::size_t a_weaponType)
     {
         return Forms::ItemFilter{ .kind = Forms::ItemKind::kWeapon,
             .weaponType = static_cast<std::uint8_t>(a_weaponType),

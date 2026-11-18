@@ -11,8 +11,8 @@ msgctxt "SectionConnection"
 msgid "Connection"
 msgstr ""
 
-msgctxt "SectionDefaultOutfit"
-msgid "Default Outfit"
+msgctxt "SectionDefaultLook"
+msgid "Default Look"
 msgstr ""
 
 msgctxt "SectionUI"
@@ -75,105 +75,111 @@ msgid ""
 "Connects to the custom server over TLS, as a server behind an HTTPS proxy requires."
 msgstr ""
 
-msgctxt "OutfitComment"
-msgid ""
-"Player appearance and equipment shown to others in place of your\n"
-"modded assets they do not have."
+msgctxt "LookComment"
+msgid "Your look as other players see it when they cannot load your modded race or items"
 msgstr ""
 
-msgctxt "OutfitGroupCharacter"
+msgctxt "LookAlwaysUse"
+msgid "Always use this look"
+msgstr ""
+
+msgctxt "LookAlwaysUseComment"
+msgid "Show it to everyone, even when they could load your real race and items."
+msgstr ""
+
+msgctxt "LookGroupCharacter"
 msgid "Character"
 msgstr ""
 
-msgctxt "OutfitRace"
+msgctxt "LookRace"
 msgid "Race"
 msgstr ""
 
-msgctxt "OutfitGroupApparel"
+msgctxt "LookGroupApparel"
 msgid "Apparel"
 msgstr ""
 
-msgctxt "OutfitHead"
+msgctxt "LookHead"
 msgid "Head"
 msgstr ""
 
-msgctxt "OutfitBody"
+msgctxt "LookBody"
 msgid "Body"
 msgstr ""
 
-msgctxt "OutfitHands"
+msgctxt "LookHands"
 msgid "Hands"
 msgstr ""
 
-msgctxt "OutfitAmulet"
+msgctxt "LookAmulet"
 msgid "Amulet"
 msgstr ""
 
-msgctxt "OutfitFeet"
+msgctxt "LookFeet"
 msgid "Feet"
 msgstr ""
 
-msgctxt "OutfitShield"
+msgctxt "LookShield"
 msgid "Shield"
 msgstr ""
 
-msgctxt "OutfitCirclet"
+msgctxt "LookCirclet"
 msgid "Circlet"
 msgstr ""
 
-msgctxt "OutfitBackpack"
+msgctxt "LookBackpack"
 msgid "Backpack"
 msgstr ""
 
-msgctxt "OutfitGroupWeapons"
+msgctxt "LookGroupWeapons"
 msgid "Weapons"
 msgstr ""
 
-msgctxt "OutfitSword"
+msgctxt "LookSword"
 msgid "Sword"
 msgstr ""
 
-msgctxt "OutfitDagger"
+msgctxt "LookDagger"
 msgid "Dagger"
 msgstr ""
 
-msgctxt "OutfitWarAxe"
+msgctxt "LookWarAxe"
 msgid "War axe"
 msgstr ""
 
-msgctxt "OutfitMace"
+msgctxt "LookMace"
 msgid "Mace"
 msgstr ""
 
-msgctxt "OutfitGreatsword"
+msgctxt "LookGreatsword"
 msgid "Greatsword"
 msgstr ""
 
-msgctxt "OutfitBattleaxe"
+msgctxt "LookBattleaxe"
 msgid "Battleaxe or warhammer"
 msgstr ""
 
-msgctxt "OutfitBow"
+msgctxt "LookBow"
 msgid "Bow"
 msgstr ""
 
-msgctxt "OutfitStaff"
+msgctxt "LookStaff"
 msgid "Staff"
 msgstr ""
 
-msgctxt "OutfitCrossbow"
+msgctxt "LookCrossbow"
 msgid "Crossbow"
 msgstr ""
 
-msgctxt "OutfitGroupMiscellaneous"
+msgctxt "LookGroupMiscellaneous"
 msgid "Miscellaneous"
 msgstr ""
 
-msgctxt "OutfitArrow"
+msgctxt "LookArrow"
 msgid "Arrow"
 msgstr ""
 
-msgctxt "OutfitBolt"
+msgctxt "LookBolt"
 msgid "Bolt"
 msgstr ""
 
@@ -1411,7 +1417,7 @@ msgid "Voice"
 msgstr ""
 
 msgctxt "VoiceComment"
-msgid "Talk to the players near you."
+msgid "Talk to the players near you"
 msgstr ""
 
 msgctxt "VoiceEnabled"

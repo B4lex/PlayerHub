@@ -87,14 +87,14 @@ namespace Config
     [[nodiscard]] std::string_view FormatKey(std::uint32_t a_scanCode);
     [[nodiscard]] std::string_view FormatKeyLabel(std::uint32_t a_scanCode);
 
-    [[nodiscard]] std::string_view GetOutfitArmorKey(std::size_t a_slotIndex);
-    [[nodiscard]] std::string_view GetOutfitWeaponKey(std::size_t a_weaponType);
+    [[nodiscard]] std::string_view GetLookArmorKey(std::size_t a_slotIndex);
+    [[nodiscard]] std::string_view GetLookWeaponKey(std::size_t a_weaponType);
 
-    [[nodiscard]] Forms::ItemFilter GetOutfitArmorFilter(std::size_t a_slotIndex);
-    [[nodiscard]] Forms::ItemFilter GetOutfitWeaponFilter(std::size_t a_weaponType);
-    inline constexpr Forms::ItemFilter kOutfitRaceFilter{ .kind = Forms::ItemKind::kRace, .baseGameOnly = true };
-    inline constexpr Forms::ItemFilter kOutfitArrowFilter{ .kind = Forms::ItemKind::kAmmo, .baseGameOnly = true };
-    inline constexpr Forms::ItemFilter kOutfitBoltFilter{
+    [[nodiscard]] Forms::ItemFilter GetLookArmorFilter(std::size_t a_slotIndex);
+    [[nodiscard]] Forms::ItemFilter GetLookWeaponFilter(std::size_t a_weaponType);
+    inline constexpr Forms::ItemFilter kLookRaceFilter{ .kind = Forms::ItemKind::kRace, .baseGameOnly = true };
+    inline constexpr Forms::ItemFilter kLookArrowFilter{ .kind = Forms::ItemKind::kAmmo, .baseGameOnly = true };
+    inline constexpr Forms::ItemFilter kLookBoltFilter{
         .kind = Forms::ItemKind::kAmmo, .bolt = true, .baseGameOnly = true
     };
 }

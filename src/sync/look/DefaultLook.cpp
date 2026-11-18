@@ -1,4 +1,4 @@
-#include "sync/outfit/DefaultOutfit.h"
+#include "sync/look/DefaultLook.h"
 #include "config/PluginConfig.h"
 #include "config/SettingsSchema.h"
 #include "forms/FormLookup.h"
@@ -10,12 +10,13 @@
 #include <limits>
 #include <memory>
 #include <string_view>
+#include <utility>
 
-namespace DefaultOutfit
+namespace DefaultLook
 {
     namespace
     {
-        using Settings = Config::DefaultOutfitSettings;
+        using Settings = Config::DefaultLookSettings;
         using Multiplayer::EquipmentHandKind;
         using Multiplayer::FormReference;
 
@@ -52,7 +53,7 @@ namespace DefaultOutfit
             // The Anniversary Edition backpack default is missing from installs
             // without it.
             const bool useDefault = a_default != a_reference && FindUnusableReason(a_default, a_filter).empty();
-            logs::warn("Default outfit item ignored [DefaultOutfit] {}: item={}|{:06X} reason={} using={}", a_label,
+            logs::warn("Default look item ignored [DefaultLook] {}: item={}|{:06X} reason={} using={}", a_label,
                 a_reference.plugin, a_reference.localFormID, reason, useDefault ? "default" : "none");
             return useDefault ? a_default : FormReference{};
         }
@@ -60,6 +61,54 @@ namespace DefaultOutfit
         bool IsBaseGameItem(const FormReference& a_reference)
         {
             return Multiplayer::IsBaseGamePlugin(a_reference.plugin);
+        }
+
+        bool NeedsStandIn(const FormReference& a_reference)
+        {
+            return local.alwaysUse || !IsBaseGameItem(a_reference);
+        }
+
+        const Multiplayer::EquipmentHand* FindHandPiece(
+            const Multiplayer::DefaultOutfit& a_outfit, const Multiplayer::EquipmentHand& a_entry)
+        {
+            const auto piece
+                = std::ranges::find_if(a_outfit.hands, [&a_entry](const Multiplayer::EquipmentHand& a_piece) {
+                      return a_piece.kind == a_entry.kind && a_piece.weaponType == a_entry.weaponType;
+                  });
+            return piece == a_outfit.hands.end() ? nullptr : &*piece;
+        }
+
+        void ReplaceWithOutfit(Multiplayer::PlayerEquipment& a_equipment)
+        {
+            const auto outfit = std::exchange(a_equipment.defaultOutfit, {});
+
+            a_equipment.armor.clear();
+            for (const auto& piece : outfit.armor)
+            {
+                auto* armor = FormLookup::ResolveForm<RE::TESObjectARMO>(piece.form);
+                const auto slotMask = armor ? armor->GetSlotMask().underlying() : 0;
+                if (slotMask != 0)
+                {
+                    a_equipment.armor.push_back(Multiplayer::EquipmentArmor{ .form = piece.form, .slotMask = slotMask });
+                }
+            }
+
+            for (auto* hand : { &a_equipment.rightHand, &a_equipment.leftHand })
+            {
+                if (!*hand || (*hand)->kind == EquipmentHandKind::kSpell)
+                {
+                    continue;
+                }
+                if (const auto* piece = FindHandPiece(outfit, **hand))
+                {
+                    (*hand)->form = piece->form;
+                }
+                else
+                {
+                    hand->reset();
+                }
+            }
+            a_equipment.ammo = outfit.ammo;
         }
 
         std::size_t GetSlotRank(std::uint32_t a_slotMask)
@@ -79,27 +128,28 @@ namespace DefaultOutfit
     {
         resolvedConfigRevision = Config::GetRevision();
         resolvedConfig = Config::Get();
-        const auto& settings = resolvedConfig->defaultOutfit;
-        const auto& defaults = Config::GetDefaultConfig().defaultOutfit;
+        const auto& settings = resolvedConfig->defaultLook;
+        const auto& defaults = Config::GetDefaultConfig().defaultLook;
         local = {};
+        local.alwaysUse = settings.alwaysUse;
 
         std::uint32_t unusable = 0;
-        local.race = ResolveConfigured(settings.race, defaults.race, "Race", Config::kOutfitRaceFilter, unusable);
+        local.race = ResolveConfigured(settings.race, defaults.race, "Race", Config::kLookRaceFilter, unusable);
         for (std::size_t slot = 0; slot < settings.armor.size(); ++slot)
         {
             local.armor[slot] = ResolveConfigured(settings.armor[slot], defaults.armor[slot],
-                Config::GetOutfitArmorKey(slot), Config::GetOutfitArmorFilter(slot), unusable);
+                Config::GetLookArmorKey(slot), Config::GetLookArmorFilter(slot), unusable);
         }
         for (std::size_t type = Multiplayer::PlayerEquipment::kMinimumWeaponType; type < settings.weapons.size();
             ++type)
         {
             local.weapons[type] = ResolveConfigured(settings.weapons[type], defaults.weapons[type],
-                Config::GetOutfitWeaponKey(type), Config::GetOutfitWeaponFilter(type), unusable);
+                Config::GetLookWeaponKey(type), Config::GetLookWeaponFilter(type), unusable);
         }
-        local.arrow = ResolveConfigured(settings.arrow, defaults.arrow, "Arrow", Config::kOutfitArrowFilter, unusable);
-        local.bolt = ResolveConfigured(settings.bolt, defaults.bolt, "Bolt", Config::kOutfitBoltFilter, unusable);
+        local.arrow = ResolveConfigured(settings.arrow, defaults.arrow, "Arrow", Config::kLookArrowFilter, unusable);
+        local.bolt = ResolveConfigured(settings.bolt, defaults.bolt, "Bolt", Config::kLookBoltFilter, unusable);
 
-        logs::info("Default outfit initialized: unusableItems={}", unusable);
+        logs::info("Default look initialized: unusableItems={}", unusable);
     }
 
     void Refresh()
@@ -109,12 +159,12 @@ namespace DefaultOutfit
         {
             return;
         }
-        if (Config::Get()->defaultOutfit == resolvedConfig->defaultOutfit)
+        if (Config::Get()->defaultLook == resolvedConfig->defaultLook)
         {
             resolvedConfigRevision = revision;
             return;
         }
-        logs::debug("Default outfit settings changed; resolving the configured items again");
+        logs::debug("Default look settings changed; resolving the configured items again");
         Initialize();
     }
 
@@ -126,7 +176,7 @@ namespace DefaultOutfit
         std::uint32_t standInSlots = 0;
         for (const auto& entry : a_equipment.armor)
         {
-            if (!IsBaseGameItem(entry.form))
+            if (NeedsStandIn(entry.form))
             {
                 standInSlots |= entry.slotMask;
             }
@@ -141,7 +191,7 @@ namespace DefaultOutfit
         }
 
         const auto appendHand = [&outfit](const std::optional<Multiplayer::EquipmentHand>& a_hand) {
-            if (!a_hand || a_hand->kind == EquipmentHandKind::kSpell || IsBaseGameItem(a_hand->form))
+            if (!a_hand || a_hand->kind == EquipmentHandKind::kSpell || !NeedsStandIn(a_hand->form))
             {
                 return;
             }
@@ -164,11 +214,21 @@ namespace DefaultOutfit
         appendHand(a_equipment.rightHand);
         appendHand(a_equipment.leftHand);
 
-        if (!a_equipment.ammo.IsEmpty() && !IsBaseGameItem(a_equipment.ammo))
+        if (!a_equipment.ammo.IsEmpty() && NeedsStandIn(a_equipment.ammo))
         {
             auto* ammo = FormLookup::ResolveForm<RE::TESAmmo>(a_equipment.ammo);
             outfit.ammo = ammo && ammo->IsBolt() ? local.bolt : local.arrow;
         }
+
+        if (local.alwaysUse)
+        {
+            ReplaceWithOutfit(a_equipment);
+        }
+    }
+
+    std::optional<Multiplayer::FormReference> GetAlwaysUseRace()
+    {
+        return local.alwaysUse && !local.race.IsEmpty() ? std::optional{ local.race } : std::nullopt;
     }
 
     void SelectRace(Multiplayer::PlayerAppearance& a_appearance)
@@ -251,10 +311,8 @@ namespace DefaultOutfit
         {
             return nullptr;
         }
-        const auto piece = std::ranges::find_if(a_outfit.hands, [&a_entry](const Multiplayer::EquipmentHand& a_piece) {
-            return a_piece.kind == a_entry.kind && a_piece.weaponType == a_entry.weaponType;
-        });
-        if (piece == a_outfit.hands.end())
+        const auto* piece = FindHandPiece(a_outfit, a_entry);
+        if (!piece)
         {
             return nullptr;
         }

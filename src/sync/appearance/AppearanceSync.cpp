@@ -9,7 +9,7 @@
 #include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
 #include "sync/PlayerLabel.h"
-#include "sync/outfit/DefaultOutfit.h"
+#include "sync/look/DefaultLook.h"
 #include "text/AsciiCase.h"
 
 #include <algorithm>
@@ -396,6 +396,8 @@ namespace AppearanceSync
             return scale;
         }
 
+        AppearanceData MakeDefaultAppearance(RE::TESRace& a_race, bool a_female);
+
         std::optional<AppearanceData> CaptureLocalAppearance(RE::PlayerCharacter& a_player)
         {
             auto* base = a_player.GetActorBase();
@@ -535,7 +537,19 @@ namespace AppearanceSync
             }
             appearance.overlays = RaceMenuOverlays::Capture(a_player);
 
-            DefaultOutfit::SelectRace(appearance);
+            if (const auto alwaysRace = DefaultLook::GetAlwaysUseRace())
+            {
+                if (auto* defaultRace = ResolveForm<RE::TESRace>(*alwaysRace); IsPlayableRace(defaultRace))
+                {
+                    auto look = MakeDefaultAppearance(*defaultRace, appearance.female);
+                    look.level = appearance.level;
+                    look.weight = appearance.weight;
+                    look.height = appearance.height;
+                    appearance = std::move(look);
+                }
+            }
+
+            DefaultLook::SelectRace(appearance);
             return appearance;
         }
 

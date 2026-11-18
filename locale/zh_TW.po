@@ -12,8 +12,8 @@ msgctxt "SectionConnection"
 msgid "Connection"
 msgstr "連線"
 
-msgctxt "SectionDefaultOutfit"
-msgid "Default Outfit"
+msgctxt "SectionDefaultLook"
+msgid "Default Look"
 msgstr "預設外觀"
 
 msgctxt "SectionUI"
@@ -77,105 +77,111 @@ msgid ""
 "Connects to the custom server over TLS, as a server behind an HTTPS proxy requires."
 msgstr "透過 TLS 連線到自訂伺服器，位於 HTTPS 代理後方的伺服器需要此設定。"
 
-msgctxt "OutfitComment"
-msgid ""
-"Player appearance and equipment shown to others in place of your\n"
-"modded assets they do not have."
-msgstr "其他玩家沒有你的模組資源時，代為顯示給他們的外觀與裝備。"
+msgctxt "LookComment"
+msgid "Your look as other players see it when they cannot load your modded race or items"
+msgstr "你的外觀，在其他玩家無法載入你的模組種族或物品時顯示給他們"
 
-msgctxt "OutfitGroupCharacter"
+msgctxt "LookAlwaysUse"
+msgid "Always use this look"
+msgstr "一律使用此外觀"
+
+msgctxt "LookAlwaysUseComment"
+msgid "Show it to everyone, even when they could load your real race and items."
+msgstr "即使其他玩家能載入你真實的種族與物品，也一律向所有人顯示此外觀。"
+
+msgctxt "LookGroupCharacter"
 msgid "Character"
 msgstr "角色"
 
-msgctxt "OutfitRace"
+msgctxt "LookRace"
 msgid "Race"
 msgstr "種族"
 
-msgctxt "OutfitGroupApparel"
+msgctxt "LookGroupApparel"
 msgid "Apparel"
 msgstr "服裝"
 
-msgctxt "OutfitHead"
+msgctxt "LookHead"
 msgid "Head"
 msgstr "頭部"
 
-msgctxt "OutfitBody"
+msgctxt "LookBody"
 msgid "Body"
 msgstr "身體"
 
-msgctxt "OutfitHands"
+msgctxt "LookHands"
 msgid "Hands"
 msgstr "手部"
 
-msgctxt "OutfitAmulet"
+msgctxt "LookAmulet"
 msgid "Amulet"
 msgstr "護身符"
 
-msgctxt "OutfitFeet"
+msgctxt "LookFeet"
 msgid "Feet"
 msgstr "腳部"
 
-msgctxt "OutfitShield"
+msgctxt "LookShield"
 msgid "Shield"
 msgstr "盾牌"
 
-msgctxt "OutfitCirclet"
+msgctxt "LookCirclet"
 msgid "Circlet"
 msgstr "頭環"
 
-msgctxt "OutfitBackpack"
+msgctxt "LookBackpack"
 msgid "Backpack"
 msgstr "背包"
 
-msgctxt "OutfitGroupWeapons"
+msgctxt "LookGroupWeapons"
 msgid "Weapons"
 msgstr "武器"
 
-msgctxt "OutfitSword"
+msgctxt "LookSword"
 msgid "Sword"
 msgstr "劍"
 
-msgctxt "OutfitDagger"
+msgctxt "LookDagger"
 msgid "Dagger"
 msgstr "匕首"
 
-msgctxt "OutfitWarAxe"
+msgctxt "LookWarAxe"
 msgid "War axe"
 msgstr "戰斧"
 
-msgctxt "OutfitMace"
+msgctxt "LookMace"
 msgid "Mace"
 msgstr "釘頭錘"
 
-msgctxt "OutfitGreatsword"
+msgctxt "LookGreatsword"
 msgid "Greatsword"
 msgstr "雙手劍"
 
-msgctxt "OutfitBattleaxe"
+msgctxt "LookBattleaxe"
 msgid "Battleaxe or warhammer"
 msgstr "巨斧或戰鎚"
 
-msgctxt "OutfitBow"
+msgctxt "LookBow"
 msgid "Bow"
 msgstr "弓"
 
-msgctxt "OutfitStaff"
+msgctxt "LookStaff"
 msgid "Staff"
 msgstr "法杖"
 
-msgctxt "OutfitCrossbow"
+msgctxt "LookCrossbow"
 msgid "Crossbow"
 msgstr "十字弓"
 
-msgctxt "OutfitGroupMiscellaneous"
+msgctxt "LookGroupMiscellaneous"
 msgid "Miscellaneous"
 msgstr "其他"
 
-msgctxt "OutfitArrow"
+msgctxt "LookArrow"
 msgid "Arrow"
 msgstr "箭"
 
-msgctxt "OutfitBolt"
+msgctxt "LookBolt"
 msgid "Bolt"
 msgstr "弩箭"
 
@@ -1426,8 +1432,8 @@ msgid "Voice"
 msgstr "語音"
 
 msgctxt "VoiceComment"
-msgid "Talk to the players near you."
-msgstr "與附近的玩家交談。"
+msgid "Talk to the players near you"
+msgstr "與附近的玩家交談"
 
 msgctxt "VoiceEnabled"
 msgid "Voice chat"

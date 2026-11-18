@@ -64,7 +64,7 @@ namespace UI
         constexpr std::string_view kConnectionSection = "Connection";
         constexpr std::string_view kDisplayNameKey = "DisplayName";
         constexpr std::string_view kServerAddressKey = "ServerAddress";
-        constexpr std::string_view kStagedSection = "DefaultOutfit";
+        constexpr std::string_view kStagedSection = "DefaultLook";
         constexpr std::string_view kUISection = "UI";
         constexpr std::string_view kControlsSection = "Controls";
         constexpr std::string_view kGameplaySection = "Gameplay";
@@ -1156,9 +1156,9 @@ namespace UI
                 live = Config::Get();
             }
 
-            void ReplaceStaged(const Config::DefaultOutfitSettings& a_outfit)
+            void ReplaceStaged(const Config::DefaultLookSettings& a_look)
             {
-                draft.defaultOutfit = a_outfit;
+                draft.defaultLook = a_look;
                 editor.Reset();
             }
 
@@ -1315,7 +1315,7 @@ namespace UI
                     return;
                 }
                 auto config = draft;
-                config.defaultOutfit = live->defaultOutfit;
+                config.defaultLook = live->defaultLook;
                 Apply(std::move(config));
             }
 
@@ -1400,7 +1400,7 @@ namespace UI
 
             void DrawStagedFooter(float a_inset)
             {
-                const bool changed = draft.defaultOutfit != live->defaultOutfit;
+                const bool changed = draft.defaultLook != live->defaultLook;
                 if (changed)
                 {
                     stagedApplied = false;
@@ -1424,10 +1424,10 @@ namespace UI
                 const auto size = GetFooterButtonSize();
                 ImGui::SetCursorPos(ImVec2{
                     ImGui::GetWindowWidth() - a_inset - size.x * 3.0F - ImGui::GetStyle().ItemSpacing.x * 2.0F, top });
-                ImGui::BeginDisabled(draft.defaultOutfit == defaults.defaultOutfit);
+                ImGui::BeginDisabled(draft.defaultLook == defaults.defaultLook);
                 if (ImGui::Button(Text::GetCString(Text::Id::kSettingsDefaults), size))
                 {
-                    ReplaceStaged(defaults.defaultOutfit);
+                    ReplaceStaged(defaults.defaultLook);
                 }
                 ImGui::EndDisabled();
 
@@ -1435,14 +1435,14 @@ namespace UI
                 ImGui::BeginDisabled(!changed);
                 if (ImGui::Button(Text::GetCString(Text::Id::kSettingsRevert), size))
                 {
-                    ReplaceStaged(live->defaultOutfit);
+                    ReplaceStaged(live->defaultLook);
                 }
                 ImGui::SameLine();
                 const auto* apply = Text::GetCString(Text::Id::kSettingsApply);
                 if (changed ? Controls::PrimaryButton(apply, size) : ImGui::Button(apply, size))
                 {
                     auto config = *live;
-                    config.defaultOutfit = draft.defaultOutfit;
+                    config.defaultLook = draft.defaultLook;
                     Apply(std::move(config));
                     stagedApplied = true;
                 }

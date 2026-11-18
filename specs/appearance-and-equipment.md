@@ -13,8 +13,9 @@ A remote actor looks like its source player's character, carries the player's
 display name, and wears and wields what the source has equipped, from any
 plugin the receiver also has. In a vanilla beast form the actor is that beast
 ([Shapeshifts](#shapeshifts)). What the receiver cannot resolve falls back to
-vanilla data or the source's default outfit, so players with different
-modpacks still see each other dressed and armed.
+vanilla data or the source's default look, so players with different
+modpacks still see each other dressed and armed. A source can also publish the
+default look in place of its own ([Always use](#always-use)).
 
 The wire format is in [Network](network.md#appearance-and-equipment); how draws
 and attacks wait for the hands in [Combat presentation](combat-presentation.md);
@@ -30,7 +31,7 @@ the settings in [Configuration](configuration.md#settings).
 | `sync/equipment/EquipmentSync` | Capture and publish; receive, resolve, reconcile the actor's inventory and a vampire lord actor's spells and armor; hand readiness |
 | `sync/equipment/SpellStandIn` | Capture a spell hand's spell and look; resolve it to the receiver's own spell or a runtime stand-in spell ([Combat presentation](combat-presentation.md#spell-look)) |
 | `sync/equipment/FakeLight` | A shadow-casting light's runtime copy without its shadow flags |
-| `sync/outfit/DefaultOutfit` | Resolve `[DefaultOutfit]` and select the pieces for a capture |
+| `sync/look/DefaultLook` | Resolve `[DefaultLook]` and select the pieces for a capture |
 | `sync/PlayerLabel.h` | `PlayerLabel::Format` |
 | `forms/RaceForms` | `IsPlayableRace`; `GetPlayableRace`, the playable race a capture sends for a race ([Playable race](#playable-race)) |
 | `forms/BeastForms` | The vanilla beast races and their forms, including the vampire lord's armor |
@@ -60,8 +61,9 @@ On the game thread, once per second:
 - `level`: `Actor::GetLevel`, shown only in the
   [player menu](ui-overlay.md#player-menu). `name` is left empty: the server
   sets the [display name](#display-name).
-- `defaultRace`: the configured `[DefaultOutfit]` race when `race` is not from
-  a base-game plugin, else unset.
+- `defaultRace`: the configured `[DefaultLook]` race when `race` is not from
+  a base-game plugin, else unset. With `AlwaysUse` the capture is the race's
+  default look instead ([Always use](#always-use)).
 - `height`: `TESNPC::height` × the reference scale (`refScale / 100`) × the
   local scale of the third-person skeleton's `NPC` node rounded to 0.01,
   clamped to `0.25..4`. RaceMenu's height slider scales that node
@@ -382,7 +384,8 @@ Capture, when the race has a [playable race](#playable-race):
   `TESShout`; a power is sent when cast
   ([Combat presentation](combat-presentation.md#shouts-and-powers)).
 - `defaultOutfit`: the pieces for items that are not from base-game plugins
-  ([Default outfit](#default-outfit)).
+  ([Default look](#default-look)); empty with `AlwaysUse`, whose pieces are
+  `armor`, `hands`, and `ammo` themselves.
 - `beast_right_hand`, `beast_left_hand`, `beast_armor`: unset or empty.
 
 Without a [playable race](#playable-race), as in a transformation, which
@@ -510,31 +513,31 @@ Hand timing:
 - Retiring an actor keeps the equipment state; the new reference reconciles
   from it. Equipment never triggers a respawn.
 
-### Default outfit
+### Default look
 
-Each player configures a default outfit and race that peers show in place of
-the player's items and race they cannot resolve; the receiver has no outfit of
-its own. Its forms are limited to base-game plugins
+Each player configures a default look, a race and an outfit of armor, weapons,
+and ammunition, that peers show in place of the player's items and race they
+cannot resolve; the receiver has no look of its own. Its forms are limited to base-game plugins
 (`Multiplayer::IsBaseGamePlugin`): the five Special Edition masters and
 `ccFSVSSE001-Backpacks.esl`, which only uses slot 47, so a receiver without it
 shows no backpack and everything else. Other Creation Club plugins are not
 base-game, since a receiver without the Anniversary upgrade lacks them; a worn
 Creation Club item gets a stand-in like any modded item.
 
-`DefaultOutfit` resolves every configured form at `kDataLoaded` and whenever
-the settings change `[DefaultOutfit]` (`Refresh`, first in each pass), checked
+`DefaultLook` resolves every configured form at `kDataLoaded` and whenever
+the settings change `[DefaultLook]` (`Refresh`, first in each pass), checked
 with the key's item filter. A form that is missing or does not fit is logged
-with its key (`Default outfit item ignored ... reason=does-not-fit`) and
+with its key (`Default look item ignored ... reason=does-not-fit`) and
 replaced by the key's default, or treated as unset when the default is unusable
 too, such as the Anniversary backpack on an install without it. An empty
 `Head`, `Circlet`, or `Backpack` is unset by choice and resolves to no piece
-without a warning ([Configuration](configuration.md#defaultoutfit)).
+without a warning ([Configuration](configuration.md#defaultlook)).
 
 Each equipment capture selects pieces only for items not from base-game
-plugins:
+plugins (for every item with [`AlwaysUse`](#always-use)):
 
 - `armor`: the piece of each outfit slot a modded worn item covers, in the
-  order of `DefaultOutfitSettings::kArmorSlotPrecedence`: Body, Head (for Head
+  order of `DefaultLookSettings::kArmorSlotPrecedence`: Body, Head (for Head
   or Hair), Hands, Feet, Shield, Amulet, Circlet, Backpack. Each piece carries
   the slot mask of the outfit slot it stands in for.
 - `hands`: the weapon of each modded hand weapon's type and `Torch01` for a
@@ -546,12 +549,35 @@ An all-base-game player sends an empty outfit. A changed outfit publishes a
 new equipment revision, a changed default race a new appearance revision
 (every receiver then respawns the player once).
 
+#### Always use
+
+`[DefaultLook] AlwaysUse` makes the sender publish the outfit as its real
+look, so every receiver shows it whatever mods it has, and a receiver needs no
+knowledge of the setting. The selection above runs for every worn item,
+base-game or not, and the capture then keeps only its result:
+
+- Appearance: `DefaultLook::GetAlwaysUseRace` gives the configured race and
+  `CaptureLocalAppearance` publishes `MakeDefaultAppearance` for it (the look
+  a receiver builds for a race it cannot resolve) with the player's sex, level,
+  weight, and height. Head parts, tints, hair color, face data, and RaceMenu
+  overlays are those of the race, not the character's. `defaultRace` is unset,
+  since `race` is already base-game.
+- Equipment: `armor` holds only the outfit pieces, each with its resolved
+  item's own slot mask, so an item covering only slots without a piece, or
+  whose slot is set to none, is hidden. Each weapon and torch hand takes the
+  outfit piece of its weapon type (a hand without one is dropped) and `ammo`
+  the outfit arrow or bolt. Spell hands, a staff's enchantment, the shout, and
+  the beast fields are left as captured, since they are what the player casts,
+  not what is worn.
+- The wire, the receiver, and the server see an ordinary character in base-game
+  gear.
+
 The receiver treats the outfit as part of the equipment revision:
 
 1. The union of the unresolved armor entries' slot masks becomes the missing
    slots. A piece is a candidate when its stand-in mask covers a missing slot
    and it resolves to armor with slots.
-2. `DefaultOutfit::SelectArmor` takes the resolved armor and the candidate
+2. `DefaultLook::SelectArmor` takes the resolved armor and the candidate
    pieces by rank: the position in `kArmorSlotPrecedence` of their main slot,
    the resolved item's own slots or the piece's stand-in slots. A resolved item
    comes before a piece of the same rank. A piece is skipped once every missing
@@ -578,10 +604,10 @@ type, bolt flag, and whether a base-game plugin defines it.
 armor (`TESObjectARMO::RecordFlags::kNonPlayable`), weapons, and ammunition
 (`GetPlayable`): these are NPC-only variants that can show a player wrongly,
 such as without a head, and `Forms::ItemFilter::Matches`
-checks them against what a setting accepts. `GetOutfitArmorFilter`,
-`GetOutfitWeaponFilter`, and `Config::kOutfitArrowFilter`, `kOutfitBoltFilter`,
-`kOutfitRaceFilter` build every `[DefaultOutfit]` filter.
-The settings window lists only matching items and `DefaultOutfit` resolves with
+checks them against what a setting accepts. `GetLookArmorFilter`,
+`GetLookWeaponFilter`, and `Config::kLookArrowFilter`, `kLookBoltFilter`,
+`kLookRaceFilter` build every `[DefaultLook]` filter.
+The settings window lists only matching items and `DefaultLook` resolves with
 the same filters, so the list and the live behavior never disagree.
 
 | Key | Accepts (base-game only) |
@@ -592,7 +618,7 @@ the same filters, so the list and the live behavior never disagree.
 | `Arrow`, `Bolt` | ammunition that is not, or is, a bolt |
 | `Race` | a playable race |
 
-`Forms::BuildItemCatalog` runs at `kDataLoaded`, before `DefaultOutfit` resolves
+`Forms::BuildItemCatalog` runs at `kDataLoaded`, before `DefaultLook` resolves
 anything, and collects every named `TESObjectARMO`, `TESObjectWEAP`,
 `TESObjectLIGH`, `TESAmmo`, and `TESRace` with traits and a plugin-local
 reference, leaving out enchanted variants, which look like their listed

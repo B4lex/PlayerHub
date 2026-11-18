@@ -192,7 +192,7 @@ Does not measurably affect it:
   (0.2 s), or `kOffscreenCheckSeconds` (0.05 s) while off screen, where no ray
   is cast; a pass casts at most `kMaximumSightChecksPerPass` (8) rays
   ([UI overlay](ui-overlay.md#nameplates)).
-- **Remote lights.** `[Advanced] RemoteLights` (0 by default) caps the remote
+- **Remote lights.** `[Advanced] LightsLimit` (0 by default) caps the remote
   lights that light the scene ([Remote actor](remote-actor.md#light-budget)).
 - **Item preview.** A spinning model is captured at most every
   `kSpinCaptureIntervalSeconds` (1/30 s) ([UI overlay](ui-overlay.md#3d-preview)).

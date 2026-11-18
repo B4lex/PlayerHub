@@ -7,16 +7,19 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <vector>
 
-namespace DefaultOutfit
+namespace DefaultLook
 {
     void Initialize();
 
     void Refresh();
 
     void Select(Multiplayer::PlayerEquipment& a_equipment);
+
+    [[nodiscard]] std::optional<Multiplayer::FormReference> GetAlwaysUseRace();
 
     void SelectRace(Multiplayer::PlayerAppearance& a_appearance);
 

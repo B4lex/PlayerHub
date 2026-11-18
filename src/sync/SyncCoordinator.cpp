@@ -27,7 +27,7 @@
 #include "sync/mount/MountSync.h"
 #include "sync/nameplates/NameplateSync.h"
 #include "sync/movement/MovementSync.h"
-#include "sync/outfit/DefaultOutfit.h"
+#include "sync/look/DefaultLook.h"
 #include "sync/presence/PresenceSync.h"
 #include "sync/shapeshift/ShapeshiftSync.h"
 #include "sync/skeleton/PoseWindow.h"
@@ -565,7 +565,7 @@ namespace SyncCoordinator
         NameplateSync::Clear();
         RestoreSaveEligibility(s_peers);
         GameplayPolicy::Update();
-        DefaultOutfit::Refresh();
+        DefaultLook::Refresh();
         ApplyNetworkChanges(s_peers);
         ServePlayerDetails(s_peers);
         PlayCheckpoints(s_peers);

@@ -41,13 +41,13 @@ read once when SKSE loads the plugin, before any other plugin work.
 Each setting is described once in `SettingsSchema.cpp` (`Config::Describe`),
 through a visitor that reads the file, writes it, and draws the settings
 window; a new option is a field in `Config::PluginConfig` plus one line there.
-Sections are described in the order Connection, DefaultOutfit, UI, Controls,
+Sections are described in the order Connection, DefaultLook, UI, Controls,
 Gameplay, Voice, Advanced, which orders a new file and the settings window's
 sidebar ([UI overlay](ui-overlay.md#settings-window)).
 
 - Every shown setting takes the `Text::Id` of its label after its key, ignored
   by reading and saving, so a label changes without renaming the key; one
-  without a label does not compile. Outfit slots and weapon types take theirs
+  without a label does not compile. The default look's slots and weapon types take theirs
   from `kArmorSlotLabels` and `kWeaponTypeLabels`. Section titles, comments,
   and group comments are `Text::Id`s too: the window shows them in the game's
   language ([Localization](ui-overlay.md#localization)) and the file gets
@@ -149,10 +149,11 @@ address is the WebSocket's host, the voice relay's host when the server names
 none ([Network](network.md#voice)), and part of the WebSocket URL that keys the
 server's lines in the client's files ([Network](network.md#transport)).
 
-### `[DefaultOutfit]`
+### `[DefaultLook]`
 
-What peers show in place of this player's race and items they cannot resolve
-([Appearance and equipment](appearance-and-equipment.md#default-outfit)). Form
+What peers show in place of this player's race and items they cannot resolve,
+or in place of all of them with `AlwaysUse`
+([Appearance and equipment](appearance-and-equipment.md#default-look)). Form
 values are `Plugin|FormID` with the plugin's local hexadecimal ID, as in
 `Skyrim.esm|0x012E49`; a load-order form ID is rejected, since it differs
 between modpacks, and a malformed value keeps the default. `Head`, `Circlet`,
@@ -163,6 +164,7 @@ every piece but the backpack.
 
 | Key | Meaning |
 | --- | --- |
+| `AlwaysUse` | boolean, default `false`: peers show the configured race and items for every worn item, not only for those they cannot resolve |
 | `Race` | a playable race; base-game plugins define only the 10 vanilla ones |
 | `<Slot>` | armor for that biped slot; `Head` also stands in for `Hair` |
 | `OneHandSword` … `Crossbow` | the weapon for that Creation Kit weapon type |
@@ -307,7 +309,7 @@ for a larger one. A file value above a maximum loads as the default.
 | --- | --- | --- |
 | `ViewRadius` | Game units within which other players are shown, `0..15000`, slider step `100`; sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection | `0`, the server's range |
 | `SpawnsPerSecond` | Remote actor and mount spawns started per second at most, `0..100`; `0` is unlimited and shown by the schema's zero name ([Sync pipeline](sync-pipeline.md#actor-lifecycle)) | `20` |
-| `RemoteLights` | Lights on remote actors that light the scene at most, nearest to the camera first, `0..8` (`AdvancedSettings::kMaximumRemoteLights`); `0` leaves every one dark and has no zero name; the effects stay ([Remote actor](remote-actor.md#light-budget)) | `0` |
+| `LightsLimit` | Lights on remote actors that light the scene at most, nearest to the camera first, `0..8` (`AdvancedSettings::kMaximumRemoteLights`); `0` leaves every one dark and has no zero name; the effects stay ([Remote actor](remote-actor.md#light-budget)) | `0` |
 | `StatusPanel` | Shows the [status panel](ui-overlay.md#status-panel), a debugging readout | `false` |
 
 ## Snapshots
@@ -322,10 +324,10 @@ revision before the snapshot never misses a change.
 | Consumer | Thread | Follows a change by |
 | --- | --- | --- |
 | `ActorLifecycle` | main loop | reading `SpawnsPerSecond` once per pass in `RefillSpawnAllowance` |
-| `RemoteLights` | main loop | reading `RemoteLights` in the first pass after the revision changes |
+| `RemoteLights` | main loop | reading `LightsLimit` in the first pass after the revision changes |
 | `GameplayPolicy` | main loop | reading `[Gameplay]` first in `SyncCoordinator::OnFrame` after the revision changes, into atomics the isolation hooks read on any thread |
 | `EquipmentSync` hands | main loop | resolving a remote actor's hands again when `ShowSpellEffects` differs from the value they were resolved with |
-| `DefaultOutfit` | main loop | `Refresh`, first in `SyncCoordinator::OnFrame`, resolving every item again when `[DefaultOutfit]` differs |
+| `DefaultLook` | main loop | `Refresh`, first in `SyncCoordinator::OnFrame`, resolving every item again when `[DefaultLook]` differs |
 | `EquipmentSync` | main loop | the next capture selecting from the new outfit and publishing a new revision |
 | `AppearanceSync` | main loop | the next capture taking the new default race, which publishes a new revision for a modded race |
 | `ConnectionMonitor` | main loop | reading `ConnectAutomatically` and whether `DisplayName` and a server address are set when a game starts; ending the player's choice to connect when `DisplayName` is cleared, or while there is no address and no connection is welcomed |

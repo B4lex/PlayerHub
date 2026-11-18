@@ -34,7 +34,7 @@ namespace Config
         bool operator==(const ServerAddress&) const = default;
     };
 
-    struct DefaultOutfitSettings
+    struct DefaultLookSettings
     {
         // Biped slot bits, bit 0 being slot 30. Anniversary Edition's backpacks and
         // most mods' use slot 47.
@@ -44,6 +44,7 @@ namespace Config
         static constexpr std::array<std::size_t, kArmorSlotCount> kArmorSlotPrecedence{ 1, 0, 2, 4, 5, 3, 6, 7 };
         static_assert(kArmorSlotCount <= Multiplayer::DefaultOutfit::kMaximumArmor);
 
+        bool alwaysUse{ false };
         Multiplayer::FormReference race;
         std::array<Multiplayer::FormReference, kArmorSlotCount> armor;
         // Indexed by RE::WEAPON_TYPE.
@@ -51,7 +52,7 @@ namespace Config
         Multiplayer::FormReference arrow;
         Multiplayer::FormReference bolt;
 
-        bool operator==(const DefaultOutfitSettings&) const = default;
+        bool operator==(const DefaultLookSettings&) const = default;
     };
 
     struct AdvancedSettings
@@ -167,7 +168,7 @@ namespace Config
     struct PluginConfig
     {
         ConnectionSettings connection;
-        DefaultOutfitSettings defaultOutfit;
+        DefaultLookSettings defaultLook;
         UISettings ui;
         ControlsSettings controls;
         GameplaySettings gameplay;

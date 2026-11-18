@@ -551,7 +551,7 @@ both; skeleton bodies are still passed through for the player.
 
 Skyrim lights each geometry with a few dynamic lights only, so many remote
 players carrying torches or spells make the world's lights flicker or drop out.
-`[Advanced] RemoteLights` ([Configuration](configuration.md#advanced), default
+`[Advanced] LightsLimit` ([Configuration](configuration.md#advanced), default
 0, `0..8`) caps how many of their lights light the scene. A culled light loses
 only its light; flames, hand art, and sounds stay. Shadow-casting torches and
 hand lights are already [fake lights](appearance-and-equipment.md#fake-lights).
@@ -568,7 +568,7 @@ is culled. Under the scene's `lightQueueLock` it:
 2. ranks the counted lights by squared camera distance, a lit light's scaled by
    `kLitRankScale` (0.64), so it keeps its slot until an unlit one is a fifth
    closer;
-3. keeps the nearest `RemoteLights` lit (`std::nth_element`) and app-culls the
+3. keeps the nearest `LightsLimit` lit (`std::nth_element`) and app-culls the
    rest's `NiLight`, re-setting the flag every pass; a culled light now kept
    gets the flag cleared;
 4. clears and forgets every culled light not counted this pass, so no light
@@ -900,7 +900,7 @@ around it.
    `owner=network` around each interaction; a dying actor ragdolls onto the
    ground. With `DisableCollision` on, a remote actor on a pressure plate does
    not trigger it.
-10. With more remote torches or flame spells than `[Advanced] RemoteLights`,
+10. With more remote torches or flame spells than `[Advanced] LightsLimit`,
     only that many nearest the camera light their surroundings, the rest still
     show their flames, and players at about the same distance do not trade the
     light. At `0` none lights anything; a freed slot goes to the next light. The

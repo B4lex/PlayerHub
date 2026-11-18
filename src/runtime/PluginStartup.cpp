@@ -23,7 +23,7 @@
 #include "runtime/VanillaIntro.h"
 #include "sync/SyncCoordinator.h"
 #include "sync/equipment/EquipmentSync.h"
-#include "sync/outfit/DefaultOutfit.h"
+#include "sync/look/DefaultLook.h"
 #include "sync/presence/PresenceSync.h"
 #include "sync/trade/TradeSync.h"
 #include "sync/voice/VoiceSync.h"
@@ -63,7 +63,7 @@ namespace PluginStartup
             PrecisionIsolation::Initialize();
             Forms::BuildItemCatalog();
             Forms::ResolveBeastForms();
-            DefaultOutfit::Initialize();
+            DefaultLook::Initialize();
             EquipmentSync::RegisterEventSinks();
             PresenceSync::RegisterEventSinks();
             RemoteActorActivation::RegisterEventSink();

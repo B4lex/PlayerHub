@@ -13,7 +13,7 @@
 #include "runtime/Profiling.h"
 #include "sync/equipment/FakeLight.h"
 #include "sync/equipment/SpellStandIn.h"
-#include "sync/outfit/DefaultOutfit.h"
+#include "sync/look/DefaultLook.h"
 
 #include <algorithm>
 #include <array>
@@ -275,7 +275,7 @@ namespace EquipmentSync
                     ++a_skipped;
                 }
             }
-            DefaultOutfit::Select(equipment);
+            DefaultLook::Select(equipment);
             return equipment;
         }
 
@@ -431,7 +431,7 @@ namespace EquipmentSync
             auto* object = resolution.form;
             if (!object)
             {
-                object = DefaultOutfit::FindHand(a_outfit, *a_entry);
+                object = DefaultLook::FindHand(a_outfit, *a_entry);
                 LogUnresolvedEntry(
                     a_playerID, a_revision, a_slot, a_entry->form, resolution.dropReason, FormatStandIn(object));
                 if (!object)
@@ -520,7 +520,7 @@ namespace EquipmentSync
                 }
             }
             const auto standIns
-                = DefaultOutfit::SelectArmor(equipment.defaultOutfit, resolvedArmor, missingSlots, a_remote.armor);
+                = DefaultLook::SelectArmor(equipment.defaultOutfit, resolvedArmor, missingSlots, a_remote.armor);
             for (const auto& [entry, reason] : unresolved)
             {
                 std::array<RE::TESObjectARMO*, Multiplayer::DefaultOutfit::kMaximumArmor> entryStandIns{};
@@ -563,7 +563,7 @@ namespace EquipmentSync
                 a_remote.ammo = resolution.form;
                 if (!a_remote.ammo)
                 {
-                    a_remote.ammo = DefaultOutfit::FindAmmo(equipment.defaultOutfit);
+                    a_remote.ammo = DefaultLook::FindAmmo(equipment.defaultOutfit);
                     LogUnresolvedEntry(a_playerID, revision, "ammo", equipment.ammo, resolution.dropReason,
                         FormatStandIn(a_remote.ammo));
                 }

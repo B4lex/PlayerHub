@@ -101,7 +101,7 @@ write before render ([Remote actor](remote-actor.md#frame-order)).
 ```text
 NameplateSync::Clear                      # an early return leaves no plates
 restore save eligibility after a save
-DefaultOutfit::Refresh                    # re-resolve a changed [DefaultOutfit]
+DefaultLook::Refresh                    # re-resolve a changed [DefaultLook]
 ApplyNetworkChanges                       # the one drain; trade events queued
 ServePlayerDetails                        # the open player menu's level and place
 PlayCheckpoints                           # each peer's due checkpoints play
