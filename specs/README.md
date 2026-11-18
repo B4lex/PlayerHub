@@ -30,7 +30,7 @@ overlay logs a warning and does not install there. `Status` and
 | [trade.md](trade.md) | Item exchange between two players: invitation, plugin check, offers, reports, acceptance, commit, cancelling, the trade bot; the only change a peer makes to the local world | `sync/trade/`, `forms/ItemInstance`, `protocol/TradeState.h`, `server/internal/hub/trade.go`, `server/cmd/tradebot` |
 | [voice-chat.md](voice-chat.md) | Proximity voice: devices, capture, noise suppression, push-to-talk and voice activation, Opus, the datagram link to the relay, jitter buffers, spatial mix, occlusion, lip sync, the relay | `src/audio/`, `network/VoiceTransport`, `sync/voicechat/`, `runtime/KeyState`, `actor/ActorLipSync`, `actor/VoiceOcclusion`, `server/internal/voice` |
 | [configuration.md](configuration.md) | `PlayerHub.ini`, schema, snapshots, saving | `src/config/` |
-| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, localization, theme, background opacity, menu frame, cursor, logo, nameplates, status panel, display name hint, notices, chat, friends, mute and vanish, role badges, player menu, player menu in the world, settings window, Discord link, item picker and preview | `src/ui/`, `src/text/`, `locale/`, `sync/chat/`, `sync/filters/`, `sync/nameplates/`, `sync/notices/`, `assets/` |
+| [ui-overlay.md](ui-overlay.md) | Overlay, input focus, backdrop, fonts, localization, theme, background opacity, menu frame, cursor, logo, nameplates, status panel, display name hint, notices, chat, friends, mute and vanish, role badges, player menu, player menu in the world, settings window, community links, item picker and preview | `src/ui/`, `src/text/`, `locale/`, `sync/chat/`, `sync/filters/`, `sync/nameplates/`, `sync/notices/`, `assets/` |
 | [performance.md](performance.md) | Frame cost of the plugin and its growth with remote actors, what bounds it, Tracy profiling | `runtime/Profiling.h`, `runtime/Profiling.cpp`, `runtime/ProfilingMemory.cpp`, `runtime/PluginTime` |
 | [recording-and-replay.md](recording-and-replay.md) | Captures, virtual players, load testing, admin panel and its login | `server/internal/{recording,playback,loadtest,admin,adminauth,adminclient}`, `server/cmd/`, `admin-ui/` |
 
@@ -90,7 +90,7 @@ criteria.
 | Player menu in the world (Activate on a player) | [ui-overlay](ui-overlay.md#player-menu-in-the-world), [remote-actor](remote-actor.md#spawn), [sync-pipeline](sync-pipeline.md#frame-sequence) |
 | Player menu heading (name, level, place; inspection) | [ui-overlay](ui-overlay.md#player-menu), [network](network.md#inspection), [network](network.md#checkpoint-and-context), [sync-pipeline](sync-pipeline.md#frame-sequence), [sync-pipeline](sync-pipeline.md#coordinate-spaces) |
 | Settings | [ui-overlay](ui-overlay.md#settings-window), [configuration](configuration.md) |
-| Discord invitation on the Connection page | [ui-overlay](ui-overlay.md#discord-link) |
+| Discord invitation and Ko-fi link on the Connection page | [ui-overlay](ui-overlay.md#community-links) |
 | Accent color | [ui-overlay](ui-overlay.md#accent-color), [configuration](configuration.md#ui) |
 | Scale | [ui-overlay](ui-overlay.md#scale), [configuration](configuration.md#ui) |
 | Background opacity and blur | [ui-overlay](ui-overlay.md#background-opacity), [configuration](configuration.md#ui) |

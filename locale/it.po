@@ -590,8 +590,12 @@ msgid "Multiplayer"
 msgstr "Multigiocatore"
 
 msgctxt "SettingsDiscord"
-msgid "Join us on Discord"
-msgstr "Unisciti a noi su Discord"
+msgid "Join us"
+msgstr "Unisciti a noi"
+
+msgctxt "SettingsKofi"
+msgid "Support us"
+msgstr "Sostienici"
 
 msgctxt "SettingsDisplayNameHint"
 msgid "Enter a display name"

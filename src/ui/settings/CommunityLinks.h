@@ -2,7 +2,7 @@
 
 #include <imgui.h>
 
-namespace UI::DiscordLink
+namespace UI::CommunityLinks
 {
     [[nodiscard]] bool IsEnabled();
 

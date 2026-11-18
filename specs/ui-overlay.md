@@ -61,7 +61,7 @@ src/ui/
   trade/ItemCard              # the preview column's item card in the vanilla layout
   settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
   settings/ConnectionControls # connection button, the line under it, one-line summary
-  settings/DiscordLink        # the Discord symbol and its invitation, opening the invite in the browser
+  settings/CommunityLinks     # the Discord and Ko-fi buttons, opening their pages in the browser
   widgets/Controls            # switch, accent and red buttons, icon buttons, search field, muted text, striped box
   widgets/RoleBadge           # a role's letter mark beside a name, and its whole badge
   widgets/ItemPicker          # item dropdown
@@ -84,7 +84,7 @@ locale/generate.lua           # checks the translations and writes Text::Id and 
 locale/xmake.lua              # the `locale` rule that runs it and compiles its output
 src/text/Utf8Case             # capitals of Latin and Cyrillic letters in UTF-8
 assets/fonts/                 # Sovngarde Light and Bold with their license, the logo font, deployed beside the DLL
-assets/logo/                  # the logo's and the Discord symbol's SVGs and the script that makes their font
+assets/logo/                  # the logo's, Discord's, and Ko-fi's SVGs and the script that makes their font
 assets/icons/                 # SVGs of the icons in the logo font
 assets/frame/                 # the menu frame's shape, deployed beside the DLL
 assets/cursor/                # the font cursor's SVG, built into the logo font
@@ -273,7 +273,7 @@ any size with the other glyphs and they stay sharp at every scale:
 | Code point | Glyph |
 | --- | --- |
 | U+E000, U+E001 | The logo's letters and its underline bar |
-| U+E002 | The Discord symbol of the [Discord link](#discord-link) |
+| U+E002 | The Discord symbol of the [community links](#community-links) |
 | U+E003, U+E004 | The muted and vanished marks of the [player list](#player-list) |
 | U+E005 to U+E007 | The [font cursor](#font-cursor) |
 | U+E008 | The [voice chat](#voice-chat) microphone |
@@ -281,10 +281,12 @@ any size with the other glyphs and they stay sharp at every scale:
 | U+E00B | The person on the player list's button |
 | U+E00C | The [voice chat](#voice-chat) speaker |
 | U+E00D | The location pin of the [player menu](#player-menu) |
+| U+E00E, U+E00F | The Ko-fi cup and its heart, of the [community links](#community-links) |
 
 - `assets/logo/generate.py`, run with `uv run --script`, builds the font with
   skia-pathops and fixed timestamps from `assets/logo/logo.svg`,
-  `assets/logo/discord.svg`, `assets/cursor/cursor.svg`, and the icon SVGs
+  `assets/logo/discord.svg`, `assets/logo/kofi.svg` (one path per glyph),
+  `assets/cursor/cursor.svg`, and the icon SVGs
   that `ICONS` maps to code points in `assets/icons/`. The logo's em spans its
   height, so the font size in pixels is the logo's height; each icon is scaled
   so its height is the em and advances by its own width. An icon SVG holds
@@ -2100,30 +2102,35 @@ address reaches when its editing ends. Applying an address or switching
 connect, or a reconnect after a loss, goes to the server they now name
 ([Network](network.md#connection)).
 
-### Discord link
+### Community links
 
-The bottom of the `[Connection]` page holds an invitation to the mod's
-Discord server (`DiscordLink`): the [logo](#logo) font's Discord symbol and a
-one-line invitation (`SettingsDiscord`), as one bordered button; a click
-opens the invite in the default browser. Without the font, the text alone is
-in the border.
+The bottom of the `[Connection]` page holds buttons to the mod's community
+pages (`CommunityLinks`): an invitation to its Discord server
+(`SettingsDiscord`) and its Ko-fi donation page (`SettingsKofi`). Each is one
+bordered button with the brand's symbol from the [logo](#logo) font and a
+one-line text in the heading face; a click opens the page in the default browser. Without the
+font, the text alone is in the border.
 
-- The invite comes from the build: the `discord_invite` xmake option
-  (`xmake f --discord_invite=https://...`, default empty), which the
-  PlayerHub target's `on_config` passes as the `PLAYERHUB_DISCORD_INVITE`
-  string define, like `server_address`
-  ([Configuration](configuration.md#connection)). A build without it has no
-  link at all (`DiscordLink::IsEnabled`). The define is present even when
-  empty, because xmake 3.0.6 recompiles for a changed define but not for one
-  that was added. A value that does not start with `https://`, or that holds
+- The Discord symbol is one glyph. The Ko-fi cup is two glyphs, the cup and
+  its heart, drawn at the same position in their own colors.
+- The URLs come from the build: the `discord_invite` and `kofi_url` xmake
+  options (`xmake f --discord_invite=https://... --kofi_url=https://...`,
+  default empty), which the PlayerHub target's `on_config` passes as the
+  `PLAYERHUB_DISCORD_INVITE` and `PLAYERHUB_KOFI_URL` string defines, like
+  `server_address` ([Configuration](configuration.md#connection)). A build
+  without one has no button for it, and without both no row at all
+  (`CommunityLinks::IsEnabled`). The defines are present even when empty,
+  because xmake 3.0.6 recompiles for a changed define but not for one that
+  was added. A value that does not start with `https://`, or that holds
   whitespace, a quote, or a backslash, fails the configuration.
-- `EndSection` puts it at the bottom right of the section's scrolling area,
-  by `DiscordLink::GetSize`, as low as the area's closing spacer still fits
-  under it, so it never makes the page scroll; when the rows reach lower, it
-  follows them.
+- The buttons share one row, Discord first and Ko-fi on the right, apart by
+  the style's item spacing. `EndSection` puts the row at the bottom right of
+  the section's scrolling area, by `CommunityLinks::GetSize`, as low as the
+  area's closing spacer still fits under it, so it never makes the page
+  scroll; when the rows reach lower, it follows them.
 - `ShellExecuteW` runs on a detached thread with COM initialized, because it
-  waits for the browser to take the URL; a failure logs a warning with its
-  result.
+  waits for the browser to take the URL; a failure logs a warning naming the
+  page and the result.
 
 ## Item picker
 
@@ -2714,9 +2721,10 @@ IDs matched against 1.5.97 where given.
    show. With `PlayerHub/fonts/` removed, the log warns for each file and the
    windows use the system font. The sidebar's logo is sharp at every scale,
    its bar follows the accent, and without `PlayerHub.ttf` the log warns and
-   a text title shows. A build with `discord_invite` shows the Discord link at
-   the bottom right of `[Connection]` without making the page scroll, and a
-   click opens the invite; a build without it shows none.
+   a text title shows. A build with `discord_invite` or `kofi_url` shows that
+   link at the bottom right of `[Connection]`, both in one row with Ko-fi on
+   the right, without making the page scroll, and a click opens its page; a
+   build without either shows none.
 10. The settings window and the open chat have the game's menu frame;
     content never touches a knot, also after resizing and at both ends of
     `BorderThickness`, whose right end matches the game's message box.

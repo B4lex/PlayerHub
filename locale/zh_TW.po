@@ -560,8 +560,12 @@ msgid "Multiplayer"
 msgstr "多人遊戲"
 
 msgctxt "SettingsDiscord"
-msgid "Join us on Discord"
-msgstr "加入我們的 Discord"
+msgid "Join us"
+msgstr "加入我們"
+
+msgctxt "SettingsKofi"
+msgid "Support us"
+msgstr "支持我們"
 
 msgctxt "SettingsDisplayNameHint"
 msgid "Enter a display name"

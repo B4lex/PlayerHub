@@ -3,12 +3,13 @@
 # requires-python = ">=3.10"
 # dependencies = ["fonttools==4.66.1", "skia-pathops==0.9.2"]
 # ///
-"""Builds assets/fonts/PlayerHub.ttf from logo.svg, discord.svg, the icons, and the cursor.
+"""Builds assets/fonts/PlayerHub.ttf from logo.svg, discord.svg, kofi.svg, the icons, and the cursor.
 
 The overlay draws the logos and icons as glyphs of this font, so Dear ImGui
 rasterizes them at any size: U+E000 is the white letters and U+E001 the orange
 bar with the black scratches cut out of it, U+E002 the Discord symbol scaled to
-the same height, the ICONS at U+E003, U+E004, and U+E008 onwards, each scaled so
+the same height, U+E00E the Ko-fi cup and U+E00F its heart, also at that height,
+the ICONS at U+E003, U+E004, and U+E008 to U+E00D, each scaled so
 its SVG height is the em, and U+E005 the cursor's dark outline, U+E006 its light band,
 and U+E007 its ring's opaque centre, from ../cursor/cursor.svg. Run it with
 `uv run --script`.
@@ -31,6 +32,7 @@ from fontTools.svgLib.path import parse_path
 HERE = pathlib.Path(__file__).resolve().parent
 SOURCE = HERE / "logo.svg"
 DISCORD_SOURCE = HERE / "discord.svg"
+KOFI_SOURCE = HERE / "kofi.svg"
 ICONS_DIRECTORY = HERE.parent / "icons"
 ICONS = {
     0xE003: "muted.svg",
@@ -50,6 +52,8 @@ LETTERS = "white"
 BAR = "#ff9000"
 SCRATCHES = "black"
 DISCORD = "#5865f2"
+KOFI_CUP = "#ffffff"
+KOFI_HEART = "#ff6433"
 
 # TrueType coordinates are integers; four units per SVG unit keep rounding
 # under a tenth of a pixel at any size the window draws.
@@ -153,6 +157,12 @@ def main():
     discord = pathops.Path()
     pathops.union(discord_paths[DISCORD], discord.getPen())
     discord_scale = em / discord_height
+    kofi_width, kofi_height, kofi_paths = read_paths(KOFI_SOURCE, {KOFI_CUP, KOFI_HEART})
+    kofi_layers = {}
+    for name, fill in (("kofi", KOFI_CUP), ("kofiheart", KOFI_HEART)):
+        kofi_layers[name] = pathops.Path()
+        pathops.union(kofi_paths[fill], kofi_layers[name].getPen())
+    kofi_scale = em / kofi_height
     glyphs = {
         ".notdef": TTGlyphPen(None).glyph(),
         "space": TTGlyphPen(None).glyph(),
@@ -160,9 +170,15 @@ def main():
         "bar": to_glyph(flip(bar, height)),
         "discord": to_glyph(flip(discord, discord_height, discord_scale)),
     }
+    for name, layer in kofi_layers.items():
+        glyphs[name] = to_glyph(flip(layer, kofi_height, kofi_scale))
     advances = {name: advance for name in glyphs}
     advances["discord"] = round(discord_width * discord_scale)
-    characters = {0x20: "space", 0xE000: "letters", 0xE001: "bar", 0xE002: "discord"}
+    # The cup and its heart share an origin and an advance, so drawing both at one position stacks them.
+    advances["kofi"] = advances["kofiheart"] = round(kofi_width * kofi_scale)
+    characters = {
+        0x20: "space", 0xE000: "letters", 0xE001: "bar", 0xE002: "discord", 0xE00E: "kofi", 0xE00F: "kofiheart"
+    }
     for character, file in ICONS.items():
         icon_width, icon_height, icon = read_icon(ICONS_DIRECTORY / file)
         name = pathlib.Path(file).stem

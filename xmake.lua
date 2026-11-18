@@ -50,6 +50,13 @@ option("discord_invite")
     set_description("Discord invite URL the settings window links to, starting with https://")
 option_end()
 
+-- Without it the settings window has no Ko-fi link.
+option("kofi_url")
+    set_default("")
+    set_showmenu(true)
+    set_description("Ko-fi page URL the settings window links to, starting with https://")
+option_end()
+
 -- Rebuild a package when a dependency's version changes. Without this, a cached
 -- IXWebSocket compiled against one mbedtls major version is linked against
 -- another; its API selection is compile-time, so TLS setup fails at runtime.
@@ -195,11 +202,13 @@ target("PlayerHub")
         target:add("defines", format('PLAYERHUB_DEFAULT_SERVER_ADDRESS="%s"', address))
         target:add("defines", "PLAYERHUB_DEFAULT_SERVER_TLS=" .. (has_config("server_tls") and "true" or "false"))
         -- Defined even when empty: xmake recompiles for a changed define, not an added one.
-        local invite = get_config("discord_invite") or ""
-        if invite ~= "" and (not invite:startswith("https://") or invite:find("[%s\"\\]")) then
-            raise("discord_invite must start with https:// and contain no whitespace, quotes, or backslashes")
+        for option, define in pairs({discord_invite = "PLAYERHUB_DISCORD_INVITE", kofi_url = "PLAYERHUB_KOFI_URL"}) do
+            local url = get_config(option) or ""
+            if url ~= "" and (not url:startswith("https://") or url:find("[%s\"\\]")) then
+                raise("%s must start with https:// and contain no whitespace, quotes, or backslashes", option)
+            end
+            target:add("defines", format('%s="%s"', define, url))
         end
-        target:add("defines", format('PLAYERHUB_DISCORD_INVITE="%s"', invite))
     end)
     if has_config("tracy") then
         add_packages("tracy")

@@ -572,8 +572,12 @@ msgid "Multiplayer"
 msgstr "マルチプレイ"
 
 msgctxt "SettingsDiscord"
-msgid "Join us on Discord"
-msgstr "Discordで仲間になろう"
+msgid "Join us"
+msgstr "仲間になろう"
+
+msgctxt "SettingsKofi"
+msgid "Support us"
+msgstr "応援しよう"
 
 msgctxt "SettingsDisplayNameHint"
 msgid "Enter a display name"

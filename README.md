@@ -106,3 +106,11 @@ The Discord symbol beside the community invitation,
 in Discord's color under its [brand guidelines](https://discord.com/branding)
 to link to the mod's Discord server. It is not covered by the plugin's license,
 and PlayerHub is not affiliated with or endorsed by Discord.
+
+The Ko-fi cup beside the donation link,
+[assets/logo/kofi.svg](assets/logo/kofi.svg) and its glyphs in
+`assets/fonts/PlayerHub.ttf`, is a trademark of Ko-fi Labs Limited, used in
+Ko-fi's colors from its [brand assets](https://more.ko-fi.com/brand-assets)
+to link to the mod's Ko-fi page. Its outline comes from
+[Simple Icons](https://simpleicons.org) (CC0). It is not covered by the
+plugin's license, and PlayerHub is not affiliated with or endorsed by Ko-fi.
