@@ -110,96 +110,81 @@ trade window places the chat through `trade/TradeDock`, which both include
 - `io.DisplaySize` comes from the swap chain's back buffer, not the window's
   client rectangle. Sizes and fonts are written for 1080p and scaled by
   `backBufferHeight / 1080` (at least 0.5) times the [scale](#scale).
-
-### Scale
-
-`[UI] Scale` ([Configuration](configuration.md#ui)), 80 to 130% in steps
-of 5, multiplies the overlay scale (`Overlay::ApplyScale`), which sets
-`FontScaleMain` and rescales the style from the unscaled one when the product
-changes, from the next frame after the setting applies.
-
-- Almost every length in the overlay is in font sizes, so the setting resizes
-  the whole overlay with the text: the settings, chat, trade, and player
-  windows, notices, nameplates, the status panel, and the menu frame. The
-  user chose this over scaling only the glyphs, which would need every layout
-  redone. The cursor's speed ([Input focus](#input-focus)) stays on the
-  display's scale alone.
-- The [cursor](#cursor) is measured in font sizes too, so it follows the
-  scale. It is drawn as lines, or as glyphs rasterized at its size, rather
-  than a scaled bitmap, so a fractional scale such as 1.33 at 1440p does not
-  blur it.
-- The range is the user's. The trade window draws at a smaller font size
-  where the display cannot hold its layout at the scale
-  ([Window](#window)).
-- The settings window's size is set only when it is first shown, so
-  `MenuFrame::BeginWindow` scales its last size and keeps its center when the
-  font size changes, whether it changed while the window was open or closed
-  ([Menu frame](#menu-frame)).
-- The overlay draws on the frame target (`Gpu::GetFrameTarget`): the
-  engine's `kFRAMEBUFFER` render target view, where the menus draw, or the
-  swap chain's view (`renderWindows[0].renderView`) when that is null. In
-  vanilla both are the back buffer. Community Shaders' HDR output points
-  `kFRAMEBUFFER` at a UI texture from the start of the menus' draw until
-  Present. At Present it composites that texture over its HDR scene and
-  copies the result over the back buffer, so anything drawn on the back
-  buffer itself never showed (checked against its source, not in game).
-  The game's UI is drawn the same way. Its frame generation (the D3D12 swap
-  chain proxy) points `kFRAMEBUFFER` at a UI buffer as well, which its
-  frame generation or HDR pass composites at Present, so the overlay is not
-  interpolated with the scene.
+- When the frame has no vertices and no texture waits for the backend
+  (`Overlay::HasWork`), the popup blur, `ImGui_ImplDX11_RenderDrawData`, and
+  the render target swap are skipped. The ImGui frame itself is still built
+  every frame.
+- The overlay draws on the frame target (`Gpu::GetFrameTarget`): the engine's
+  `kFRAMEBUFFER` render target view, where the menus draw, or the swap chain's
+  view (`renderWindows[0].renderView`) when that is null. In vanilla both are
+  the back buffer. Community Shaders' HDR output points `kFRAMEBUFFER` at a UI
+  texture from the start of the menus' draw until Present, where it composites
+  that texture over its HDR scene and overwrites the back buffer, so anything
+  drawn on the back buffer itself would never show. Its frame generation (the
+  D3D12 swap chain proxy) also points `kFRAMEBUFFER` at a UI buffer that it
+  composites at Present, so the overlay is not interpolated with the scene.
 - The DX11 backend does not save the output merger, so the overlay binds the
   frame target, draws, and restores the previous targets.
 - `ImGuiConfigFlags_NoMouse` and `NoMouseCursorChange` are set unless a window
   takes the mouse, and `imgui.ini` is disabled.
+
+### Scale
+
+`[UI] Scale` ([Configuration](configuration.md#ui)) multiplies the overlay
+scale (`Overlay::ApplyScale`), which sets `FontScaleMain` and rescales the
+style from the unscaled one when the product changes, from the next frame
+after the setting applies.
+
+- Almost every length in the overlay is in font sizes, so the setting resizes
+  the whole overlay with the text, cursor and menu frame included, rather than
+  only the glyphs, which would need every layout redone. The cursor's speed
+  ([Input focus](#input-focus)) stays on the display's scale alone.
+- The [cursor](#cursor) is drawn as lines, or as glyphs rasterized at its
+  size, rather than a scaled bitmap, so a fractional scale does not blur it.
+- The trade window draws at a smaller font size where the display cannot hold
+  its layout at the scale ([Window](#window)).
+- A resizable window keeps its size across font size changes through
+  `MenuFrame::BeginWindow` ([Menu frame](#menu-frame)).
 
 ### Backdrop
 
 `Backdrop::GetBlur` gives the finished game frame, blurred, as a texture
 with the UV of each display pixel (`Blur::ToUv`). `Backdrop::Draw` covers the
 display behind every overlay window (ImGui's background draw list) with it,
-darkened; the [trade window](#trade-window) draws it each frame.
+darkened by `kTint`; the [trade window](#trade-window) draws it each frame.
 `Backdrop::DrawBlur` puts it in a rounded rectangle and `BlurPopups` under
 popups, for [translucent surfaces](#background-blur). The game keeps
 running, so the blur is made again each frame from the frame's scene as the
 overlay hook finds it, HUD and menus included unless they draw on a UI
-layer, after `ItemPreview::Update`
-has put back what its capture changed, and at most once a frame however many
-callers ask for it.
+layer, after `ItemPreview::Update` has put back what its capture changed, and
+at most once a frame however many callers ask for it.
 
-- It copies the scene (`Frame::scene`), reduces it to a quarter in each dimension with
-  four bilinear taps per pixel, and blurs that with a 17-tap Gaussian
-  (σ 3.5 quarter pixels) horizontally, then vertically, so the blur scales
-  with the resolution. The result is stretched over the display at 60% of
-  its brightness (`kTint`).
-- `Gpu` (`ui/render/Gpu`) holds what the overlay's own GPU passes share:
-  the frame target, its texture, and the scene (`GetFrame`), render targets, pixel shaders compiled at
-  runtime by `D3DCompile` (`vs_4_0`, `ps_4_0`, from the
-  `d3dcompiler_47.dll` the plugin already links) after a shared `Vertex`
-  declaration, and `AddImage` with an opaque or premultiplied blend
-  callback. `PassScope` draws full-screen triangles from `SV_VertexID` with
-  blending, depth, and culling off, and on leaving puts back the input
-  layout and topology, every shader stage but compute, the pixel stage's
-  first two views and first sampler, the rasterizer state and viewports,
-  and the output merger's target, depth stencil, blend, and depth state,
-  since the engine tracks what it bound.
-- A multisampled back buffer, a shader that does not compile, or textures
-  or states that cannot be created turn the blur off for the session with
-  one warning (`UI backdrop blur unavailable: <reason>`); the backdrop is
-  then a 40% black fill, and translucent surfaces are drawn without a blur.
-- The scene is the frame target's texture when that is the swap chain's
-  back buffer. A frame target with another texture (`Frame::uiLayer`) holds
-  the UI but not the scene. Community Shaders' frame generation leaves this
-  frame's scene in the swap chain's buffer, with or without its HDR output,
-  so that buffer is blurred instead, without the HUD and menus. Its HDR
-  output without frame generation writes the real swap chain's buffer only
-  at Present, so the buffer holds no scene when the overlay draws. The two
-  are told apart by the buffer's `miscFlags`: the frame generation proxy's
-  buffer is shared with D3D12 (`D3D11_RESOURCE_MISC_SHARED` and
-  `D3D11_RESOURCE_MISC_SHARED_NTHANDLE`), and only such a buffer is
-  blurred. Without one the backdrop is the same 40% fill without a blur and
-  without turning the blur off. One debug line is logged per session
-  (`UI backdrop: the frame target is a UI layer ...`) naming which case
-  applied.
+- It copies the scene (`Frame::scene`), reduces it to a quarter in each
+  dimension, and blurs that with a separable Gaussian, so the blur scales with
+  the resolution.
+- `Gpu` (`ui/render/Gpu`) holds what the overlay's own GPU passes share: the
+  frame target, its texture, and the scene (`GetFrame`), render targets,
+  pixel shaders compiled at runtime by `D3DCompile` (`vs_4_0`, `ps_4_0`, from
+  the `d3dcompiler_47.dll` the plugin already links), and `AddImage` with an
+  opaque or premultiplied blend callback. `PassScope` draws full-screen
+  triangles from `SV_VertexID` and on leaving restores every pipeline state it
+  touched, since the engine tracks what it bound.
+- A multisampled back buffer, a shader that does not compile, or textures or
+  states that cannot be created turn the blur off for the session with one
+  warning (`UI backdrop blur unavailable: <reason>`); the backdrop is then a
+  plain dark fill, and translucent surfaces are drawn without a blur.
+- The scene is the frame target's texture when that is the swap chain's back
+  buffer. A frame target with another texture (`Frame::uiLayer`) holds the UI
+  but not the scene. Community Shaders' frame generation leaves this frame's
+  scene in the swap chain's buffer, so that buffer is blurred instead, without
+  the HUD and menus. Its HDR output without frame generation writes the real
+  swap chain's buffer only at Present, so the buffer holds no scene when the
+  overlay draws. The two are told apart by the buffer's `miscFlags`: only a
+  buffer shared with D3D12 (`D3D11_RESOURCE_MISC_SHARED` and
+  `D3D11_RESOURCE_MISC_SHARED_NTHANDLE`), the frame generation proxy's, is
+  blurred; otherwise the backdrop is the plain fill without turning the blur
+  off. One debug line per session (`UI backdrop: the frame target is a UI
+  layer ...`) names the case.
 - `Backdrop::Update`, before `ImGui::NewFrame`, frees the copy and the
   reduced textures when nothing asked for the blur in the last frame.
 
@@ -220,32 +205,33 @@ font, and each later one is merged and only supplies glyphs the earlier lack:
 | `malgun.ttf` | Korean |
 | `seguisym.ttf` | Symbols |
 
-Windows has Segoe UI; Proton prefixes have Arial and the rest except Segoe UI,
-Yu Gothic, and Segoe UI Symbol. Missing files are skipped. Each file is
-memory-mapped read-only and given to the atlas with
+Proton prefixes lack Segoe UI, Yu Gothic, and Segoe UI Symbol. Missing files
+are skipped. Each file is memory-mapped read-only and given to the atlas with
 `FontDataOwnedByAtlas = false`, which since 1.92 means the atlas reads it in
 place for as long as it has the font, so the views are unmapped only after
-`ImFontAtlas::Clear` drops the fonts ([Localization](#localization)), and only pages with drawn glyphs are read: CJK
-fonts cost address space, not memory. Dear ImGui 1.92 rasterizes glyphs on
-demand, so no glyph ranges are needed. Without any file, ImGui's default font
-covers Latin only. The log lists the fonts loaded. Han characters take their
-shapes from the first Han font loaded, so `GetSystemFiles` puts the text
-language's own first, by its code (`GetHanOrder`): the Japanese fonts for
-`ja`, Microsoft JhengHei for Traditional Chinese (`zh` with `_TW`, `_HK`,
-`_MO`, or `Hant`), and otherwise Microsoft YaHei, then JhengHei, then the
-Japanese fonts. `Text::Initialize` and the `[UI] Language` setting are therefore
-applied before `Fonts::Load` ([Localization](#localization)). Sovngarde covers the Latin and Cyrillic
+`ImFontAtlas::Clear` drops the fonts ([Localization](#localization)), and only
+pages with drawn glyphs are read: CJK fonts cost address space, not memory.
+Dear ImGui 1.92 rasterizes glyphs on demand, so no glyph ranges are needed.
+Without any file, ImGui's default font covers Latin only. The log lists the
+fonts loaded.
+
+Han characters take their shapes from the first Han font loaded, so
+`GetSystemFiles` puts the text language's own first, by its code
+(`GetHanOrder`): the Japanese fonts for `ja`, Microsoft JhengHei for
+Traditional Chinese (`zh` with `_TW`, `_HK`, `_MO`, or `Hant`), and otherwise
+Microsoft YaHei, then JhengHei, then the Japanese fonts. `Text::Initialize`
+and the `[UI] Language` setting are therefore applied before `Fonts::Load`
+([Localization](#localization)). Sovngarde covers the Latin and Cyrillic
 letters of every shipped translation, so of those only Japanese and Chinese
-text uses the system fonts; a translation added later in another script, such
-as Greek, Korean, or Thai, takes its glyphs from them too.
+text uses the system fonts.
 
 #### Themed faces
 
-The [themed](#theme) windows, the settings window and the chat, use Sovngarde
-8.9 by mjorka, a serif after Skyrim's title lettering, in two more atlas
-fonts: `Fonts::GetText` is `Sovngarde Light.ttf` and `Fonts::GetHeading` is
-`Sovngarde Bold.ttf`. The overlay's own font stays the atlas default, so the
-status panel keeps the system font.
+The [themed](#theme) windows use Sovngarde 8.9 by mjorka, a serif after
+Skyrim's title lettering, in two more atlas fonts: `Fonts::GetText` is
+`Sovngarde Light.ttf` and `Fonts::GetHeading` is `Sovngarde Bold.ttf`. The
+overlay's own font stays the atlas default, so the status panel keeps the
+system font.
 
 - The files are in `assets/fonts/`, unmodified from the
   [standalone release](https://mjorka.itch.io/sovngarde), with
@@ -255,28 +241,24 @@ status panel keeps the system font.
 - They are separate files rather than data in the DLL because Sovngarde is
   under the SIL Open Font License 1.1 and the plugin under GPL-3.0-or-later:
   beside the DLL the font stays a work of its own under its own license. The
-  license asks that its text and the copyright notice go with every copy, so
-  the text file is deployed with the fonts and belongs in any release archive;
-  the notice is also in each font's name table. It has no reserved font name.
-- Each face is a font of its own with the system files that loaded merged
-  after it, in the same order, so a character Sovngarde lacks comes from the
-  system font at the same size. Sovngarde has ASCII, most of Latin-1, the
-  Polish letters, and the Russian alphabet with Ukrainian `Є`, `І`, `Ї`; it
-  lacks `Ґ`, the Turkish and most other Latin Extended-A letters, and `…`,
-  `–`, `—`.
-- Sovngarde's letters are small for its line height: its x-height is 0.36 of
-  ascent plus descent, where Arial's is 0.47. `kShippedGlyphScale`, 1.25,
-  goes on the Sovngarde source as `ImFontConfig::ExtraSizeScale`, which
-  enlarges glyphs and advances and leaves the line height, so text is as wide
-  as in the system font and layouts in font sizes hold. Descenders and
-  accented capitals reach about a pixel outside the line at 16 px.
+  license text is deployed with the fonts and belongs in any release archive;
+  the copyright notice is also in each font's name table. It has no reserved
+  font name.
+- Each face is a font of its own with the loaded system files merged after it,
+  in the same order, so a character Sovngarde lacks comes from the system font
+  at the same size. Sovngarde has ASCII, most of Latin-1, the Polish letters,
+  and the Russian alphabet with Ukrainian `Є`, `І`, `Ї`; it lacks `Ґ`, the
+  Turkish and most other Latin Extended-A letters, and `…`, `–`, `—`.
+- Sovngarde's letters are small for its line height, so `kShippedGlyphScale`
+  goes on its source as `ImFontConfig::ExtraSizeScale`, which enlarges glyphs
+  and advances and leaves the line height: text is as wide as in the system
+  font and layouts in font sizes hold.
 - `Fonts::FindHeadingBounds` gives a glyph's outline bounds in the heading
-  face per pixel of font size, from the pen position on the baseline, at
-  the same scale ImGui's loader uses (`stbtt_ScaleForPixelHeight` times
-  `kShippedGlyphScale`). It reads the mapped file through a private,
-  static copy of `imstb_truetype.h` in `UI::Fonts::Stb` (outside it, the
-  header's stand-in `stbrp_node` clashes with `imgui_internal.h`'s), since
-  the atlas keeps only each baked glyph's whole-pixel box. It is empty while the face is not loaded and
+  face per pixel of font size, at the scale ImGui's loader uses, since the
+  atlas keeps only each baked glyph's whole-pixel box. It reads the mapped
+  file through a private, static copy of `imstb_truetype.h` in
+  `UI::Fonts::Stb` (outside it, the header's stand-in `stbrp_node` clashes
+  with `imgui_internal.h`'s). It is empty while the face is not loaded and
   for a glyph the face lacks.
 - A file that is missing or is not a font logs a warning and leaves its
   accessor null; `ImGui::PushFont` then keeps the current font, so the
@@ -284,127 +266,90 @@ status panel keeps the system font.
 
 #### Logo
 
-The settings window's sidebar is headed by the PlayerHUB logo, drawn from
-`PlayerHub.ttf`, a font that `Fonts::GetLogo` returns:
-U+E000 is the letters and U+E001 the underline bar. Dear ImGui rasterizes and
-caches them at any size with the other glyphs, so the logo stays sharp at every
-scale and costs two quads a frame. U+E002 is the Discord symbol of the
-[Discord link](#discord-link), U+E003 and U+E004 the muted and vanished
-marks of the [player list](#player-list), U+E005 to U+E007 the
-[font cursor](#font-cursor), U+E008 the [voice chat](#voice-chat)
-microphone, U+E009 and U+E00A the close and reset icons of
-`Controls::IconButton`, U+E00B the person on the player list's button,
-U+E00C the [voice chat](#voice-chat) speaker, and U+E00D the location pin of
-the [player menu](#player-menu).
+`PlayerHub.ttf`, which `Fonts::GetLogo` returns, holds the PlayerHUB logo and
+the overlay's icons as glyphs, so Dear ImGui rasterizes and caches them at
+any size with the other glyphs and they stay sharp at every scale:
 
-- `assets/logo/logo.svg` is the source. `assets/logo/generate.py`, run with
-  `uv run --script`, merges its white paths into the letters, cuts its black
-  scratches out of its orange bar with skia-pathops, converts the curves to
-  quadratics within one font unit at four units per SVG unit, and writes
-  `assets/fonts/PlayerHub.ttf` with fixed timestamps. The em, ascent, and
-  descent span the logo's height, so the font size in pixels is the logo's
-  height; both glyphs advance by its width and share one origin.
-  `assets/logo/discord.svg`, Discord's symbol with its eyes cut out, becomes
-  U+E002, scaled to the same em and advancing by its own width.
-- `ICONS` in the script maps code points to SVGs in `assets/icons/`, each
-  scaled so its height is the em and advancing by its own width. An icon SVG
-  holds only untransformed paths, each filled or stroked with round caps and
-  joins, in black or white; the script paints them in order with
-  skia-pathops, black adding to the glyph and white cutting it away, so the
-  SVG in a browser looks like the glyph. `muted.svg` is a speech bubble with
-  its tail at the bottom left and `vanished.svg` an eye with a filled pupil;
-  both are 24 units square with 3-unit lines, struck from the top left to the
-  bottom right with a 1.5-unit gap cut along the strike's upper right side.
-  `microphone.svg` is a filled capsule in a holder arc on a stem and foot,
-  `close.svg` a cross, and `reset.svg` an open circle with a filled
-  arrowhead at its upper right end, all 24 units square with the same 3-unit
-  lines; `person.svg` is a filled head over a filled half-disc, 22 units wide
-  and 24 high; `speaker.svg` is a filled speaker, its corners rounded by a
-  2-unit outline, with two 2.5-unit sound-wave arcs, 24 units square.
+| Code point | Glyph |
+| --- | --- |
+| U+E000, U+E001 | The logo's letters and its underline bar |
+| U+E002 | The Discord symbol of the [Discord link](#discord-link) |
+| U+E003, U+E004 | The muted and vanished marks of the [player list](#player-list) |
+| U+E005 to U+E007 | The [font cursor](#font-cursor) |
+| U+E008 | The [voice chat](#voice-chat) microphone |
+| U+E009, U+E00A | The close and reset icons of `Controls::IconButton` |
+| U+E00B | The person on the player list's button |
+| U+E00C | The [voice chat](#voice-chat) speaker |
+| U+E00D | The location pin of the [player menu](#player-menu) |
+
+- `assets/logo/generate.py`, run with `uv run --script`, builds the font with
+  skia-pathops and fixed timestamps from `assets/logo/logo.svg`,
+  `assets/logo/discord.svg`, `assets/cursor/cursor.svg`, and the icon SVGs
+  that `ICONS` maps to code points in `assets/icons/`. The logo's em spans its
+  height, so the font size in pixels is the logo's height; each icon is scaled
+  so its height is the em and advances by its own width. An icon SVG holds
+  only untransformed paths, filled or stroked with round caps and joins, in
+  black or white; the script paints them in order, black adding to the glyph
+  and white cutting it away, so the SVG in a browser looks like the glyph.
 - The file is deployed and loaded with the [themed faces](#themed-faces), as
   a font of its own with no fallbacks and no `ExtraSizeScale`.
-- `DrawBrand` draws both glyphs at the cursor: the letters in the text color
-  and the bar in the [accent](#accent-color), which defaults to the logo's
-  `FF9000`. The scratches show the sidebar's panel. The logo starts where the
-  navigation items' labels do and fills the width between that inset and the
-  same one on the right, the width the connection summary gets. Its height is
-  that width over the logo's aspect, taken from the glyph's advance, floored to
-  whole pixels because Dear ImGui rounds font sizes; so the right edge can fall
-  a few pixels short of the inset and never past it. A `Dummy` of the logo's
-  size keeps the layout.
+- `DrawBrand` heads the settings window's sidebar with the letters in the
+  text color and the bar in the [accent](#accent-color), filling the width
+  the connection summary gets; the font size is floored to whole pixels, so
+  the logo never overflows that width.
 - Without the file, the sidebar shows a text title in the heading face, and
   the log warns.
 
 ### Theme
 
-The overlay's base style is `StyleColorsDark` with 4 px window rounding and no
-border, which the status panel uses. `UI::Theme::Scope` gives every
-window and popup begun while it lives the look of the plugin's interactive
-windows, by pushing ImGui style colors and variables and popping them when it
-ends. `SettingsWindow` wraps its window in one, which covers the lists and
-tooltips opened from it, the item picker's included, and `ChatWindow` wraps
-the open chat and the recent lines in one each. The settings window and the
-open chat have the [menu frame](#menu-frame) in place of the style's
-background and border.
+The overlay's base style is `StyleColorsDark`, which the status panel uses.
+`UI::Theme::Scope` gives every window and popup begun while it lives the look
+of the plugin's interactive windows, by pushing ImGui style colors and
+variables and popping them when it ends. `SettingsWindow` wraps its window in
+one, which covers the lists and tooltips opened from it, the item picker's
+included, and `ChatWindow` wraps the open chat and the recent lines in one
+each. The settings window and the open chat have the [menu frame](#menu-frame)
+in place of the style's background and border.
 
 - Text is `Fonts::GetText`, pushed at the size in effect, so every size given
   in font sizes is unchanged. Headings push `Fonts::GetHeading` with their own
   size ([Themed faces](#themed-faces)).
-
-- The accent is `[UI] AccentColor` ([Accent color](#accent-color)), `FF9000`
-  by default, given by `Theme::GetAccent` and, at an alpha, `Theme::Accent`.
-  It marks what the player can act on or has selected: the border of the
-  window's popups, the selected section, a switch that is on, the selected
-  and hovered list rows, hovered and pressed buttons, fields, and scrollbar
-  grabs, selected text, the chat's player list button and the player manager's tab
-  shown, and the fill of the button a view leads to
-  (`Controls::PrimaryButton`, 14% darker while pressed). Body text is never
-  the accent, so amber warnings stay distinct.
-- Text on the accent fill is `Theme::GetOnAccent`: the near-black
-  `Theme::kOnState` or the body text color, whichever has the higher WCAG
-  contrast with the accent, so a dark accent takes light text.
+- The accent is `[UI] AccentColor` ([Accent color](#accent-color)), given by
+  `Theme::GetAccent` and, at an alpha, `Theme::Accent`. It marks what the
+  player can act on or has selected: popup borders, the selected section and
+  rows, a switch that is on, hovered and pressed controls, selected text, the
+  tab shown, and the fill of the button a view leads to
+  (`Controls::PrimaryButton`). Body text is never the accent, so warnings stay
+  distinct.
+- Text on the accent fill is `Theme::GetOnAccent`: `Theme::kOnState` or the
+  body text color, whichever has the higher WCAG contrast with the accent.
 - `Theme` works out the accent, its text color, the
   [frame color](#menu-frame), and the [backgrounds](#background-opacity) again
-  only when `Config::GetRevision` changes, so
-  a call costs one atomic load. These calls and `Scope` are for the overlay
-  thread. `Scope` pushes the accent at each accent style color's alpha.
-- A state is `Theme::kPositive` (green), `kWarning` (amber), or `kNegative`
-  (red): the connection indicator, the picker's warnings, values that are not
-  applied, refusals, and save results. Red also fills the button that ends
-  what is running (`Controls::DangerButton`, with `Theme::kOnState` text).
-  States do not follow the accent.
-- Dear ImGui's resize grips are transparent, hovered and held too: the frame's
-  backing is translucent, so a grip would show through it. Only the cursor
-  shows where a window resizes.
-- Surfaces are neutral and near black. Fields and buttons are a white tint
-  (`Theme::Tint`) with no border of their own, text is off-white, secondary
-  text is `ImGuiCol_TextDisabled`, and separators are a faint white line.
-  Popups are a slightly lighter surface than windows; both are at the
-  [background opacity](#background-opacity).
-- Borders are 1 px rounded lines: 8 px corners on popups and cards, 6 px on
-  fields, buttons, and grabs, and 10 px on a window that has no menu frame.
-  Padding is 10 × 6 px in a field and 12 × 10 px in a popup, with 8 × 8 px
-  between items, and the scrollbar is 10 px wide.
-- Those sizes are for the 16 px base font and are stored in font sizes, then
-  floored to whole pixels and kept at 1 px or more, so they follow the overlay
-  scale and a border never disappears at a small one.
+  only when `Config::GetRevision` changes, so a call costs one atomic load.
+  These calls and `Scope` are for the overlay thread.
+- A state is `Theme::kPositive`, `kWarning`, or `kNegative`: the connection
+  indicator, the picker's warnings, values that are not applied, refusals, and
+  save results. `kNegative` also fills the button that ends what is running
+  (`Controls::DangerButton`). States do not follow the accent.
+- Dear ImGui's resize grips are transparent, since a grip would show through
+  the translucent frame backing; only the cursor shows where a window resizes.
+- Style sizes are stored in font sizes, then floored to whole pixels and kept
+  at 1 px or more, so they follow the overlay scale and a border never
+  disappears at a small one.
 
 `UI::Controls` holds the small widgets the themed windows share, each as high
-as a frame: `Toggle`, a switch whose knob slides over 0.12 s of frame time;
-`PrimaryButton` and `DangerButton`, which differ only in their fill; and
-`IconButton`, whose icons (close, reset) are glyphs U+E009 and U+E00A of the
-[logo](#logo) font, 0.75 font sizes high and centered in the button; without
-the font the button keeps its hover fill and shows no icon.
+as a frame: `Toggle`, a switch whose knob slides over frame time;
+`PrimaryButton` and `DangerButton`; and `IconButton`, whose icons are
+[logo](#logo) font glyphs; without the font the button keeps its hover fill
+and shows no icon.
 
 ### Background opacity
 
 Goal: one background opacity, set by the player, for every overlay surface
 the player reads or acts in. Non-goal: an opacity per window.
 
-- `[UI] BackgroundOpacity` ([Configuration](configuration.md#ui)) is a
-  percentage from 25 to 100 in steps of 5, 75 by default; the scope, the
-  slider, and the default are the user's choices; the range is unconfirmed. Below 25
-  text over a bright scene is hard to read.
+- `[UI] BackgroundOpacity` ([Configuration](configuration.md#ui)) has a floor
+  of 25, below which text over a bright scene is hard to read.
 - `Theme::Scope` pushes `ImGuiCol_WindowBg` and `ImGuiCol_PopupBg` with the
   opacity as their alpha, so a change shows from the next frame. Everything
   drawn from those colors follows it: the backing of each
@@ -413,16 +358,14 @@ the player reads or acts in. Non-goal: an opacity per window.
   chat, the player list, and the player manager; `MenuFrame::BeginPrompt` for
   the trade prompt and the display name hint), [notices](#notices), and
   Dear ImGui's popups, lists, and tooltips, with the chat's name list and
-  notes, which take the popup color.
-- A popup or child over a window covers more than either alone: at 75%, the
-  name list over the open chat is about 94% opaque.
-- Keeping its own lighter background, which the user chose: the
-  [status panel](#status-panel) (35%, `SetNextWindowBgAlpha`), which stays on
-  screen over the game while the player is not using the overlay. The closed
-  chat's recent lines have no background at all, only a text shadow. Also
-  unaffected are the
-  trade cells' wells and thumbnail backgrounds, which must be opaque
-  ([3D preview](#3d-preview)), and the trade [backdrop](#backdrop).
+  notes, which take the popup color. A popup or child over a window covers
+  more than either alone.
+- Not affected: the [status panel](#status-panel), which keeps its own
+  lighter background (`SetNextWindowBgAlpha`) because it stays on screen over
+  the game while the overlay is not in use; the closed chat's recent lines,
+  which have only a text shadow; the trade cells' wells and thumbnail
+  backgrounds, which must be opaque ([3D preview](#3d-preview)); and the trade
+  [backdrop](#backdrop).
 
 #### Background blur
 
@@ -434,8 +377,7 @@ overlay windows behind a surface.
   draws the [backdrop](#backdrop)'s blurred frame (`Backdrop::GetBlur`) under
   its background: the [menu frame](#menu-frame)'s silhouette, each
   [notice](#notices) (fading with it), and every Dear ImGui popup and
-  tooltip. At 100 nothing is blurred and the frame is not copied. The
-  strength is the trade backdrop's (the user's choice).
+  tooltip. At 100 nothing is blurred and the frame is not copied.
 - Popups and tooltips are windows Dear ImGui begins, so nothing in the
   plugin draws before their background. After `ImGui::Render`,
   `Backdrop::BlurPopups` finds each active popup or tooltip that is not a
@@ -444,12 +386,11 @@ overlay windows behind a surface.
   just before the window's list, adding its counts to the totals. The lists
   are kept in a pool registered with the context's shared draw data, which
   the overlay never destroys.
-- The blur is the game's frame, HUD and menus included, as it is before the
-  overlay draws. A popup or tooltip over an overlay window therefore shows the
-  game blurred where the window is, not the window: the user chose to blur
-  them anyway. Child windows that take the popup color, such as the chat's
-  name list and notes, are not blurred, since the window they are in is.
-- The status panel keeps its own background and is not blurred either.
+- The blur is the game's frame as it is before the overlay draws, so a popup
+  or tooltip over an overlay window shows the game blurred where the window
+  is, not the window. Child windows that take the popup color, such as the
+  chat's name list and notes, are not blurred, since the window they are in
+  is. The status panel is not blurred.
 - While the full-screen backdrop is drawn in the same frame, the blur is
   tinted as it is (`Blur::tint`), so a surface over the trade window matches
   what is around it.
@@ -459,22 +400,21 @@ overlay windows behind a surface.
 
 ### Menu frame
 
-The settings window and the open chat are framed as the game frames its message
-boxes: a silhouette with a block at each corner, a line along each side, and
-a knot in each corner. `UI::MenuFrame` draws it from a file, so the game's art
+The settings window and the open chat are framed as the game frames its
+message boxes. `UI::MenuFrame` draws the frame from a file, so the game's art
 is not part of the plugin.
 
 - The art is shape 10 of `Interface/messagebox.swf` in the game's
   `Skyrim - Interface.bsa`. `menu-frame.shape` is FFDec's SVG export of the
-  shape with its curves flattened to within 0.03 px: the outline of the
-  silhouette and the 20 line pieces, 526 points, each polygon clockwise. The
-  file is the source; nothing in the repository regenerates it.
+  shape with its curves flattened: the outline of the silhouette and the line
+  pieces, each polygon clockwise. The file is the source; nothing in the
+  repository regenerates it.
 - A point is measured from the two sides of the framed rectangle nearest to it
   across the sprite's scaling grid (`lt`, `rt`, `lb`, `rb`, then two lengths in
   the art's pixels). Drawing at any size is then one subtraction per
   coordinate: the corners keep their shape and the lines stretch, as the
-  game's 9-slice does. The file also gives `inset`, 8.2, how far the lines
-  reach in from a side, and `corner`, 27.05, how far the knots do.
+  game's 9-slice does. The file also gives `inset`, how far the lines reach in
+  from a side, and `corner`, how far the knots do.
 - The file is `PlayerHub/frame/menu-frame.shape` under `Config::GetDirectory`,
   deployed by `xmake.lua`. It is a file rather than data in the DLL for the
   reason the [themed faces](#themed-faces) are: the art is Bethesda's and the
@@ -487,54 +427,43 @@ is not part of the plugin.
   the shape empty.
 - `MenuFrame::Draw(line, backing)` fills the current window's rectangle: the
   silhouette in the backing color, then the pieces in the line color, each with
-  `ImDrawList::PathFillConcave`, which anti-aliases the edges. With a
-  translucent backing, the [blurred frame](#background-blur) goes under the
-  silhouette first: the backing's triangles again, textured with the blur at
-  each vertex's anti-aliased coverage. A frame triangulated in this frame has
-  those triangles only once drawn, so the frame goes into a second draw list
-  channel and the blur into the first. The window is
-  begun with `ImGuiWindowFlags_NoBackground`, and the clip rectangle is the
-  whole window, since a window's own leaves out part of its padding.
-- Triangulating the 21 concave pieces is most of what a frame costs, about
-  30 µs in a benchmark, so `Draw` keeps the triangles of the 4 frames
-  it drew last, keyed by everything that shapes them: the window's size, the
-  scale, both colors, the font atlas's white pixel, and the draw list's
-  anti-aliasing flags and fringe, and where the backing's triangles are among
-  them. A window drawn again with the same key
-  copies them, moved to its corner; a drag that resizes it triangulates in
-  every frame. A frame during which the draw list started its
-  vertices over is not kept. Nothing is allocated once the draw list and the
-  kept frames have grown.
-- The line color must be opaque. The anti-aliased fill moves each point half a
-  pixel inwards, which on pieces this fine turns some triangles over others;
-  an opaque color hides the overlap and a translucent one shows it as brighter
-  specks.
-- A pixel of the art is 1.5 / 16 of the font size times `[UI] BorderThickness`
-  ([Configuration](configuration.md#ui)), a percentage from 30 to 100 read
-  each frame, 50 by default. The game lays its menus out for 720p, so 100 is
-  the size the game draws the frame at, at any resolution. The setting has no
-  line weight of its own: lines, knots, and inset grow and shrink together. At
-  100 the lines are 3 px thick at 1080p and end 13 px in from the window's
-  edge, and a knot fills 41 px of each corner.
+  `ImDrawList::PathFillConcave`. With a translucent backing, the
+  [blurred frame](#background-blur) goes under the silhouette first: the
+  backing's triangles again, textured with the blur at each vertex's
+  anti-aliased coverage, in an earlier draw list channel. The window is begun
+  with `ImGuiWindowFlags_NoBackground`, and the clip rectangle is the whole
+  window, since a window's own leaves out part of its padding.
+- Triangulating the concave pieces is most of what a frame costs (about 30 µs),
+  so `Draw` keeps the triangles of the 4 frames it drew last, keyed by
+  everything that shapes them: the window's size, the scale, both colors, the
+  font atlas's white pixel, and the draw list's anti-aliasing flags and
+  fringe. A window drawn again with the same key copies them, moved to its
+  corner; a drag that resizes it triangulates in every frame. A frame during
+  which the draw list started its vertices over is not kept. Nothing is
+  allocated once the draw list and the kept frames have grown.
+- The line color must be opaque: the anti-aliased fill overlaps some
+  triangles of these fine pieces, which a translucent color would show.
+- The art's scale follows the font size times `[UI] BorderThickness`
+  ([Configuration](configuration.md#ui)), read each frame; 100 is the size the
+  game draws the frame at, at any resolution. Lines, knots, and inset scale
+  together.
 - `MenuFrame::BeginWindow` begins the settings and trade windows the same way:
   centered and sized in font units the first time they are shown
   (`ImGuiCond_Once`; a fixed window is placed every frame), focused on request,
-  padded by the frame's inset (plus a font size for trade), with its rounding,
-  and with the frame drawn behind the content. A resizable window keeps its
-  size and position in its ImGui state storage each frame it is drawn; when
-  the font size differs from the kept one, including on the first frame after
-  reopening, it is resized by their ratio around its kept center and clamped
-  to the display. The kept rect, not the current one, is
-  scaled because `Begin` has by then grown the window to the new minimum size.
+  padded by the frame's inset, and with the frame drawn behind the content. A
+  resizable window keeps its size and position in its ImGui state storage each
+  frame it is drawn; when the font size differs from the kept one, including
+  on the first frame after reopening, it is resized by their ratio around its
+  kept center and clamped to the display. The kept rect, not the current one,
+  is scaled because `Begin` has by then grown the window to the new minimum
+  size.
 - Dear ImGui resizes a window from its edges and its lower corners only, so
   `BeginWindow` adds grips on a resizable window's upper corners
-  (`GrabUpperCorners`). They have the hit areas of Dear ImGui's own corner grips,
-  which its edge strips stop short of. They are items added after `Begin` under a
-  clip rectangle widened to the display, so they also take the hover padding
-  outside the window. A drag on one keeps the opposite lower corner in place.
-  `FollowUpperCorner` gives the window the dragged rect before `Begin`, within
-  the minimum size and the display, so it moves in the same frame as the
-  cursor.
+  (`GrabUpperCorners`), with the hit areas of Dear ImGui's own corner grips,
+  under a clip rectangle widened to the display. A drag on one keeps the
+  opposite lower corner in place. `FollowUpperCorner` gives the window the
+  dragged rect before `Begin`, within the minimum size and the display, so it
+  moves in the same frame as the cursor.
 - Dear ImGui moves a movable window by a drag on its empty space but sets no
   cursor for it, so `MenuFrame::ShowMoveCursor`, called after `Begin` by
   `BeginWindow` and by the chat's `BeginFramed`, sets `ResizeAll` while Dear
@@ -544,24 +473,19 @@ is not part of the plugin.
   this way.
 - `MenuFrame::BeginPrompt` begins the [trade prompt](#prompt) and the
   [display name hint](#display-name-hint) the same way: sized to the content,
-  without inputs or focus, centered 6 font sizes from the top under the
-  compass, padded by half the frame's inset plus corner beyond the style's
-  padding, and framed over the window background. On the frame
-  it reappears it lays out but is not rendered (`ImGuiWindow::Hidden`), since
-  ImGui sizes a reappearing auto-resized window from the contents it last
-  had and hides only new windows and popups for that frame.
-- `MenuFrame::GetMetrics` gives a window those two lengths in pixels to lay its
-  content out by. A knot stays inside the square of `corner` at its window
-  corner, and cuts across it, so content is clear of it outside that square or
-  halfway into it along the diagonal.
+  without inputs or focus, centered near the top under the compass, and
+  framed over the window background. On the frame it reappears it lays out but
+  is not rendered (`ImGuiWindow::Hidden`), since ImGui sizes a reappearing
+  auto-resized window from the contents it last had and hides only new windows
+  and popups for that frame.
+- `MenuFrame::GetMetrics` gives a window `inset` and `corner` in pixels to lay
+  its content out by, so content stays clear of the knots.
 - The line color is `Theme::GetFrameColor`, which follows `[UI] BorderColor`
-  ([Configuration](configuration.md#ui)) each frame, so a pick in the settings
-  window shows at once: `Vanilla`, the default, is the game's `999999` as it
-  looks at the 80% opacity of the game's message box over the dark backing,
-  `7D7D7D`, and `Accent` is the [accent](#theme) as it looks at 85% over the
-  theme's surface color, `DB7D03` for the default `FF9000`, so it follows
-  `[UI] AccentColor` too. The backing is the window's own background color,
-  at the [background opacity](#background-opacity), and a window's popups keep
+  ([Configuration](configuration.md#ui)) each frame: `Vanilla` is the game's
+  frame color as it looks over the dark backing, and `Accent` the
+  [accent](#theme) as it looks over the theme's surface, so it follows
+  `[UI] AccentColor` too. The backing is the window's own background color, at
+  the [background opacity](#background-opacity), and a window's popups keep
   their accent border with either.
 - Without a shape, `Draw` fills the style's rounded rectangle and, where the
   style has a window border, outlines it in the line color; the metrics are
@@ -571,62 +495,49 @@ is not part of the plugin.
 ### Cursor
 
 The overlay draws its own cursors in place of Dear ImGui's software cursor.
-The normal one is the [font cursor](#font-cursor), from the logo font; the
-others are in the style of the [menu frame](#menu-frame), which `UI::Cursor`
-builds in code.
+The normal one is the [font cursor](#font-cursor); the others are in the
+style of the [menu frame](#menu-frame), which `UI::Cursor` builds in code.
 
 - `Cursor::Draw` runs after the windows and before `ImGui::Render`, while
   `InputCapture::ShowsCursor` holds, and draws the shape for
   `ImGui::GetMouseCursor` at `io.MousePos` on the foreground draw list, so it
   is above every window. `io.MouseDrawCursor` stays off.
 - Shapes: the pointer for `Arrow`, and also for `Hand`, `NotAllowed`, `Wait`,
-  and `Progress`, which have no drawing of their own; an I-beam for
-  `TextInput`; a resize shape for each `Resize` direction and a move shape
-  for `ResizeAll`. `None` draws nothing.
-- The pointer is the [font cursor](#font-cursor) while `Fonts::GetLogo`
-  has its font, and the plugin's woven pointer without it.
-- The plugin's pointer clicks at the outer corner of the line at its tip,
-  where ImGui's full miter puts it; the resize and move shapes click at
-  their centre.
-- A shape is layers of strands, open or closed polylines. A layer fills the
-  backing inside its closed convex strands, then draws every strand's
-  border, the line widened by a border on each side, then every line, so the
-  strands of a layer join cleanly and a later layer's border cuts the lines it
-  crosses. A weave draws the over piece again as a last layer, with its
-  border a point shorter at each end so no border crosses the line there.
-- Lengths are in `kUnitFonts`, a fraction of the font size, so the shapes
-  follow the overlay's scale.
-- Dear ImGui keeps a tooltip out of a box from the mouse to 24 px times
-  `ImGuiStyle::MouseCursorScale` right and down, placing it beside the box
-  when it fits and below it otherwise; the scale is meant for its own cursor.
+  and `Progress`; an I-beam for `TextInput`; a resize shape for each `Resize`
+  direction and a move shape for `ResizeAll`. `None` draws nothing.
+- The pointer is the [font cursor](#font-cursor) while `Fonts::GetLogo` has
+  its font, and the plugin's drawn pointer without it.
+- A drawn shape is layers of strands, open or closed polylines, each with a
+  backing and a border, so the strands of a layer join cleanly and a later
+  layer's border cuts the lines it crosses. Lengths are in `kUnitFonts`, so
+  the shapes follow the overlay's scale.
+- Dear ImGui keeps a tooltip out of a box from the mouse sized by
+  `ImGuiStyle::MouseCursorScale`, which is meant for its own cursor.
   `Cursor::PlaceTooltips` sets the scale each frame before `ImGui::NewFrame`
-  so the box is the normal cursor's extent (`kVanillaHeightFonts`, or
-  `kPointerExtentUnits` without the logo font) plus `kTooltipGapFonts`, so a
+  so the box is the normal cursor's extent plus `kTooltipGapFonts`, so a
   tooltip never covers the cursor. `ScaleAllSizes` would otherwise truncate
-  the scale to a whole number, 0 below an overlay scale of 1.
-- The line color is `Theme::GetFrameColor`, so the plugin's cursors follow
-  `[UI] BorderColor`. The backing is fixed and opaque, unlike the frame's, so
-  they stay visible at any background opacity.
+  the scale to a whole number.
+- The line color is `Theme::GetFrameColor`, so the drawn cursors follow
+  `[UI] BorderColor`. The backing is opaque, unlike the frame's, so they stay
+  visible at any background opacity.
 
 #### Font cursor
 
 - `assets/cursor/cursor.svg` is the plugin's own art, in the style of the
-  game's menu cursor with a ring at its base. It holds one even-odd path per
-  fill: `outline`, `band`, and `centre`. The file is the source; nothing in
-  the repository regenerates it.
-- `assets/logo/generate.py`, which makes the [logo](#logo) font, resolves
-  the even-odd paths into nonzero contours with skia-pathops, scales the
-  shape so its height is the font's em, stretched by `CURSOR_PLACEMENT`, the
-  scale `Interface/cursormenu.swf` places the game's cursor at (`mc_Cursor`'s
-  matrix), and adds the outline as U+E005, the band as U+E006, and the centre
-  as U+E007. The tip is at the glyphs' top left, so the font size in pixels
-  is the cursor's height and the text position its tip.
+  game's menu cursor. It holds one even-odd path per fill: `outline`, `band`,
+  and `centre`. The file is the source; nothing in the repository regenerates
+  it.
+- `assets/logo/generate.py` ([Logo](#logo)) resolves the even-odd paths into
+  nonzero contours, scales the shape so its height is the font's em, stretched
+  by `CURSOR_PLACEMENT`, the scale `Interface/cursormenu.swf` places the
+  game's cursor at (`mc_Cursor`'s matrix), and adds the three fills as
+  U+E005 to U+E007. The tip is at the glyphs' top left, so the font size in
+  pixels is the cursor's height and the text position its tip.
 - `Cursor::Draw` draws the three glyphs at `io.MousePos` in `kVanillaOutline`,
   `kVanillaBand`, and `kVanillaCentre`, the centre opaque and in its own
-  glyph so nothing shows through it.
-  `kVanillaHeightFonts` sets the height in font sizes, smaller than the game
-  shows it ([Engine assumptions](#engine-assumptions)), which the user found
-  too large.
+  glyph so nothing shows through it. `kVanillaHeightFonts` sets the height in
+  font sizes, smaller than the game shows it
+  ([Engine assumptions](#engine-assumptions)).
 
 ## Input focus
 
@@ -731,12 +642,12 @@ keyboard and the game receives no keyboard or mouse input.
   elsewhere it is dropped, so it cannot move focus off a text field. Gamepad
   input always reaches the game.
 - A window that returns true from `Window::UsesMouse` gets mouse movement and
-  buttons through ImGui: `InputCapture` clears `NoMouse`, sets
+  buttons through ImGui: `InputCapture` clears `NoMouse`,
   shows the overlay's [cursor](#cursor) (`InputCapture::ShowsCursor`), and moves an absolute cursor by DirectInput's relative
   counts, scaled by `backBufferHeight / 1080` and clamped to the back buffer. The
   cursor starts at `Window::GetCursorStart`, or centered without one, whenever
-  such a window takes focus, and its position is
-  queued after the Win32 backend's, which follows the hidden system cursor. Left,
+  such a window takes focus, and its position is queued after the Win32
+  backend's, which follows the hidden system cursor. Left,
   right, and middle buttons and the wheel go to ImGui. A keyboard-only window
   gets the wheel as `WindowInput::wheelSteps`.
 - A window that also returns true from `Window::HidesIdleCursor`, the chat,
@@ -750,7 +661,7 @@ keyboard and the game receives no keyboard or mouse input.
   every key ImGui holds.
 - Characters outside the Basic Multilingual Plane, such as emoji, never reach a
   window: Skyrim keeps only single-unit `ToUnicode` results when building
-  `CharEvent`s (checked against 1.7.104).
+  `CharEvent`s.
 
 ### Input language
 
@@ -763,9 +674,8 @@ Windows.
   `MapVirtualKeyA` and `ToUnicode`, so they follow the layout of the thread
   that polls. Windows switches the language only for the thread that owns the
   game window. The poll runs on that thread while the game has input, but on
-  other threads while a window holds focus (seen in a Windows log, 1.7.104).
-  Those threads keep the layout they started with, so a window typed in the
-  old layout.
+  other threads while a window holds focus, and those threads keep the
+  layout they started with.
 - `InputLanguage::Install`, called from `Overlay::Install`, replaces both
   `call [rip+disp]` sites (+0xEC, and +0x2CB on 1.7.104 or +0x20D on SE, the
   only calls to either import in each executable) with `write_call<6>`, after
@@ -779,25 +689,23 @@ Windows.
   the character produced.
 - The plugin reads the window thread's layout and never activates one:
   `ActivateKeyboardLayout(…, KLF_SETFORPROCESS)` from the input dispatch
-  hung the game on Windows.
+  hangs the game on Windows.
 
 ## Status panel
 
-The panel sits in the top-right corner, 12 px from both edges before scaling, on
-a translucent background, and takes no input. It is drawn only during a game
-(`GameSession::IsInGame`) and while `[Advanced] StatusPanel` is on, which it is not
-by default; a change applies on the next frame.
+`StatusPanel` sits in the top-right corner (`kCorner`) on its own lighter
+background and takes no input. It is drawn only during a game
+(`GameSession::IsInGame`) and while `[Advanced] StatusPanel` is on; a change
+applies on the next frame.
 
-| State | Shows | Color |
-| --- | --- | --- |
-| Not connected, whatever the reason | disconnected | red |
-| Connected, no sample yet or timed out | ping without a value | grey |
-| ≤ 80 ms / ≤ 150 ms / > 150 ms | ping in ms | green / yellow / red |
-
-While connected, two grey lines follow with the received and sent traffic in
-KB/s ([Network](network.md#traffic)), without a value before the first
-window. Always shown below: the [plugin time](#plugin-time) in ms, without a
-value before the first window.
+- Not connected, whatever the reason, it shows the disconnected state.
+- Connected, it shows the ping, without a value before the first sample or
+  after a timeout, colored by `kGoodLatencyMilliseconds` (80) and
+  `kFairLatencyMilliseconds` (150), then the received and sent traffic in
+  KB/s ([Network](network.md#traffic)), without a value before the first
+  window.
+- Always last: the [plugin time](#plugin-time) in ms, without a value before
+  the first window.
 
 The panel is a debugging readout, not player guidance. It does not say why a
 connection is down or that a display name is missing: those need a sentence
@@ -807,13 +715,14 @@ and an action in the settings window, so the messages are on its
 
 ### Plugin time
 
-`PluginTime::Scope` wraps the plugin's work in the main-loop hook and the
-renderer hook, adding its `std::chrono::steady_clock` duration to a shared
-atomic total, since the renderer hook may run on another thread. The main-loop
-hook calls `PluginTime::EndFrame` once per pass after its scope closes; time
-before the first pass is dropped. Once at least 1 s of wall-clock time has
-passed, the total over the passes in the window becomes the published average
-and a new window starts, so the number changes once per second. It is always
+`PluginTime::Scope` wraps the plugin's work in the main-loop hook, the
+renderer hook, and input routing, adding its `std::chrono::steady_clock`
+duration to a shared atomic total, since the renderer hook may run on another
+thread. The main-loop hook calls `PluginTime::EndFrame` once per pass after its
+scope closes; time before the first pass is dropped. Once at least
+`kAverageWindowSeconds` (100 ms) of wall-clock time has passed, the total
+divided by the passes in the window becomes the published average and a new
+window starts, so the number changes about ten times a second. It is always
 compiled in and costs two clock reads per hook call. It leaves out the engine
 hooks that run per actor on animation and AI threads. What the plugin costs
 and how to profile it in detail is in [Performance](performance.md).
@@ -853,10 +762,9 @@ Goal: show each other player's display name above their character's head
 while the character is within `[UI] NameplateDistance` of the player and in
 sight, so players can tell who is who. Friends' names are in the accent, and
 a [role](#roles)'s mark stands before its holder's name.
-Non-goals: a level, health bar, or other detail on the plate (the user chose
-the name alone), plates for players without a character in the local world,
-plates through walls (the user chose to hide them), and a plate for the
-player's own character.
+Non-goals: a level, health bar, or other detail on the plate, plates for
+players without a character in the local world, plates through walls, and a
+plate for the player's own character.
 
 - `NameplateSync` (`sync/nameplates/`) runs on the game thread at the end of
   each pass, after every peer is synced
@@ -900,22 +808,19 @@ player's own character.
   nothing outside a game, with `[UI] Nameplates` off, or while
   `UI::IsGameViewShown` is false: the game is paused, menus are hidden, or
   the dialogue or race menu is open ([Display name hint](#display-name-hint)).
-- A plate's anchor is 20 units above the head node, times the node's world
-  scale, projected each frame with `Main::WorldRootCamera`, so it follows
-  the head as rendered. `NiCamera::WorldPtToScreenPt3` divides by the
+- A plate's anchor is `kHeadClearance` above the head node, times the node's
+  world scale, projected each frame with `Main::WorldRootCamera`, so it
+  follows the head as rendered. `NiCamera::WorldPtToScreenPt3` divides by the
   depth's absolute value, so the layer computes the depth from the
   `worldToCam` matrix's fourth row first and skips a point at or behind the
-  camera. The name is centered on the anchor with its bottom there, in
-  Sovngarde Bold (`Fonts::GetHeading`, or the overlay's font without it), at
-  1.2 font sizes near the player down to 0.8 at the range, rounded to whole
-  pixels. It is white, or the accent for a friend, over a black outline of
-  four copies offset diagonally by a pixel per 16 px of the overlay's font
-  size, at 80% of the plate's alpha. A [role](#roles)'s mark stands before
-  the name over the same outline, sized by the name's font size, and the two
-  are centered on the anchor as one; the name keeps its color (the user's
-  choice over a name in the role's color). The [voice chat](#voice-chat)
-  speaker stands before both. Over the last 15% of the range it fades out; a plate wholly
-  off screen is skipped.
+  camera. The name stands on the anchor in the heading face
+  (`Fonts::GetHeading`, or the overlay's font without it), sized from
+  `kNearFontScale` near the player to `kFarFontScale` at the range, in the
+  accent for a friend, over an outline. A [role](#roles)'s mark stands before
+  the name, which keeps its own color, and the [voice chat](#voice-chat)
+  speaker before both; they are centered on the anchor as one. The plate fades
+  out over the last `kDistanceFadeFraction` of the range; a plate wholly off
+  screen is skipped.
 - Per pass the cost is one distance per peer with a character, the budgeted
   rays, and one roster and filter revision read; nothing allocates once the
   plates vector has grown. Drawing costs five text draws per plate, and two
@@ -941,51 +846,43 @@ action on a notice. What answers the chat's own input is a
 - `NoticeStack` also announces each connection the server welcomes: when
   `Network::GetConnectionGeneration` changes and `Network::IsConnected`
   still holds, it adds a notice that the player is connected, ahead of
-  that frame's other notices. Automatic reconnects after a lost connection
-  are announced too, and the notice does not name the server: both the
-  user's choices. A generation that ended before the stack saw it is not
-  announced.
+  that frame's other notices. Automatic reconnects are announced too, and the
+  notice does not name the server. A generation that ended before the stack
+  saw it is not announced.
 - `NoticeStack` also announces a `kAddressFull`
   ([Network](network.md#admission)) or `kKicked`
   ([Network](network.md#kicks-and-bans)) refusal when
   `Network::GetConnectionRefusal` starts returning it (`GetRefusalNotice`),
   since these can end a connection the player did not start, with the
   settings window closed. Like every refusal they wait for Connect
-  ([Connection controls](#connection-controls)); both are the user's
-  choices, and the kick notice names no reason. Other refusals, `kBanned`
-  included, are not announced: the user chose to tell a banned player only
-  in the connection controls, and a kicked player only by the notice. A refusal cleared
-  and set again between two frames the stack draws is announced once.
-  Every notice is its own toast, a repeat too: the user chose not to merge
-  them into one with a count.
-- Notices end without a final period, the user's choice. So do the
-  [notes](#notes) and a trade row's reason, which share their texts with
-  notices: a chat rejection is a note or a notice depending on whether the
-  chat is open, and a reason is both the item card's warning and part of a
-  notice.
-- A notice shows for 2 s plus its length at 15 characters a second, at least
-  5 s and at most 10, and fades over its last second, timed by
+  ([Connection controls](#connection-controls)), and the kick notice names
+  no reason. Other refusals, `kBanned` included, show only in the connection
+  controls. A refusal cleared and set again between two frames the stack
+  draws is announced once.
+- Every notice is its own toast, a repeat too. Notices, [notes](#notes), and
+  a trade row's reason share their texts: a chat rejection is a note or a
+  notice depending on whether the chat is open, and a reason is both the item
+  card's warning and part of a notice.
+- A notice shows for `kReadingDelaySeconds` plus its length at
+  `kReadingCharactersPerSecond`, between `kMinimumShowSeconds` and
+  `kMaximumShowSeconds`, and fades over its last `kFadeSeconds`, timed by
   `ImGui::GetTime`. Notices keep their time while none is drawn, outside a
   game (`GameSession::IsInGame`); in a game they show in menus too.
-- They stack on the right edge, the first one's top at 40% of the screen
-  height, the oldest on top, 0.375 font sizes apart, each right-aligned
-  0.75 font sizes from the edge, like the chat from the left. Each is a box
-  with the theme's window background ([background opacity](#background-opacity))
-  over the [blurred frame](#background-blur) and its corners, fading with the
-  notice, its text in the theme's
-  text and face, wrapped at 22 font sizes less the padding, and a strip in
-  the accent on its left edge. The strip and the surface are clipped from
-  one rounded box (`Controls::StripedBox`), so the strip follows the box's left corners: a
-  separate strip rect would have its rounding clamped to its narrow width.
-  Notices have no kinds: the user chose the
-  accent for all over a color per success, warning, and info.
+- They stack on the right edge from `kTopFraction` of the screen height, the
+  oldest on top, like the chat from the left. Each is a box with the theme's
+  window background ([background opacity](#background-opacity)) over the
+  [blurred frame](#background-blur), fading with the notice, its text in the
+  theme's face, and an accent strip on its left edge; notices have no kinds.
+  The strip and the surface are clipped from one rounded box
+  (`Controls::StripedBox`), since a separate strip rect would have its
+  rounding clamped to its narrow width.
 - They are drawn in a `Theme::Scope` on Dear ImGui's foreground draw list,
   over every window, so they take no input and stay visible while a window
-  is open, the [trade window](#trade-window) included: the user chose this
-  so a trade's notices, such as an item the other game cannot receive, are
-  seen while trading. A notice can therefore cover part of a window under
-  it. `Cursor::Draw` adds the cursor to the same list after every window
-  has drawn, so the cursor stays over the notices.
+  is open, the [trade window](#trade-window) included, so a trade's notices,
+  such as an item the other game cannot receive, are seen while trading. A
+  notice can therefore cover part of a window under it. `Cursor::Draw` adds
+  the cursor to the same list after every window has drawn, so the cursor
+  stays over the notices.
 
 ## Chat
 
@@ -996,33 +893,30 @@ Goal: talk to everyone, to players nearby, or to one player; always see where
 the next line goes and change it with a key or a click; keep whispering the
 same player without naming it again; see who is online and whisper one from
 a list; [mention](#mentions) a player by a few letters of its name, and see
-at a glance a line that mentions oneself; tell the channels apart at a glance, and turn each
-off and on; see as many lines as the player wants, by dragging the chat larger;
-place the chat elsewhere on the screen.
-Non-goals: chat
-commands (text starting with `/` is sent as written; Tab, the chip, and the
-player list cover what they did), a whisper by an `@` prefix (`@` mentions
-instead, the user's choice), chat history for late joiners, and a saved log.
+at a glance a line that mentions oneself; tell the channels apart at a
+glance, and turn each off and on; see as many lines as the player wants, by
+dragging the chat larger; place the chat elsewhere on the screen.
+Non-goals: chat commands (text starting with `/` is sent as written; Tab, the
+chip, and the player list cover what they did), a whisper by an `@` prefix
+(`@` mentions instead), chat history for late joiners, and a saved log.
 
-| Channel | Reaches | Color |
-| --- | --- | --- |
-| Nearby | placed players within `chat.nearby_radius` (8192) in the same worldspace, or in the same interior | lime |
-| Global | every connected player | gold |
-| Whisper | one player | violet |
+| Channel | Reaches |
+| --- | --- |
+| Nearby | placed players within `chat.nearby_radius` (8192) in the same worldspace, or in the same interior |
+| Global | every connected player |
+| Whisper | one player |
 
-`ui/chat/` draws and forwards keys; what they mean is in `sync/chat/`, which
-has no Dear ImGui and no engine access.
+Each channel has its own color in `ChatStyle`. `ui/chat/` draws and forwards
+keys; what they mean is in `sync/chat/`, which has no Dear ImGui and no
+engine access.
 
 ### Send target
 
 `ChatSync::Composer` holds the target (`ChatSync::ChatTarget`): a channel, and
 for a whisper a player by slot and name. It starts as Nearby, survives closing
-the chat, and is not saved. `ChatInput` shows it as a chip left of the
-[text field](#text-field), as high as one line of it and level with its last
-line, with the field's corners, in the channel's color over
-an 18% fill of it, 30% under the cursor, naming the channel or, for a
-whisper, the recipient, the name cut at 12 font sizes. The empty field's
-placeholder points to Tab.
+the chat, and is not saved. `ChatInput` shows it as a chip in the channel's
+color left of the [text field](#text-field), level with its last line, naming
+the channel or, for a whisper, the recipient.
 
 | Input | Effect |
 | --- | --- |
@@ -1030,10 +924,9 @@ placeholder points to Tab.
 | A click on the chip | A menu of Global, Nearby, and the 5 latest partners |
 | A click on a sender's name, or the whisper item in a line's menu | A whisper to that player |
 
-- Each row of the chip's menu has a tooltip saying who its target reaches,
-  naming the partner for a whisper. `DrawRow` reports the row's
-  `ImGuiHoveredFlags_ForTooltip` hover from its selectable, so the whole row
-  shows it, not only its text.
+- Each row of the chip's menu has a tooltip saying who its target reaches.
+  `DrawRow` reports the row's `ImGuiHoveredFlags_ForTooltip` hover from its
+  selectable, so the whole row shows it.
 - `ChatRoster` keeps the whisper partners, at most 8, moved to the front by
   every whisper sent or received except one to oneself, and compared by name
   as well as slot, since a player who connects again has another slot.
@@ -1045,44 +938,36 @@ placeholder points to Tab.
 `ImGuiInputTextFlags_WordWrap`) that holds one paragraph: the text never
 contains a line break.
 
-- It is one line high and grows upward one line at a time, up to 7
-  (`kMaximumFieldLines`), as the text wraps. The chat window keeps its
-  height: `ChatWindow` sizes the window for a one-line field and gives the
-  history `ChatInput::GetFieldHeight`'s height less, so the lines give up
-  the room. Past 7 lines the text scrolls inside the field to the caret,
-  with no visible scrollbar, as a one-line field scrolls sideways; the
-  wheel scrolls it too.
-- `ChatInput::Measure` counts the wrapped lines and the caret's line as
-  Dear ImGui breaks them (`ImFontCalcWordWrapPositionEx` with
-  `ImDrawTextFlags_WrapKeepBlanks` at the field state's `WrapWidth`), in
-  the field's callback every frame and wherever the text changes outside
-  it (a send, Escape, a name picked with the mouse). The height follows
-  one frame after an edit inside the field; since the field grows upward,
-  its bottom line stays where it was.
-- The text holds at most 512 characters
-  (`Multiplayer::kMaximumChatTextCharacters`, counted as code points). The
-  character filter (`ChatInput::FilterCharacter`) takes the room left once
-  per frame, counting a selection that the input will replace as free, and
-  drops every character past it, typed or pasted, without a note.
-- A pasted line break becomes a space. Shift+Enter and Ctrl+Enter, which
-  a multi-line field turns into a line break, send as Enter does.
+- It grows upward one line at a time as the text wraps, up to
+  `kMaximumFieldLines` (7), then scrolls inside to the caret. The chat window
+  keeps its height: `ChatWindow` sizes the window for a one-line field and
+  gives the history `ChatInput::GetFieldHeight`'s height less.
+- `ChatInput::Measure` counts the wrapped lines and the caret's line as Dear
+  ImGui breaks them (`ImFontCalcWordWrapPositionEx` with
+  `ImDrawTextFlags_WrapKeepBlanks` at the field state's `WrapWidth`), in the
+  field's callback every frame and wherever the text changes outside it (a
+  send, Escape, a name picked with the mouse). The height follows one frame
+  after an edit inside the field.
+- The text holds at most `Multiplayer::kMaximumChatTextCharacters` (512 code
+  points). `ChatInput::FilterCharacter` takes the room left once per frame,
+  counting a selection the input will replace as free, and drops every
+  character past it, typed or pasted.
+- A pasted line break becomes a space. Shift+Enter and Ctrl+Enter, which a
+  multi-line field turns into a line break, send as Enter does.
 - Up and Down move the caret between wrapped lines; on the first line Up,
-  and on the last line Down, [recall](#sending) sent lines instead. With
-  Shift they select and with Ctrl they scroll the field. The field moves
-  its caret before its callback runs, so the callback decides from the
+  and on the last line Down, [recall](#sending) sent lines instead. The field
+  moves its caret before its callback runs, so the callback decides from the
   caret line measured the frame before.
 - While the field is not active, `ChatInput::Draw` clears the ID of Dear
   ImGui's retained edit state (`ImGuiInputTextState::ID`) when it still
-  belongs to the field, so each activation starts a fresh state. Dear
-  ImGui 1.92.9 (still so in 1.93.1) lays out an inactive word-wrapped
-  field whose wrap width changed with the caret of that old state. It
-  measures that caret over the text the field now shows, the hint or a
-  shorter draft. A caret past that text's end loops forever in
-  `ImFontCalcTextSizeEx`. The docked and the open chat draw the same
-  field (`##Chat/##ChatInput`) at different widths and font sizes, so
-  without this the game hangs when a trade ends, or the chat opens over
-  one, after a line longer than the hint was sent. Undo history does not
-  carry across activations.
+  belongs to the field, so each activation starts a fresh state. Dear ImGui
+  (1.92.9 through at least 1.93.1) lays out an inactive word-wrapped field
+  whose wrap width changed with the caret of that old state, measured over the
+  text the field now shows; a caret past that text's end loops forever in
+  `ImFontCalcTextSizeEx`. The docked and the open chat draw the same field
+  (`##Chat/##ChatInput`) at different widths and font sizes, so without this
+  the game hangs when a trade ends, or the chat opens over one, after a long
+  line was sent. Undo history does not carry across activations.
 
 ### Name list
 
@@ -1094,29 +979,27 @@ after the `@`, at most 8, as soon as the `@` is typed.
 - `Composer::Update` finds that mention from the text and the caret, which
   the field's callback passes every frame. It looks again only after an
   edit or a caret move, and asks `ChatRoster` again only when the mention
-  or what is typed of it changes. A line recalled with Up or Down lists
-  nothing until the caret moves or the text changes, so Up and Down keep
-  recalling.
+  changes. A line recalled with Up or Down lists nothing until the caret
+  moves or the text changes, so Up and Down keep recalling.
 - `ChatRoster` copies the roster from the transport when its revision changes
   ([Network](network.md#client)) and sorts it by folded name. `Complete`
   returns the player named exactly as typed, then whisper partners, then
   players within Nearby chat ([Network](network.md#nearby-players),
-  `Network::CopyNearbyPlayers`), then
-  the rest by name, without the local player. The channel does not narrow it.
+  `Network::CopyNearbyPlayers`), then the rest by name, without the local
+  player. The channel does not narrow it.
 - Names are folded by a table for ASCII, Latin-1, Latin Extended-A, Greek,
-  and Cyrillic, and compared byte for byte otherwise. The server's lower-casing
-  is not needed here: both sides of every comparison are folded the same way.
-- The list shows only while it has a name to offer. With nobody matching, or
-  with a name typed in full that no other name continues, it hides, so Enter
-  sends.
+  and Cyrillic, and compared byte for byte otherwise. Both sides of every
+  comparison are folded the same way, so the server's lower-casing is not
+  needed.
+- The list shows only while it has a name to offer, so with nobody matching,
+  or a name typed in full that no other name continues, Enter sends.
 - Up and Down move the selection, and the field's caret stays; Tab, Enter, or
   a click accept it (`Composer::AcceptSuggestion`). That replaces the whole
-  mention, the name characters after the caret too, with `@` and the name as
-  the player has it, then a space unless one follows already, and puts the
-  caret after that space, keeping the send target and the chat open. Enter
-  and a click leave the field, so the caret is placed when the field takes
-  the keyboard again (`Composer::TakePlacedCaret`). A name that would take
-  the text past its [limit](#text-field) is not written and the list hides.
+  mention with `@` and the name as the player has it, then a space unless one
+  follows already, and puts the caret after it. Enter and a click leave the
+  field, so the caret is placed when the field takes the keyboard again
+  (`Composer::TakePlacedCaret`). A name that would take the text past its
+  [limit](#text-field) is not written and the list hides.
 - Escape hides the list until the text changes.
 
 ### Sending
@@ -1125,31 +1008,26 @@ after the `@`, at most 8, as soon as the `@` is typed.
   field only closes. With `[UI] CloseChatOnSend = false`
   ([Configuration](configuration.md#ui)), Enter sends and the chat stays
   open with the field emptied, the target kept, and the keyboard back in the
-  field, and Enter in an empty field does nothing; Escape is then the way to
-  close it. A send that keeps the chat open becomes what Escape returns to, so
-  Escape never brings back a line already sent. `ChatInput` reads the setting
-  only on such an Enter, so a change applies to the open chat's next one.
-  `ChatSync::Send` trims the text, validates it
-  (`protocol/ChatMessage.h`, shared with the parser), and
-  `Network::PublishChatMessage` sends `ChatSend` with the channel, the
-  recipient's slot for a whisper, and a request ID.
-- A whisper resolves its player with `ChatRoster::Resolve`: the slot while
-  that connection lasts, otherwise the connection that has the name now.
-- When nothing was handed to the server, `ChatSync::Send` returns why, and
-  the chat stays open with the text and the target and a failure note: the
-  recipient is offline, the player is not connected, or the text has
-  characters that cannot be sent.
+  field, and Enter in an empty field does nothing; Escape then closes it. A
+  send that keeps the chat open becomes what Escape returns to, so Escape
+  never brings back a line already sent. `ChatInput` reads the setting only on
+  such an Enter.
+- `ChatSync::Send` trims the text, validates it (`protocol/ChatMessage.h`,
+  shared with the parser), and `Network::PublishChatMessage` sends `ChatSend`
+  with the channel, the recipient's slot for a whisper, and a request ID. A
+  whisper resolves its player with `ChatRoster::Resolve`: the slot while that
+  connection lasts, otherwise the connection that has the name now.
+- When nothing was handed to the server, `ChatSync::Send` returns why
+  (recipient offline, not connected, or characters that cannot be sent), and
+  the chat stays open with the text, the target, and a failure [note](#notes).
 - A rejecting `ChatResult` runs its callback on the transport thread, which
-  queues each server rejection (`Multiplayer::ChatRejection`: rate limited,
-  not in world, unknown recipient, or any other) as a sentence
+  queues each server rejection (`Multiplayer::ChatRejection`) as a sentence
   (`ChatSync::DescribeRejection`). `ChatWindow` takes them every frame: a
-  failure note while the chat is open, otherwise, as after Enter closed it, a
-  [notice](#notices).
+  failure note while the chat is open, otherwise a [notice](#notices).
 - Up on the field's first line and Down on its last, while no list shows,
   step through the last 50 lines sent in this game session, consecutive
-  repeats kept once. A recalled
-  line restores its target. Down past the newest returns the text and target
-  that were being written.
+  repeats kept once. A recalled line restores its target. Down past the
+  newest returns the text and target that were being written.
 
 ### Notes
 
@@ -1157,79 +1035,61 @@ What the chat answers to the player's own input is a note above the field,
 never a line, so the history holds only what players said.
 
 - Every note is a failure. `Composer` keeps them as text and replaces them
-  on every send. Any edit, a recalled line, a new target, and opening the chat clear
-  them; the field's text is kept. Like [notices](#notices), notes end without
-  a final period.
-- `ChatInput::DrawNotes` draws them where the name list would be, which
-  hides them while it shows: a child window as wide as the field with the
-  popup's background and border, as tall as its wrapped rows, ending
-  one item spacing above the field, in `ChatStyle::kFailureColor`
-  (orange-red). The panel takes no input.
+  on every send. Any edit, a recalled line, a new target, and opening the
+  chat clear them; the field's text is kept.
+- `ChatInput::DrawNotes` draws them where the name list would be, which hides
+  them while it shows, as a child window with the popup's background in
+  `ChatStyle::kFailureColor`. The panel takes no input.
 
 ### Lines and filters
 
-- `ChatSync::DrainLines` returns received messages. A line carries
-  its label and the other player: the sender, or the recipient of the local
-  player's own whisper, whose label marks it as sent to the recipient, where
-  a received one's marks it as from the sender. Senders are shown as a player label
+- `ChatSync::DrainLines` returns received messages. A line carries its label
+  and the other player: the sender, or the recipient of the local player's
+  own whisper, whose label marks it as sent to the recipient. Senders are
+  shown as a player label
   ([Appearance and equipment](appearance-and-equipment.md#player-label)).
-- `ChatHistory` keeps the latest 100 lines of each channel,
-  each stamped with `ImGui::GetTime()` when it arrived, so a busy channel only
-  pushes out its own lines.
-- A row above the lines has a filter for each channel: Global, Nearby, and
-  Whisper. Each is a toggle of its own: a click turns its channel's lines
-  off or on, in the open chat and among the closed chat's lines, and changes
-  no other filter. All are on at first and any number may be off.
-  `ChatHistory` keeps collecting the lines of a channel that
-  is off, so turning it on shows what arrived meanwhile.
-- A filter is drawn as a chip, so it reads as a switch: its label inside an
-  outline with the field's corners, a sixteenth of the font size and at
-  least 1 px thick, at 55% of the label's color. Shown, the label is in the
-  channel's color over the fill the send target's chip has
-  (`ChatStyle::kChipFillAlpha`, 18%, and 30% under the cursor). Off, it is
-  the theme's muted text color with no fill, and under the cursor the text
-  color with an 8% fill. Over either the cursor asks for the hand ([Cursor](#cursor)). A faint rule as
-  wide as the chat, in the theme's separator color, separates the filters
-  from the lines. It is as far under the chips as the inside of the frame's
-  line is above them (the window's padding and the frame's, less
-  `MenuFrame::Metrics::inset`), so the chips stand midway between the two.
+- `ChatHistory` keeps the latest 100 lines of each channel, each stamped with
+  `ImGui::GetTime()` when it arrived, so a busy channel only pushes out its
+  own lines.
+- A row above the lines has a filter chip for each channel
+  (`ChatStyle::DrawChipFrame`). Each turns its channel's lines off or on, in
+  the open chat and among the closed chat's lines, independently of the
+  others. All are on at first. `ChatHistory` keeps collecting the lines of a
+  channel that is off, so turning it on shows what arrived meanwhile. A rule
+  separates the filters from the lines.
 - A filter does not change the send target. A channel that is off turns on
   when the target changes to it, by any input (`ChatWindow`), and when a line
   the local player sent arrives in it (`ChatHistory::Collect`), so where the
-  next line goes and what the player said stay in view. The target's channel
-  can be turned off again and then stays off until either happens.
-- A filter that is off has a dot in its color on its upper right corner while
-  lines of its channel arrived that the open chat has not shown.
-- Each filter has a tooltip (`ImGui::SetItemTooltip`) saying which lines its
-  channel holds and whether a click shows or hides them.
-- A line's label, everything up to and with its colon, takes the channel's
-  color and the heading face ([Themed faces](#themed-faces)). Text is the
-  theme's, in the text face. Under the cursor a label is underlined; a right click on a line with
-  another player, its sender or the recipient of one's own whisper, opens
-  its [player menu](#player-menu). One's own other lines have no menu.
+  next line goes and what the player said stay in view. It can be turned off
+  again and then stays off until either happens.
+- A filter that is off shows an unread mark while lines of its channel
+  arrived that the open chat has not shown. Each filter has a tooltip
+  (`ImGui::SetItemTooltip`) saying which lines its channel holds and what a
+  click does.
+- A line's label, up to and with its colon, takes the channel's color and the
+  heading face ([Themed faces](#themed-faces)); the text is in the text face.
+  Under the cursor a label is underlined; a right click on a line with another
+  player, its sender or the recipient of one's own whisper, opens its
+  [player menu](#player-menu).
 - The label's player's [role](#roles) mark stands in the label right before
   the name, so after a whisper's direction where the language puts that
-  first: `ChatSync` gives the name's offset in the label, which is where the
-  label's format has its field. `DrawLabel` draws the label's parts and the
-  mark as one group, which is what the cursor underlines and what the line's
-  text wraps beside. The mark is that of the role the player had when the
-  line arrived (`ChatHistory::Line::role`), one's own lines included, looked
-  up again whenever the roster's revision changes, and it fades with the
-  closed chat's lines.
+  first: `ChatSync` gives the name's offset in the label, where the label's
+  format has its field. `DrawLabel` draws the label's parts and the mark as
+  one group, which is what the cursor underlines and what the line's text
+  wraps beside. The mark is that of the role the player had when the line
+  arrived (`ChatHistory::Line::role`), looked up again whenever the roster's
+  revision changes.
 - A line wider than the chat wraps at words. Its text starts beside its label
-  and continues from the chat's left edge under the label, not from where the
-  text started, so a long name does not narrow every row (`DrawAfterLabel` in
-  `ChatHistory.cpp`), in the open chat and among the closed chat's lines. The
-  rows of one line are a font size apart, closer than two lines are.
+  and continues from the chat's left edge under the label, so a long name does
+  not narrow every row (`DrawAfterLabel`), in the open chat and among the
+  closed chat's lines.
 - `FindRowEnd` ends each row where Dear ImGui's word wrap would
-  (`ImFont::CalcWordWrapPosition`), with two differences. A word, text
-  between spaces, that only a whole row has room for starts the next row
-  whole, also when that leaves the label alone on its row; Dear ImGui would
-  cut it beside the label, or break it after punctuation. A word wider than
-  a whole row, such as an address or text without spaces, fits no row, so it
-  starts where the text before it ends, beside the label too, and is cut at
-  each row's end by character (`ImFont::CalcTextSizeA`), leaving no row
-  short.
+  (`ImFont::CalcWordWrapPosition`), with two differences. A word that only a
+  whole row has room for starts the next row whole, also when that leaves the
+  label alone on its row, where Dear ImGui would cut it beside the label or
+  break it after punctuation. A word wider than a whole row, such as an
+  address, starts where the text before it ends and is cut at each row's end
+  by character (`ImFont::CalcTextSizeA`).
 
 ### Mentions
 
@@ -1242,299 +1102,213 @@ sent and only how it is drawn differs.
   An `@` counts when it does not follow a name character, as in an address,
   and is followed by one. Its name is the longest folded match of a roster
   name that ends before a character that is not a name character, or at the
-  text's end, so `@Ulf,` mentions `Ulf` and `@Ulfric` does not. The case
-  need not match. Names are display names
-  ([Network](network.md#sessions)); a bot's name with spaces matches as
-  well. A mention is `local` when it names the local player.
+  text's end, so `@Ulf,` mentions `Ulf` and `@Ulfric` does not. Names are
+  display names ([Network](network.md#sessions)); a bot's name with spaces
+  matches as well. A mention is `local` when it names the local player.
 - They are found once per line, against the roster of that moment: a name
   that is not connected then stays plain, and one that leaves later stays a
   mention.
-- `ChatHistory` draws every mention in the heading face
-  ([Themed faces](#themed-faces)), as a line's label is, in the theme's text
-  color, or, for a mention of the local player, in the accent
-  ([Accent color](#accent-color)); without the heading face only the color
-  sets it apart. The closed chat's recent lines fade them with the line.
-- A row that holds a mention is drawn in pieces (`DrawMentionRow`): a
-  `Dummy` as wide as the row measures with its mentions in the heading face,
-  then each piece through the window's draw list in its own face. Rows
-  without a mention stay one `TextUnformatted`, and a row out of view draws
-  nothing.
+- `ChatHistory` draws every mention in the heading face, as a line's label
+  is, in the theme's text color, or, for a mention of the local player, in
+  the [accent](#accent-color); without the heading face only the color sets
+  it apart.
+- A row that holds a mention is drawn in pieces (`DrawMentionRow`): a `Dummy`
+  as wide as the row measures with its mentions, then each piece through the
+  window's draw list in its own face. Rows without a mention stay one
+  `TextUnformatted`, and a row out of view draws nothing.
 - The heading face is wider than the text face, so a row is first broken as
   any other ([Lines and filters](#lines-and-filters)) and then, while its
   mentions make it wider than its room, gives up words from its end
-  (`FitMentionRow`). A row beside the label whose first word no longer fits
-  there starts on the next row. A single word wider than a whole row stays
-  and is cut at the chat's edge.
-- A mention does nothing on its own: no notice, sound, or unread mark (the
-  user's choice), and a click on it does nothing.
+  (`FitMentionRow`).
+- A mention does nothing on its own: no notice, sound, or unread mark, and a
+  click on it does nothing.
 
 ### Player list
 
-- The filters' row ends, at the field's column, with a button: the person
-  glyph U+E00B of the [logo](#logo) font, from the top of the digits to their
-  baseline as the font's `0` glyph has them and as wide as the glyph's
-  advance (none without the font), and the number of connected players, the local
-  one included (`ChatRoster::GetPlayerCount`), or
-  an offline label in the muted text color without a roster. It is a chip as the
-  filters are (`ChatStyle::DrawChipFrame`): closed, an outline in the
-  theme's text color with the 8% fill under the cursor; open, in the accent
-  with the chip fill. A click opens the list or closes it. The label is
-  formatted only when the number changes.
-- The list is a window of its own, half a font size right of the open chat,
-  or left of it when the screen has no room on the right, and as high, with 13 font sizes of content, in the chat's menu frame and
+- The filters' row ends with a chip button (`ChatStyle::DrawChipFrame`) that
+  shows the person glyph of the [logo](#logo) font and the number of
+  connected players, the local one included (`ChatRoster::GetPlayerCount`),
+  or an offline state without a roster. A click opens or closes the list. The
+  label is formatted only when the number changes.
+- The list is a window of its own beside the open chat, on the right, or on
+  the left when the screen has no room on the right
+  ([Position](#position)), as high as the chat, in its menu frame and
   background. `ChatWindow` places and begins it as it begins the chat
   (`BeginFramed`), after the chat, so it has the chat's size from the same
   frame; `ChatPlayers` draws what is inside.
-- A search field stands on the filters' row, as high as the filters, with
-  a rule under it as far as the chat's is, so the two line up. It has a
-  placeholder while empty and keeps names that contain its text, both
+- A search field on the filters' row keeps names that contain its text, both
   folded as the [name list](#name-list) folds them. Tab stays in the field;
   Enter gives the keyboard back to the chat's field.
-- The names follow, a chat line apart, in the text face. Players
-  nearby, the ones Nearby chat reaches (`ChatRoster::CopyNearbyPlayers`,
-  [Network](network.md#nearby-players)), so in the same interior at any
-  distance, come first in the Nearby color, as the chat names a sender in
-  Nearby; the
-  others follow in a light gray (`kDistantPlayerColor`), between the
-  theme's text and disabled text; each group keeps the order
-  `ChatRoster` sorts them in (by folded name). The local player is left
-  out; the chip's count still includes it. A player's [role](#roles) mark
-  (`ChatRoster::ListedPlayer::role`) stands before the name, and the
-  underline spans the name alone. A name wider than the list is
-  cut at its edge. With nothing to list it shows one row saying why: no
-  name matches the search, nobody else is online, or there is no roster.
-- A name acts as a sender's name does in the lines: under the cursor it is
-  underlined and the cursor asks for the hand, a click whispers the player, and a
-  right click opens its [player menu](#player-menu). The keyboard then
-  returns to the chat's field.
-- A muted or vanished player has a mark at the list's right edge, in the
-  muted text color, three quarters of a font size square: the logo font's
-  struck speech bubble for muted, its struck eye for vanished
-  ([Logo](#logo)), both when both. Hovering them names the state. Without
-  the logo font the list draws no marks and gives the names the full width;
-  the [player manager](#player-manager) still lists both states. A vanished
-  player within Nearby chat is still nearby, since its Nearby lines still
-  arrive.
-- A button as wide as the list stands at its bottom, below the names, and
-  opens the [player manager](#player-manager).
-- The [chat in a trade](#chat-in-a-trade) has no players button and
-  draws no list; a list left open shows again after the trade.
-- Only the button closes the list. A chat closed by Escape, also from the
-  search field, by Enter, or by a menu that opens by itself shows the list
-  again, with its search, when it opens. Closing the list empties the
-  search, and nothing of the list is saved.
+- The names follow, sorted by `ChatRoster`. Players Nearby chat reaches
+  (`ChatRoster::CopyNearbyPlayers`, [Network](network.md#nearby-players)),
+  so in the same interior at any distance, come first in the Nearby color;
+  the others follow in `kDistantPlayerColor`. The local player is left out;
+  the chip's count still includes it. A player's [role](#roles) mark
+  (`ChatRoster::ListedPlayer::role`) stands before the name. With nothing to
+  list, one row says why: no name matches, nobody else is online, or there is
+  no roster.
+- A name acts as a sender's name does in the lines: a click whispers the
+  player, and a right click opens its [player menu](#player-menu). The
+  keyboard then returns to the chat's field.
+- A muted or vanished player has the logo font's muted or vanished mark at
+  the list's right edge, both when both, and hovering them names the state.
+  Without the logo font the list draws no marks; the
+  [player manager](#player-manager) still lists both states. A vanished
+  player within Nearby chat is still listed as nearby, since its Nearby lines
+  still arrive.
+- A button at the list's bottom opens the [player manager](#player-manager).
+- The [chat in a trade](#chat-in-a-trade) has no players button and draws no
+  list; a list left open shows again after the trade.
+- Only the button closes the list. A chat closed by Escape, Enter, or a menu
+  that opens by itself shows the list again, with its search, when it opens.
+  Closing the list empties the search, and nothing of the list is saved.
 - The wheel over the list scrolls the list only: `ChatHistory::DrawLines`
   leaves the wheel to it while `ChatPlayers::IsHovered`.
 - Closed, the list costs the count. Open, `ChatRoster::CopyPlayersIfChanged`
-  copies the roster only when its revision changes, and the search is
-  matched then, on an edit, and when the players nearby change; those are
-  copied every half second (`kNearbySeconds`); `ImGuiListClipper` draws
-  only the rows in view; and
-  its frame is copied from the [menu frame](#menu-frame)'s kept triangles,
-  so the list adds a few microseconds to the chat at any number of players.
+  copies the roster only when its revision changes, and the search is matched
+  then, on an edit, and when the players nearby change, which are copied every
+  `kNearbySeconds` (0.5 s); `ImGuiListClipper` draws only the rows in view,
+  and the frame reuses the [menu frame](#menu-frame)'s kept triangles, so the
+  list's cost does not grow with the number of players.
 
 ### Size
 
 - The open chat's lines are `[UI] ChatWidth` font sizes wide and `ChatLines`
-  lines high ([Configuration](configuration.md#ui)): 30 by 15 by default,
-  within 24 to 100 and 9 to 40. At 24 the field still has room beside the
-  longest chip, and 9 lines keep the 8-row name list under the filters.
-  Both are in font sizes, so the chat follows the overlay scale.
+  lines high ([Configuration](configuration.md#ui)), so the chat follows the
+  overlay scale. The minimums keep room for the field beside the longest chip
+  and for the name list under the filters.
 - The player drags any of the open chat's four edges or four corners. The
   opposite edge stays in place: a top or right drag keeps the chat's
   [position](#position), and a left or bottom drag moves it
-  (`ChatSize::GetCorner`), so the right or top edge stays where it was by the
-  pixel. The grips are the strips the menu frame runs in, the window's padding
-  and the frame's on that side, which hold nothing else to click, and each
-  corner is its knot's square (`MenuFrame::Metrics::corner`).
-  Over them the cursor is the vertical, horizontal, or diagonal resize one;
-  nothing else marks them. `ChatSize::FindEdges` finds them by position:
-  Dear ImGui items there would add to the window's content size.
+  (`ChatSize::GetCorner`). The grips are the strips the menu frame runs in,
+  which hold nothing else to click, and each corner is its knot's square
+  (`MenuFrame::Metrics::corner`); over them the cursor is the matching resize
+  one. `ChatSize::FindEdges` finds them by position, since Dear ImGui items
+  there would add to the window's content size.
 - During a drag the size follows the cursor by the pixel, as the settings
-  window's does, so the top row of the lines may show in part. A drag in
-  whole steps was dropped: at a font size a step it looked like a low frame
+  window's does; a drag in whole font-size steps looked like a low frame
   rate. The size stops at the limits and at the room on the screen
-  (`ChatSize::GetRoom`, `GetUnits` in `ChatWindow.cpp`). That room runs from
-  the chat's [position](#position) to the right and top screen edges, or,
-  during a left or bottom drag, from the edge held in place to the left or
-  bottom screen edge. On the side the chat grows toward it also leaves room
-  for an open [player list](#player-list). A
-  configured size the screen has no room for is drawn at that room and stays
-  in the file.
+  (`ChatSize::GetRoom`, `GetUnits` in `ChatWindow.cpp`), which runs from the
+  chat's [position](#position) to the right and top screen edges, or, during
+  a left or bottom drag, from the edge held in place to the left or bottom
+  screen edge, and leaves room for an open [player list](#player-list) on the
+  side the chat grows toward. A configured size the screen has no room for is
+  drawn at that room and stays in the file.
 - Releasing the button settles the size on the nearest whole font size
   across and line (`ChatHistory::GetLinePitch`) up, so the history ends on a
-  whole line again, and applies it with `Config::Apply`, once and only if
-  it changed, and logs it; a chat that loses focus mid-drag does the same
-  (`ChatSize::Release`). After a left or bottom drag the same apply stores
-  the [position](#position) for the settled size (`ChatPosition::Store`), so
-  the held edge stays where it was.
+  whole line, and applies it with `Config::Apply`, once and only if it
+  changed, and logs it; a chat that loses focus mid-drag does the same
+  (`ChatSize::Release`). After a left or bottom drag the same apply stores the
+  [position](#position) for the settled size (`ChatPosition::Store`).
   `ChatSize` reads the configuration each frame outside a drag.
-- The window has the dragged size in the frame the cursor moved.
-  `ChatSize::Follow` runs before `ImGui::Begin`, and the window is given
-  both its width and its height (`ImGui::SetNextWindowSize`): the lines'
-  plus what is around them, the filters above and the input row below
-  with the padding, as measured in the previous frame
-  (`ChatWindow::aroundHeight`). The lines take what the window leaves above
-  the input row, so the row stays at the window's bottom. A window as high
-  as its content would follow a frame late with the input row off its place
-  meanwhile, and one as wide as its content would never get narrower: the
-  rule and the input row take the width there is. Only a new chat is as
-  high as its content, for the one frame Dear ImGui hides a new window.
-  `ChatSize::Grab` starts a drag after `Begin`, where the window's place is
-  known.
+- The window has the dragged size in the frame the cursor moved:
+  `ChatSize::Follow` runs before `ImGui::Begin` and gives the window both its
+  width and height (`ImGui::SetNextWindowSize`), the lines' plus what is
+  around them as measured in the previous frame (`ChatWindow::aroundHeight`).
+  A window as high as its content would follow a frame late, and one as wide
+  as its content would never get narrower. Only a new chat is as high as its
+  content, for the one frame Dear ImGui hides a new window. `ChatSize::Grab`
+  starts a drag after `Begin`, where the window's place is known.
 - While the size changes, the latest line stays at the lines' bottom if it
-  was in view (`ChatHistory::following`), though rows wrap elsewhere; lines
-  scrolled back stay where they are. Dear ImGui scrolls by what the lines
-  took a frame ago. When they wrap at another width, rows above the view
-  change too, which would put the latest line off the bottom for a frame
-  each time the rows change. In a frame whose wrap width differs, by a drag
-  or by the scrollbar showing or going (`ChatHistory::shownWidth`),
-  `ChatHistory::DrawLines` therefore lays the lines out twice: once under
-  an empty clip rectangle, which draws nothing and takes no click, to find
-  what they take now, and then from where that scrolls them to. It passes
-  that height to the next frame (`ImGui::SetNextWindowContentSize`), where
-  Dear ImGui would otherwise count how far from their place the lines were
-  drawn and the chat would stop following.
-- A new height alone needs no second layout: the scroll to the end of the
-  lines (`ImGui::SetScrollHereY`) is applied at the height of the frame it
-  lands in, so through a drag the latest line stays at the bottom. Only in
-  the first frame of a drag that shrinks the chat is it below the bottom,
-  by the cursor's first move. Estimating the height from Dear ImGui's last
-  count instead was dropped: a line arriving or the scrollbar showing in
-  that frame makes it wrong, and the chat would stop following.
-- So a drag that changes the width costs about one more layout of the lines
-  a frame, about 230 µs against 135 µs idle with 300 lines held in a
-  benchmark, and one that changes only the height costs nothing more.
-- The closed chat's box is as wide as the lines and still shows at most 6.
+  was in view (`ChatHistory::following`); lines scrolled back stay where they
+  are. In a frame whose wrap width differs, by a drag or by the scrollbar
+  showing or going (`ChatHistory::shownWidth`), `ChatHistory::DrawLines` lays
+  the lines out twice: once under an empty clip rectangle to find their new
+  height, then from where that scrolls them to, and passes that height to the
+  next frame (`ImGui::SetNextWindowContentSize`), since Dear ImGui scrolls by
+  what the lines took a frame ago. A new height alone needs no second layout:
+  the scroll to the end (`ImGui::SetScrollHereY`) is applied at the height of
+  the frame it lands in. A width drag so costs one more layout of the lines a
+  frame (about 230 µs against 135 µs idle with 300 lines held).
+- The closed chat's box is as wide as the lines and shows at most 6.
 
 ### Position
 
 - `[UI] ChatPositionHorizontal` and `ChatPositionVertical`
   ([Configuration](configuration.md#ui)) place the lower left corner of the
-  open chat's frame (`ChatPosition::Get`) at a percentage of the screen's width
-  from its left edge and of its height from its bottom edge, with any fraction
-  and rounded to the nearest pixel, so `0` and `0` is
-  the screen's lower left corner and the place is the same share of any
-  resolution, independent of the `Scale` setting. The defaults, `1` and `8`,
-  put the chat near the left edge and above the magicka bar.
+  open chat's frame (`ChatPosition::Get`) at a percentage of the screen's
+  width from its left edge and of its height from its bottom edge, with any
+  fraction, rounded to the nearest pixel, so the place is the same share of
+  any resolution, independent of the `Scale` setting.
 - The chat stays at its position: its [size](#size) is limited to the room
   from that corner to the right and top edges, rather than the chat being
-  moved back onto the screen. So a drag on the right edge grows the chat to
-  the right up to the screen's edge. A drag on the left or bottom edge moves
-  the position with the edge. Only a chat at its minimum size, which the room does not hold, is
-  moved until it fits (`KeepOnScreen`). The recent lines are placed from the
-  same corner with the open chat's size as last measured, so they keep their
-  column when the chat opens.
+  moved back onto the screen. Only a chat at its minimum size, which the room
+  does not hold, is moved until it fits (`KeepOnScreen`). The recent lines
+  are placed from the same corner with the open chat's size as last measured,
+  so they keep their column when the chat opens.
 - The [player list](#player-list) goes right of the chat when the chat at its
-  configured size and the list fit there. Otherwise it goes left when there is
-  room on the left, so the chat keeps its size; without that room it stays
-  right and the chat narrows for it (`ChatWindow::ChooseListSide`). The side is
-  chosen from the configured size, not the narrowed one, so it does not change
-  back and forth.
+  configured size and the list fit there, otherwise left when there is room,
+  and otherwise right with the chat narrowed (`ChatWindow::ChooseListSide`).
+  The side is chosen from the configured size, not the narrowed one, so it
+  does not change back and forth.
 - The settings window shows both as sliders in whole percents
   (`SettingsVisitor::FinePercent`); a fraction a drag stored shows rounded
-  until the slider moves. Defaults on `[UI]` resets them. The chat moves when
-  a slider is released.
-- The player also moves the open chat by dragging any part inside the frame's
-  strips that takes no click itself: the gaps in the filters' row and the
-  lines away from senders' names. The strips are the [size](#size) grips. `ChatPosition::Grab` runs after every
-  item in the window, so `ImGui::IsAnyItemHovered` covers the filters, the
-  players chip, the target chip, the field, and the scrollbar; a sender's
-  name takes its click without being an item, so a click that picked one
-  (`ChatHistory::DrawLines`) starts no move, and neither does one while a
-  menu is open or over a resize grip (`ChatSize::Grab`). Moving starts past
-  Dear ImGui's drag threshold, so a plain click, which only takes the field's
-  focus until the button is released, moves and saves nothing. While moving,
-  the cursor is the move one.
+  until the slider moves. The chat moves when a slider is released.
+- The player also moves the open chat by dragging any part inside the frame
+  that takes no click itself. `ChatPosition::Grab` runs after every item in
+  the window, so `ImGui::IsAnyItemHovered` covers the filters, the chips, the
+  field, and the scrollbar; a click that picked a sender's name
+  (`ChatHistory::DrawLines`), one while a menu is open, and one over a resize
+  grip (`ChatSize::Grab`) start no move. Moving starts past Dear ImGui's drag
+  threshold, so a plain click moves and saves nothing. While moving, the
+  cursor is the move one.
 - During the drag the corner follows the cursor by the whole pixel and stops
-  where the chat at its configured size, not the size the room leaves it,
-  touches a screen edge (`ChatPosition::Follow`). A drag never shrinks the
-  chat, then; one grabbed from a slider's position whose room had narrowed it
-  first grows back to its configured size within the screen. `GetUnits`
-  allows half a pixel, so a chat against the right or top edge, whose room is
-  exactly its size, keeps that size. The player list's side is chosen anew
-  each frame, so it goes left as the chat nears the right edge.
+  where the chat at its configured size touches a screen edge
+  (`ChatPosition::Follow`), so a drag never shrinks the chat. `GetUnits`
+  allows half a pixel, so a chat against the right or top edge keeps its size.
+  The player list's side is chosen anew each frame.
 - Releasing the button, or the chat losing focus mid-drag
   (`ChatPosition::Release`), stores the corner as exact percentages
   (`ChatPosition::Store`), applies them with `Config::Apply` only if they
-  changed, and logs them, so the chat stays on the pixel it was dropped on. A
-  value that already puts the corner on that pixel is kept, so a slider's
-  whole percent survives a click on an edge.
+  changed, and logs them. A value that already puts the corner on that pixel
+  is kept, so a slider's whole percent survives a click on an edge.
 
 ### Window and input
 
-- `[Controls] OpenChat` ([Configuration](configuration.md#controls)), Enter
-  by default, during gameplay opens the chat and focuses its field; keypad
-  Enter opens it only when bound. The key only opens: the chat closes by
-  Enter and Escape as below. The whisper item in the
-  [player menu in the world](#player-menu-in-the-world)
-  opens it too, with that player as the send target. During a trade the
-  chat is docked in the trade window instead
-  ([Chat in a trade](#chat-in-a-trade)).
-  Typing goes only to the chat; the character does not move or look around, and
-  keys already held keep acting until released.
-- Escape closes an open menu, else the [player manager](#player-manager), else
-  hides the name list, else discards the text typed since opening
-  or since the last line sent ([Sending](#sending)) and closes the chat; an open [player list](#player-list) shows again
-  when the chat opens. Every key,
-  console and menu keys included, goes to the chat while it is open, but a
-  menu that opens by itself, such as dialogue an NPC starts or a loading
+- `[Controls] OpenChat` ([Configuration](configuration.md#controls)) during
+  gameplay opens the chat and focuses its field; keypad Enter opens it only
+  when bound. The key only opens: the chat closes by Enter and Escape. The
+  whisper item in the [player menu in the world](#player-menu-in-the-world)
+  opens it too, with that player as the send target. During a trade the chat
+  is docked in the trade window instead ([Chat in a trade](#chat-in-a-trade)).
+  Typing goes only to the chat, and keys already held keep acting until
+  released.
+- Escape closes an open menu, else the [player manager](#player-manager),
+  else hides the name list, else discards the text typed since opening or
+  since the last line sent ([Sending](#sending)) and closes the chat. Every
+  key, console and menu keys included, goes to the chat while it is open, but
+  a menu that opens by itself, such as dialogue an NPC starts or a loading
   screen, closes it and keeps the text.
 - The chat uses the mouse, with the cursor hidden until the mouse moves
-  ([Input focus](#input-focus)), so a player who only types sees none. It
-  appears in the middle of the chat. After any click the keyboard returns to
-  the field, except one in the player list's search field; a click outside
-  the chat and the list does nothing.
-- Open, it sits at its [position](#position), with the
-  filter row, the lines at the chat's [size](#size), and the input row,
-  inside the [menu frame](#menu-frame) over the theme's background. The frame adds half of its
-  inset and corner to the padding on
-  every side, 19 px at 1080p at the default thickness, which keeps the content
-  clear of the knots. The wheel scrolls 3 lines per notch and Page
-  Up/Down a page; under the shown cursor the lines scroll as Dear ImGui does,
-  and over the player list the list scrolls instead.
-  New lines scroll down unless the history was scrolled back.
+  ([Input focus](#input-focus)), so a player who only types sees none. After
+  any click the keyboard returns to the field, except one in the player
+  list's search field; a click outside the chat and the list does nothing.
+- Open, it sits at its [position](#position), with the filter row, the lines
+  at the chat's [size](#size), and the input row inside the
+  [menu frame](#menu-frame), whose metrics pad the content clear of the
+  knots. The wheel and Page Up/Down scroll the lines; new lines scroll down
+  unless the history was scrolled back.
 - Closed, the newest lines (at most 6) show for 10 s with no background
-  (`ImGuiWindowFlags_NoBackground`) and fade out over the last 2; with nothing
-  recent nothing is drawn. They follow the filters, whispers included, so
-  turning Global off is how a player keeps global chat off the screen. They have no
-  frame: its corners alone are taller than a line or two. Their box is in from
-  the chat's corner by the frame's padding, so the lines stay in the same
-  column when the chat opens.
-- A soft dark shadow under the recent lines keeps them readable over bright
-  scenes. `ChatWindow` draws the lines once per shadow offset, turns each
-  copy's vertices black at a fraction of their alpha and shifts them down and
-  right (`MakeShadow`), then draws the lines over them. The fractional
-  offsets, sampled between texels, and the overlapping copies soften its
-  edge. It covers every part of a line, role marks and mentions included,
-  without the lines' drawing knowing about it, and fades with the line.
-  Laying the lines out once per copy costs little: at most 6 lines, and only
-  while they show.
+  and fade out over the last 2; with nothing recent nothing is drawn. They
+  follow the filters, whispers included, so turning Global off keeps global
+  chat off the screen. They have no frame, since its corners alone are taller
+  than a line or two, and stay in the open chat's column.
+- A soft shadow under the recent lines keeps them readable over bright
+  scenes: `ChatWindow` draws the lines once per shadow offset, turns each
+  copy's vertices black at a fraction of their alpha and shifts them
+  (`MakeShadow`), then draws the lines over them, so it covers role marks and
+  mentions without the lines' drawing knowing about it.
 - The recent lines' box is pinned by its bottom and fitted to them by Dear
-  ImGui, which uses the previous frame's content. For the frame after a line
-  leaves, the box is still a line taller, so the lines are moved down to its
-  bottom (`KeepContentAtBottom`) rather than jumping up for that frame. For
-  the frame after a line arrives, the box is still a line shorter, so the
-  lines are clipped at its bottom padding and the new line shows a frame
-  later, all at once (`PushContentClip`). The clip reaches below the box by
-  the shadow's reach, which is less than the gap between lines, so the last
-  line's shadow is whole and the new line still stays hidden.
+  ImGui from the previous frame's content. For the frame after a line leaves,
+  the lines are moved down to its bottom (`KeepContentAtBottom`) rather than
+  jumping up; for the frame after a line arrives, they are clipped at its
+  bottom (`PushContentClip`), so the new line shows a frame later, all at
+  once, with the last line's shadow whole.
 - The open chat and the recent lines are each drawn in a `Theme::Scope`
   ([Theme](#theme)), so the chat has no colors or sizes of its own beyond
-  `ChatStyle`'s channel and failure colors: the field is the theme's white
-  tint with 6 px corners, the scrollbar its thin grab, the chip's and a
-  line's menus its popups with the accent border, and their hovered
-  and selected rows the accent. The name list is a child window
-  with the popup's background, so it looks the same. Text is Sovngarde Light
-  ([Themed faces](#themed-faces)).
-- The filters, the lines, the chip, the list, and the recent lines start at one
-  column, and the player button, the rule, the scrollbar, the list, and the
-  field end at one.
-  Lines are a quarter of a font size apart (`ChatHistory::GetLinePitch`),
-  closer than the theme's items. The recent lines' box draws neither a
-  background nor a border.
-- Dear ImGui details the input relies on: the field has
-  `ImGuiInputTextFlags_CallbackAlways`, `CallbackHistory`, and
+  `ChatStyle`'s channel and failure colors and chip frame. Lines are
+  `ChatHistory::GetLinePitch` apart, closer than the theme's items.
+- The field has `ImGuiInputTextFlags_CallbackAlways`, `CallbackHistory`, and
   `CallbackCompletion`, and its callback is where edits reach the composer
   and rewritten text returns to the field, in the same frame. Escape makes
   Dear ImGui put back the text the field had when it took the keyboard before
@@ -1548,12 +1322,12 @@ sent and only how it is drawn differs.
 Goal: a player can stop seeing another player without leaving: mute hides
 what it says, vanish removes its character from this world. Either is chosen
 from a [player menu](#player-menu), in the chat's lines, the
-[player list](#player-list), or the world, shows as a mark in the list, can be undone
-there or in the [player manager](#player-manager), also while the player is
-offline, and lasts across games on the same server. Non-goals: telling the
-player, a mutual vanish (a vanished player still sees the one who vanished
-it), muting or vanishing by name, a vanished player's Nearby chat (mute
-covers chat), and admin moderation.
+[player list](#player-list), or the world, shows as a mark in the list, can
+be undone there or in the [player manager](#player-manager), also while the
+player is offline, and lasts across games on the same server. Non-goals:
+telling the player, a mutual vanish (a vanished player still sees the one
+who vanished it), muting or vanishing by name, a vanished player's Nearby
+chat (mute covers chat), and admin moderation.
 
 - `PlayerFilters` (`sync/filters/`) holds the current server's entries by
   session ID: a name, `friended` ([Friends](#friends)), `muted`, and
@@ -1564,23 +1338,24 @@ covers chat), and admin moderation.
   revision, the sum of its own change count and the generation, tells
   readers when to copy again; it is two atomic loads.
 - `SetMuted` and `SetVanished` change one flag and save the entry, without a
-  [notice](#notices): the menu item, the list's marks, and the hidden lines or
-  character already show the change. `SetVanished` then publishes it
-  ([Network](network.md#vanish)). A player without a session cannot be
+  [notice](#notices), since the menu item, the list's marks, and the hidden
+  lines or character already show the change. `SetVanished` then publishes
+  it ([Network](network.md#vanish)). A player without a session cannot be
   either. At 1024 vanished players on a server another vanish is refused
-  with a notice giving the limit. A failed save posts a notice that the change lasts until the game exits.
-- The [player menu](#player-menu) ends with a separator, a mute or unmute
-  item, and a vanish or unvanish item, each with a tooltip saying
-  what it does and that the player is not told. The local player
-  (`ChatRoster::GetLocalSession`) and a player without a session get none.
+  with a notice giving the limit. A failed save posts a notice that the
+  change lasts until the game exits.
+- The [player menu](#player-menu) ends with a mute or unmute item and a
+  vanish or unvanish item, each with a tooltip saying what it does and that
+  the player is not told. The local player (`ChatRoster::GetLocalSession`)
+  and a player without a session get none.
 - Muting hides the player's lines on every channel, whispers included, in
   the open chat and the closed chat's recent lines, and what it said before
   the mute too; unmuting shows every line still held. `ChatHistory` keeps a
   `muted` flag per line from the sender's session (zero for the local
-  player's own lines), set when a line arrives and recomputed
-  for all lines only when `PlayerFilters`' revision changes. A muted line
-  marks no filter unread. A muted player's whisper does not become a whisper
-  partner (`ChatSync::DrainLines`).
+  player's own lines), set when a line arrives and recomputed for all lines
+  only when `PlayerFilters`' revision changes. A muted line marks no filter
+  unread. A muted player's whisper does not become a whisper partner
+  (`ChatSync::DrainLines`).
 - Muting also silences the player's voice: `VoiceChatSync` leaves a muted
   speaker out of the mixer, so its frames are dropped on arrival
   ([Voice chat](voice-chat.md#playback)). A vanished player's voice ends with
@@ -1596,80 +1371,71 @@ Where the friends, muted, and vanished players of the current server are
 listed, offline ones included, and undone.
 
 - `ChatPlayerManager` draws it and `ChatWindow` places and begins it
-  (`BeginFramed`) after the chat and the player list, or alone, in the menu frame
-  over the theme's background, with 26 × 22 font sizes of content.
-  It opens in the middle of the screen (`ImGuiCond_Appearing`) and can be
-  dragged by any empty part while it is open; every opening starts in the
-  middle again. The open chat's windows
-  have `ImGuiWindowFlags_NoBringToFrontOnFocus`, so a click in the chat or
-  the list leaves it in front; they come to the front only when they
-  appear. The list's button while it is open brings it
-  to the front.
-- It holds a title in the heading face with a close button at the right,
-  a tab each for friends, muted, and vanished players as chips
-  (the one shown in the accent with the chip fill, the others outlines that
-  brighten under the cursor), and a rule. Every opening shows the friends tab;
+  (`BeginFramed`) after the chat and the player list, or alone, in the menu
+  frame. It opens in the middle of the screen (`ImGuiCond_Appearing`) and can
+  be dragged by any empty part while open; every opening starts in the
+  middle again. The open chat's windows have
+  `ImGuiWindowFlags_NoBringToFrontOnFocus`, so a click in the chat or the
+  list leaves it in front; the list's button brings it to the front.
+- It holds a title with a close button, a chip tab each for friends, muted,
+  and vanished players, and a rule. Every opening shows the friends tab;
   nothing of the window is kept once it closes.
-- A tab with players has a search field, with a placeholder, that keeps
-  the names containing its text, folded as the [name list](#name-list)
-  folds them; an empty tab has none. The search stays across tabs and
-  empties when the window closes; Tab stays in the field. Then a row per
-  player of the tab, the connected ones first, each group sorted by folded
-  name: a dot of 0.4375 font sizes,
-  green (`kOnlineColor`) while the player is connected and in the muted
-  text color otherwise, whose tooltip tells which; the name, cut before the
-  button, the roster's while the player is online and as kept otherwise;
-  and a button that removes the friend, unmutes, or unvanishes, as the menu
-  does, and removes the row at once. An empty tab shows a line saying it
-  has nobody on this server, and a search matching nobody a line saying so.
-  `ImGuiListClipper` draws only the rows in view.
-- A name acts as a sender's name does in the chat's lines, on every tab:
-  under the cursor it is underlined and the cursor asks for the hand, a click
-  whispers the player while it is online, and a right click opens its
-  [player menu](#player-menu) (`##ManagePlayersMenu`), offline too. An
-  offline player has no slot, so its menu has no level or place and
-  whisper is disabled. Whisper sets the chat's target as the list's
-  does, and the window stays open. The chat counts the menu among its open
-  menus (`ChatPlayerManager::IsMenuOpen`), so Escape closes it first and
-  the field leaves the keyboard to it.
-- It copies the roster and `PlayerFilters` only when their revisions
-  change, and rebuilds the tab's rows then and when the tab changes.
+- A tab with players has a search field that keeps the names containing its
+  text, folded as the [name list](#name-list) folds them. The search stays
+  across tabs and empties when the window closes; Tab stays in the field.
+  Then a row per player of the tab, the connected ones first, each group
+  sorted by folded name: an online dot (`kOnlineColor` while connected) whose
+  tooltip tells which; the name, the roster's while online and as kept
+  otherwise; and a button that removes the friend, unmutes, or unvanishes, as
+  the menu does, and removes the row at once. An empty tab, and a search
+  matching nobody, show a line saying so. `ImGuiListClipper` draws only the
+  rows in view.
+- A name acts as a sender's name does in the chat's lines: a click whispers
+  the player while it is online, and a right click opens its
+  [player menu](#player-menu) (`##ManagePlayersMenu`), offline too. An offline
+  player has no slot, so its menu has no level or place and whisper is
+  disabled. Whisper sets the chat's target as the list's does, and the window
+  stays open. The chat counts the menu among its open menus
+  (`ChatPlayerManager::IsMenuOpen`), so Escape closes it first and the field
+  leaves the keyboard to it.
+- It copies the roster and `PlayerFilters` only when their revisions change,
+  and rebuilds the tab's rows then and when the tab changes.
 - Escape closes it before the chat, from any field. Its close button closes
   it alone. Closing the chat, by Escape, Enter, or a menu that opens by
   itself, closes it too, and it does not show again until the list's button
   is pressed.
-- `[Controls] ManagePlayers` ([Configuration](configuration.md#controls)),
-  `O` by default, during gameplay opens it alone, without the chat (the
-  user's choice): the chat's window takes focus and `ChatWindow::OnFocusKey`
-  marks it manager-only (`managerOnly`, atomic, as the input thread writes
-  it). The cursor shows at once in the middle of the screen
-  (`HidesIdleCursor` false), the recent lines show as with the chat closed,
-  and the key only opens it. Escape closes an open menu, else the window,
-  and its close button closes it; either gives input back to the game.
-  A whisper, by a name's click or its menu, closes it and opens the chat
-  with that player as the target, as a whisper from the world does. The
-  chat's key does nothing while it is open. The wheel over it scrolls it and not the chat's lines
-  (`ChatPlayerManager::IsHovered`). After a click the keyboard returns to
-  the chat's field, except in its search field.
+- `[Controls] ManagePlayers` ([Configuration](configuration.md#controls))
+  during gameplay opens it alone, without the chat: the chat's window takes
+  focus and `ChatWindow::OnFocusKey` marks it manager-only (`managerOnly`,
+  atomic, as the input thread writes it). The cursor shows at once in the
+  middle of the screen (`HidesIdleCursor` false), the recent lines show as
+  with the chat closed, and the key only opens it. Escape closes an open
+  menu, else the window, and its close button closes it; either gives input
+  back to the game. A whisper, by a name's click or its menu, closes it and
+  opens the chat with that player as the target, as a whisper from the world
+  does. The chat's key does nothing while it is open. The wheel over it
+  scrolls it and not the chat's lines (`ChatPlayerManager::IsHovered`). After
+  a click the keyboard returns to the chat's field, except in its search
+  field.
 
 ## Friends
 
 Goal: a player can keep other players to find again: added from a
 [player menu](#player-menu), listed with whether they are online in
 the [player manager](#player-manager), kept across games on the same server,
-and announced by a [notice](#notices) when they connect. Friendship is one way: the
-player is not told and need not add back. Non-goals: requests or mutual
-friendship, a mark for friends in the player list or chat lines (the
-user's choice: only the menu and the tab show it), a notice when a friend
-leaves, friends across servers (a session ID names a player on one server),
-and a limit, since nothing about friends is sent.
+and announced by a [notice](#notices) when they connect. Friendship is one
+way: the player is not told and need not add back. Non-goals: requests or
+mutual friendship, a mark for friends in the player list or chat lines (only
+the menu, the tab, and the [nameplate](#nameplates) color show it), a notice
+when a friend leaves, friends across servers (a session ID names a player on
+one server), and a limit, since nothing about friends is sent.
 
 - `SetFriend` sets `friended` and saves the entry as `SetMuted` does,
   without a notice. A friend may also be muted or vanished; removing
   the last of the three drops the entry.
 - The [player menu](#player-menu) has an add or remove friend item right
-  after whisper, with a tooltip on what it does. The local player and a
-  player without a session get neither, as for mute and vanish.
+  after whisper. The local player and a player without a session get
+  neither, as for mute and vanish.
 - `PlayerFilters::CollectArrivedFriends`, called by the
   [notice stack](#notices) every frame, copies the roster only when its
   revision changes (`Network::CopyRosterIfChanged`) and keeps the sorted
@@ -1678,9 +1444,9 @@ and a limit, since nothing about friends is sent.
   The first roster with a new local slot is a connection's first and lists
   who was already online, so it announces nobody; after it, each friend
   whose session was not in the previous copy gets a notice that it is
-  online. A muted or vanished friend is announced too. A friend
-  who leaves and comes back between two copies is not announced; one who
-  reconnects later is announced again.
+  online, muted and vanished friends too. A friend who leaves and comes back
+  between two copies is not announced; one who reconnects later is announced
+  again.
 - The same pass refreshes the kept name of any entry, friend or not, whose
   player appears with another name, the first roster included, and saves
   it, so an offline row shows the name last seen.
@@ -1689,10 +1455,9 @@ and a limit, since nothing about friends is sent.
 
 How the game shows the [role](network.md#roles) a server's admin gave a
 player, which owns the feature's goal and acceptance criteria. Non-goals: a
-name in the role's color in chat (it would hide the line's channel, which
-the label's color tells; the user chose the mark instead), a mark in the
-[name list](#name-list), the trade window, or notices, and a setting that
-hides roles.
+name in the role's color in chat, since it would hide the line's channel,
+which the label's color tells; a mark in the [name list](#name-list), the
+trade window, or notices; and a setting that hides roles.
 
 - `ChatRoster` holds the server's roles with the roster. On each roster
   revision it makes every role's `RoleMark`: the role's color and its
@@ -1700,24 +1465,19 @@ hides roles.
   so of the scripts it covers; any other character as it is).
   `FindRoleMark` gives the mark of a role ID and `FindRole` the role, both
   empty for 0 and for an ID the server no longer lists.
-- `RoleBadge` (`ui/widgets/`) draws both forms in the style of the chat's
-  [filter chips](#lines-and-filters): the `ChatStyle` chip fill and outline
-  in the role's color, with the text in that color. The mark is a square
-  chip holding the letter in the heading face (`Fonts::GetHeading`, or the
-  current font without it): `DrawMark` on any draw list at a given size and
-  alpha, which the [nameplates](#nameplates) and the
-  [player list](#player-list) use, and `Mark` as an item as high as a line
-  of text, which the [chat's lines](#lines-and-filters) use. `Name` is the
-  whole badge: the role's name in a chip, for the
-  [player menu](#player-menu).
+- `RoleBadge` (`ui/widgets/`) draws both forms as chips in the role's color
+  (`ChatStyle::DrawChipFrame`). The mark is a square chip holding the letter
+  in the heading face: `DrawMark` on any draw list at a given size and alpha,
+  which the [nameplates](#nameplates) and the [player list](#player-list)
+  use, and `Mark` as an item as high as a line of text, which the
+  [chat's lines](#lines-and-filters) use. `Name` is the whole badge, the
+  role's name in a chip, for the [player menu](#player-menu).
 - The letter is centered by its outline's exact bounds
-  (`Fonts::FindHeadingBounds`, read from the heading font with stb_truetype
-  and cached per letter), not by the baked glyph's box: that box widens to
-  whole pixels by how far the outline crosses into them, so a box-centered
-  letter shifted by a pixel with its shape (an overshoot below the baseline)
-  and with the mark's size, which changes with a nameplate's distance. A
-  letter the heading font lacks comes from a fallback font and is centered
-  by its baked box.
+  (`Fonts::FindHeadingBounds`, cached per letter), not by the baked glyph's
+  box, which widens to whole pixels and so shifts a box-centered letter by a
+  pixel with its shape and with the mark's size, which changes with a
+  nameplate's distance. A letter the heading font lacks comes from a fallback
+  font and is centered by its baked box.
 - The player menu shows the role its player holds when it opens: the
   roster's for a connected player whose entry has the same session, else the
   identity's own, so a line of a player who left still names the role they
@@ -1741,22 +1501,18 @@ game lacks (names are not on the wire), and following a level-up or a move
 while the menu is open.
 
 - `ChatPlayerMenu` is the menu's content. `ChatHistory`, `ChatPlayers`,
-  `ChatPlayerManager`, and `WorldPlayerMenu` each hold one, call `Open` with the roster entry when
-  they open their popup, and `Draw` inside it, which reports a whisper for
-  each to handle.
-- It starts with the roster's name in the heading face (`Fonts::GetHeading`)
-  at the text size and in the accent color (`Theme::GetAccent`), followed on
-  its line by the level (`kPlayerMenuLevel`) in a smaller text size
-  (`kSecondaryTextScale`) and the muted text color, on the name's baseline;
-  there is no level at level zero. Below come the player's [role](#roles)
-  badge when it has one and a muted line naming the player's place, both
-  in the smaller size. The place line starts with the location pin U+E00D
-  of the [logo](#logo) font in the accent color (left out without the
-  font) and tells that the place is unknown when it does not resolve
-  locally; there is no such line for a player outside the world. A
-  separator and the items follow. Whisper is disabled for a
-  player without a slot, which only an offline
-  row in the [player manager](#player-manager) opens the menu for.
+  `ChatPlayerManager`, and `WorldPlayerMenu` each hold one, call `Open` with
+  the roster entry when they open their popup, and `Draw` inside it, which
+  reports a whisper for each to handle.
+- It starts with the roster's name in the heading face and the accent,
+  followed on its line by the level (`kPlayerMenuLevel`) in the smaller
+  secondary size (`kSecondaryTextScale`), none at level zero. Below come the
+  player's [role](#roles) badge when it has one and a line naming the
+  player's place after the [logo](#logo) font's location pin, or that the
+  place is unknown when it does not resolve locally; there is no place line
+  for a player outside the world. The items follow. Whisper is disabled for a
+  player without a slot, which only an offline row in the
+  [player manager](#player-manager) opens the menu for.
 - `Open` asks `PlayerDetails` (`sync/chat/`) for the player's slot,
   replacing any earlier request. The next pass serves it on the game thread
   ([Sync pipeline](sync-pipeline.md#frame-sequence)): a peer with an actor,
@@ -1789,17 +1545,16 @@ while the menu is open.
   which replace them when they arrive; an empty answer, such as one without
   a connection, keeps them. While the answer is due the menu reads it once a
   frame; with nothing known it holds the place line's height, so the menu
-  does not grow under the cursor. After `kDetailsWaitSeconds` (2)
-  of frame time, each frame counting at most 0.1 s, it stops waiting and
-  shows the known details or the name alone, as for a reply the server's
-  rate limit dropped. The answer is read once.
+  does not grow under the cursor. After `kDetailsWaitSeconds` (2) of clamped
+  frame time it stops waiting and shows the known details or the name alone,
+  as for a reply the server's rate limit dropped.
 
 ## Player menu in the world
 
 Goal: activating another player's character, or the mount it rides, with
-Skyrim's Activate key (E by default) opens that player's
-[player menu](#player-menu) at the crosshair. Non-goals: another crosshair
-prompt (Skyrim's own prompt and name stay) and gamepad navigation.
+Skyrim's Activate key opens that player's [player menu](#player-menu) at
+the crosshair. Non-goals: another crosshair prompt (Skyrim's own prompt and
+name stay) and gamepad navigation.
 
 - `RemoteActorActivation` (`runtime/`) is a `TESActivateEvent` sink on
   `ScriptEventSourceHolder`, registered once data is loaded. Remote actors
@@ -1818,8 +1573,7 @@ prompt (Skyrim's own prompt and name stay) and gamepad navigation.
   window holds focus and takes focus with `WindowManager::Focus`; otherwise
   the request is dropped. With focus the cursor comes up in the middle of the
   screen ([Input focus](#input-focus)), and the menu, a theme popup, opens
-  with its corner there, over the crosshair. It holds the
-  [player menu](#player-menu); the chat stays closed.
+  with its corner there, over the crosshair. The chat stays closed.
 - Picking an item, a click of either button outside the menu, Escape, and
   the keyboard key mapped to Activate (`ControlMap::GetMappedKey`) close it
   and give input back to the game, as does a menu taking over input. Escape
@@ -1850,140 +1604,105 @@ neither touches an engine object.
 ### Prompt
 
 - `TradePrompt`, registered before the settings window so its keys come
-  first, draws while a trade is requested, invited, or inviting: a framed
-  panel at the top center, 6 font sizes down, under the compass. It has
-  no inputs and never takes focus to show.
-- Two lines, each measured before it is drawn and centered on the wider
-  one, `kHintGapFonts` (0.5) font sizes apart beyond the item spacing: the
-  message, then the key hints and the seconds left.
-- Invited: the inviting player's name in the accent and the invitation,
-  then an accept and a decline hint, each with its configured key's label
-  ([Configuration](configuration.md#controls)), and the seconds left.
-  Requesting and inviting look the same, so the prompt keeps its size when
-  the server's invitation arrives: that the other player, named in the
-  accent, has yet to answer, then a withdraw hint with the decline key and
-  the seconds left, which stay at the whole `TradeSession::kInviteSeconds`
+  first, draws while a trade is requested, invited, or inviting, as a
+  `MenuFrame::BeginPrompt` panel under the compass. It has no inputs and
+  never takes focus to show.
+- It has two centered lines: the message, then the key hints and the seconds
+  left.
+- Invited: the inviting player's name and the invitation, then accept and
+  decline hints, each with its configured key's label
+  ([Configuration](configuration.md#controls)). Requesting and inviting look
+  the same, so the prompt keeps its size when the server's invitation
+  arrives: the other player has yet to answer, then a withdraw hint with the
+  decline key; the seconds stay at the whole `TradeSession::kInviteSeconds`
   while requesting. The seconds take the width of the longest count, so the
-  centered panel does not shift as they lose a digit. An unbound action's
-  hint is left out; the invited player then answers from the player menu.
-- `IsFocusKey` takes `AcceptTrade` while invited and `DeclineTrade`
-  while invited or inviting, and nothing otherwise, so the keys stay the
-  game's. While requesting there is no trade ID to cancel yet, so the
-  withdraw hint shows but its key stays the game's. The key that gave focus answers, and the prompt gives focus back
-  in the same frame, so neither the game nor another window sees it.
+  centered panel does not shift. An unbound action's hint is left out; the
+  invited player then answers from the player menu.
+- `IsFocusKey` takes `AcceptTrade` while invited and `DeclineTrade` while
+  invited or inviting, and nothing otherwise, so the keys stay the game's.
+  While requesting there is no trade ID to cancel yet, so the withdraw hint
+  shows but its key stays the game's. The key that gave focus answers, and
+  the prompt gives focus back in the same frame, so neither the game nor
+  another window sees it.
 
 ### Window
 
 - `TradeWindow` takes focus with `TakeFocus` once the view is open, also
   from the chat or the player menu, and takes the whole display: the
   [backdrop](#backdrop) blurs and darkens the game behind every overlay
-  window, and a click on it does nothing. The cursor shows. A window kept from focus
-  by a game menu retries each frame and gives the trade up with `FAILED`
-  after `kFocusWaitSeconds` (2) of frame time, each frame counting at most
-  0.1 s; one that had focus and loses it, other than by
+  window, and a click on it does nothing. The cursor shows. A window kept
+  from focus by a game menu retries each frame and gives the trade up with
+  `FAILED` after `kFocusWaitSeconds` (2) of clamped frame time; one that had
+  focus and loses it, other than by
   [lending it to the chat](#chat-in-a-trade), cancels with `MENU`.
-- The window is laid out as one piece of three columns, 2 font sizes apart
-  and each as tall as the panel, centered together on the display: the
-  [chat](#chat-in-a-trade), 28.5 font sizes wide; the trade itself, a framed
-  panel of 56 × 52.8 font sizes, which cannot be moved or resized
-  (`MenuFrame::WindowLayout::fixedPosition`); and the
-  [preview column](#preview-column), 28 font sizes wide, right of the panel
-  as the inventory menu shows its item (the user's choice).
-- The layout, 116.5 × 52.8 font sizes, is drawn at the overlay's font size
-  where the display holds it with a 1 font size margin on every side, and
-  otherwise at the largest font size that does (`GetLayoutFontSize`,
+- The window is laid out as three columns centered together on the display:
+  the [chat](#chat-in-a-trade); the trade itself, a framed panel that cannot
+  be moved or resized (`MenuFrame::WindowLayout::fixedPosition`); and the
+  [preview column](#preview-column), right of the panel as the inventory menu
+  shows its item.
+- The layout is drawn at the overlay's font size where the display holds it,
+  and otherwise at the largest font size that does (`GetLayoutFontSize`,
   pushed with `Fonts::SizeScope` before the theme, so every length in font
-  sizes follows it). It therefore looks the same on 16:9 and on every wider
-  display (the user's choice over narrowing the chat or the preview). A
-  16:9 display is 120 font sizes across at `[UI] Scale` 100%, so on 16:9
-  from about 101% the trade's text is smaller than the scale asks; on 21:9
-  the height binds from about 123%.
-- The title names the other player, in the accent; the window has no close
-  button, Cancel and Escape close it. The left column holds the player's
-  items, and the right column the peer's offer above the player's own, each
-  a grid, the order Path of Exile stacks them in.
-- Each offer is a grid of 5 × 3 square cells, one line per cell in offer
-  order, row by row; the player cannot move items in it (the user's choice,
-  as Steam's trade does). An offer holds at most 15 lines
-  ([Trade](trade.md#offers-and-acceptance)), so every line is in view and
-  the grid has no scrolling; `TradeWindow.cpp` asserts that the grid holds
-  `kMaximumTradeItems` at compile time. The cell is the largest whole
-  pixel size up to 7 font sizes, at least 5 (`kMinimumCellFonts`, the
-  user's choice), that fits both grids' rows in the panel's height and
-  leaves the item list 20 font sizes. In the fixed panel the width limits
-  it, leaving the item list its 20 font sizes: about 103 px at 1080p
-  (6.4 font sizes), estimated from the style's sizes. A panel 44 font sizes
-  high holds the cells at their 5 font size minimum (80 px), so the panel
-  is 20% taller than that (the user's choice).
-- Each cell is its own borderless well, with a quarter font size gap
-  (`kCellGapFonts`, rounded to whole pixels, at least 1) to its neighbours.
-  The gap is taken out of the cell's pitch, so the cell size above and the
-  grid's footprint are unchanged; the item fills the whole well (the user's
-  choice).
-- A cell shows the item's [thumbnail](#3d-preview) on the empty well's
-  color (`kItemColor` = `kWellColor`) for every item, enchanted or not (the
-  user's choice), and the count above one in its top left corner, in white
-  with a dark shadow. The background must be opaque, since the still is
-  captured on it. While thumbnails are off (`[UI] ItemPreview`) or
-  unavailable, the cell shows the name instead, in the style's text color;
-  while one is captured, only the background. Hovering a cell frames it in
-  the accent and shows the item in the preview column at once.
+  sizes follows it), so it looks the same on 16:9 and every wider display
+  rather than narrowing the chat or the preview.
+- The title names the other player; Cancel and Escape close the window. The
+  left column holds the player's items, and the right column the peer's offer
+  above the player's own, each a grid.
+- Each offer is a grid of 5 × 3 cells, one line per cell in offer order; the
+  player cannot move items in it. An offer holds at most 15 lines
+  ([Trade](trade.md#offers-and-acceptance)), so every line is in view without
+  scrolling; `TradeWindow.cpp` asserts at compile time that the grid holds
+  `kMaximumTradeItems`. The cell is the largest whole pixel size, at least
+  `kMinimumCellFonts`, that fits both grids in the panel and leaves the item
+  list its width; cells are separate wells `kCellGapFonts` apart.
+- A cell shows the item's [thumbnail](#3d-preview) on the well's color
+  (`kItemColor` = `kWellColor`), which must be opaque, since the still is
+  captured on it, and the count above one. While thumbnails are off
+  (`[UI] ItemPreview`) or unavailable, the cell shows the name instead; while
+  one is captured, only the background. Hovering a cell frames it in the
+  accent and shows the item in the preview column at once.
 - The player's offer: a clicked item appears at once; a line the other game
-  [cannot receive](trade.md#offers-and-acceptance) leaves it when that
-  game's report arrives. Clicking a cell that offers one item, also one of a
-  larger stack, removes its line at once (`TradeSync::SetOfferCount` with 0)
-  (the user's choice).
-  Clicking a cell that offers more opens a popup with the name, a count field
-  with steps of one (clamped to what the player holds) and the count held,
-  and a remove button; the field is left out if the player comes to hold only one while
-  it is open. Stepping down from 1, or entering 0, removes the line and
-  closes the popup (the user's choice); typed text applies only on Enter or
-  focus loss (ImGui 1.92.9), so a 0 on the way to another count does not.
-  Escape closes the popup, and it closes when its line leaves the offer.
+  [cannot receive](trade.md#offers-and-acceptance) leaves it when that game's
+  report arrives. Clicking a cell that offers one item removes its line at
+  once (`TradeSync::SetOfferCount` with 0). Clicking a cell that offers more
+  opens a popup with the name, a count field clamped to what the player
+  holds, and a remove button; the field is left out if the player comes to
+  hold only one while it is open. Stepping down from 1, or entering 0,
+  removes the line and closes the popup; typed text applies only on Enter or
+  focus loss, so a 0 on the way to another count does not. Escape closes the
+  popup, and it closes when its line leaves the offer.
 - The peer's offer: names as the local game resolves them; lines it cannot
   receive are left out.
-- While the own offer holds 15 lines (`kMaximumTradeItems`), a warning-colored
-  mark saying it is full follows the own grid's heading label, before the
-  accepted state (the user's placement).
-- While a player has accepted, its grid is tinted green with a green frame,
-  and its heading says it accepted, so the state does not rest on color
-  alone.
+- While the own offer holds `kMaximumTradeItems` lines, a full mark in
+  `Theme::kWarning` follows the own grid's heading.
+- While a player has accepted, its grid is tinted and framed in
+  `Theme::kPositive`, and its heading says it accepted, so the state does not
+  rest on color alone.
 - The player's items: a search field (case-insensitive, by name) and a
-  category (all, weapons, apparel, ammunition, potions, ingredients, books,
-  scrolls, soul gems, keys, miscellaneous), matched again
-  only when either or the inventory changes; rows clipped to the visible
-  ones, with counts above one. Rows toggle (the user's choice): a click on
-  an offered row does what a click on its own offer cell does, removing the
-  line or opening the offer popup above, and a click on a single item not
-  yet offered offers it. While
-  the offer holds 15 lines, rows not yet offered are disabled, with no
-  notice, since the full mark on the own grid's heading shows why; offered rows,
-  hovering, the search field, and the category stay usable (the user's
-  choice). A click
-  on a stack not yet offered opens a popup with the name, a count field focused with its
-  text selected, steps of one, clamped to 1 to what the player holds, and
-  the count held, and a button that offers, starting at 1. Only the button or
+  category, matched again only when either or the inventory changes; rows
+  clipped to the visible ones, with counts above one. A click on an offered
+  row does what a click on its offer cell does, and a click on a single item
+  not yet offered offers it. A click on a stack not yet offered opens a popup
+  with the name, a count field focused with its text selected, clamped to 1
+  to what the player holds, and a button that offers; only the button or
   Enter sends the count (`TradeSync::SetOfferCount`); Escape, also while
   typing, and a click outside close it without a change, and it closes when
-  the inventory changes, since its row may then be another item. Right
-  clicks do nothing (the user's choice, for now). Offered rows are
-  highlighted; rows that cannot be offered, also those the other game
-  [cannot receive](trade.md#offers-and-acceptance), are disabled. Rows
-  whose plugins the other game has not yet reported on
-  (`InventoryLine::checking`, [plugin check](trade.md#plugin-check)) are
-  disabled too, and while any is (`View::checkingPlugins`) a note in the
-  disabled text color, its alpha pulsing 0.8 times a second, follows the
-  item list's heading (the user asked for a sign that the list is still
-  loading). A hovered row, also a disabled one, shows its item in the
-  preview column at once.
-- The footer holds Accept, disabled while blocked or accepted, and Cancel
-  at its right.
-  Acceptance shows on the grids alone, and a change taking it back shows as
-  the tint going. `TradeSync`'s reason Accept is
+  the inventory changes, since its row may then be another item. Right clicks
+  do nothing. Offered rows are highlighted. Disabled: rows not yet offered
+  while the offer is full (the full mark shows why), rows that cannot be
+  offered, also those the other game
+  [cannot receive](trade.md#offers-and-acceptance), and rows whose plugins
+  the other game has not yet reported on (`InventoryLine::checking`,
+  [plugin check](trade.md#plugin-check)); while any is checking
+  (`View::checkingPlugins`) a pulsing note follows the item list's heading. A
+  hovered row, also a disabled one, shows its item in the preview column at
+  once.
+- The footer holds Accept, disabled while blocked or accepted, and Cancel.
+  Acceptance shows on the grids alone. `TradeSync`'s reason Accept is
   unavailable (nothing offered, the offer sending, a report awaited) is the
-  disabled button's tooltip rather than a line, since it mostly
-  lasts a round trip after each edit and would flicker there. Escape, when
-  no field or popup claims it, cancels as Cancel does.
+  disabled button's tooltip rather than a line, since it mostly lasts a
+  round trip after each edit and would flicker. Escape, when no field or
+  popup claims it, cancels as Cancel does.
 - A trade that ends releases focus; a window that cancelled waits for the
   view to close without taking focus again.
 
@@ -1991,27 +1710,25 @@ neither touches an engine object.
 
 Goal: players can talk while trading without cancelling it, with the chat
 in view beside the trade. Non-goals: the [player list](#player-list) and
-the [player manager](#player-manager) during a trade (the user's choice:
-the list would cover the panel; names in the lines and Tab still
-pick a whisper target, and `@` still mentions), and resizing or moving the docked chat.
+the [player manager](#player-manager) during a trade, since the list would
+cover the panel (names in the lines and Tab still pick a whisper target, and
+`@` still mentions), and resizing or moving the docked chat.
 
 - In each frame the trade window draws its panel, it gives the chat its
   layout's left column and font size (`TradeDock::Set`; `TradeDock::Get`
   returns it for that frame only). The chat window is registered after the
-  trade window, so it draws there in the same frame, as the open chat does:
-  the filters, the lines, and the input row in the menu frame, but without
-  the players button, at the column's size rather than `[UI] ChatWidth`,
-  `ChatLines`, and the chat's position, and whether or not it holds focus.
-  The closed chat's recent lines are not drawn, and lines arriving count
-  as read on the channels shown.
+  trade window, so it draws there in the same frame, as the open chat does
+  but without the players button, at the column's size rather than
+  `[UI] ChatWidth`, `ChatLines`, and the chat's position, and whether or not
+  it holds focus. The closed chat's recent lines are not drawn, and lines
+  arriving count as read on the channels shown.
 - The trade lends the chat focus ([Input focus](#input-focus)) on
   `[Controls] OpenChat` while no trade field or popup has the keyboard
   (`TradeWindow`'s `keysFree`, set after each draw), and on a left or right
   click on the docked chat (`WindowManager::Borrow`). The click is read
-  before the chat's items, so it goes on to what it hit, such as a place in
-  the field or a sender's name. While a trade popup is open, Dear ImGui
-  reports the chat not hovered, so a click there only closes the popup.
-  `ManagePlayers` and other windows' keys stay inactive.
+  before the chat's items, so it goes on to what it hit. While a trade popup
+  is open, Dear ImGui reports the chat not hovered, so a click there only
+  closes the popup. `ManagePlayers` and other windows' keys stay inactive.
 - Without focus the docked chat only shows: its items are disabled at full
   opacity (`ImGui::BeginDisabled` with `DisabledAlpha` 1), its field asks
   for no keyboard and gives up one it still holds
@@ -2019,87 +1736,64 @@ pick a whisper target, and `@` still mentions), and resizing or moving the docke
   wheel scrolls them only under the cursor.
 - When the docked chat appears, the send target becomes a whisper to the
   other trader (`TradeSync::GetOpenPeer`); the player can change it, and
-  focusing the chat again keeps the change. Focusing it leaves the lines
-  where they are scrolled.
+  focusing the chat again keeps the change and the lines' scroll.
 - While lent, the trade handles no Escape, also in the frame the chat gives
   focus back, so the Escape that leaves the chat does not cancel the trade.
   A line sent keeps the docked chat focused, with the field emptied and the
   keyboard back in it, whatever `[UI] CloseChatOnSend` says
-  (`ChatInput::Frame::stayOnSend`; the user's choice). Escape, and Enter in
-  an empty field while that setting is on, leave it as they close the open
-  chat ([Sending](#sending)), returning focus to the trade; the chat stays
-  in its column.
+  (`ChatInput::Frame::stayOnSend`). Escape, and Enter in an empty field while
+  that setting is on, leave it as they close the open chat
+  ([Sending](#sending)), returning focus to the trade.
 - A left or right click on any of the trade's windows (`NoteClick`: the
-  panel, the model, the card) takes focus back with `TakeFocus`, keeping
-  the chat's text, and the click goes on to what it hit (the user's
-  choice). A click that only closes a chat menu, or one on the backdrop,
-  does neither.
-- A game menu taking input releases both, and the trade cancels with
-  `MENU` as without the chat. A trade that ends while the chat holds focus
-  leaves the chat open at its own position and size.
+  panel, the model, the card) takes focus back with `TakeFocus`, keeping the
+  chat's text, and the click goes on to what it hit. A click that only closes
+  a chat menu, or one on the backdrop, does neither.
+- A game menu taking input releases both, and the trade cancels with `MENU`
+  as without the chat. A trade that ends while the chat holds focus leaves
+  the chat open at its own position and size.
 
 ### Preview column
 
-The vanilla inventory's item display, right of the panel (the user's choice):
-the item's model above a card with its numbers. It replaces the item
-tooltips; the only tooltip left in the window is Accept's blocker.
+The vanilla inventory's item display, right of the panel: the item's model
+above a card with its numbers. It replaces the item tooltips; the only
+tooltip left in the window is Accept's blocker.
 
 - It shows the item last hovered in the item list or either grid, and keeps
-  it while the cursor is over the backdrop or the panel's empty parts.
-  While no item is shown, from the window's opening to the first hover,
-  the square is empty and the card is left out. A row of the player's is
-  found again by form and name when the inventory changes, since rows can
-  move, and the column empties when it is gone or when the peer takes the
-  shown line out: a shown peer line is found by `PeerLine::id`, which
-  `TradeSync` keeps while the peer offers the same item and count.
-- The model's square is the column's width, leaving the card room for at least 12
-  font sizes, so 28 font sizes square on most displays. It shows the
-  item's [model](#3d-preview) floating over the backdrop, as the inventory
-  menu does, spins it slowly, and turns it while dragged with the left button. With
-  `[UI] ItemPreview` off it stays empty.
+  it while the cursor is over the backdrop or the panel's empty parts. Until
+  the first hover the square is empty and the card is left out. A row of the
+  player's is found again by form and name when the inventory changes, since
+  rows can move, and the column empties when it is gone or when the peer
+  takes the shown line out: a shown peer line is found by `PeerLine::id`,
+  which `TradeSync` keeps while the peer offers the same item and count.
+- The model's square is the column's width, leaving the card a minimum
+  height. It shows the item's [model](#3d-preview) over the backdrop, as the
+  inventory menu does, spinning and turned while dragged with the left
+  button. With `[UI] ItemPreview` off it stays empty.
 - The card is a framed window under the square (`ui/trade/ItemCard`) laid
-  out as the vanilla inventory's item card, every line centered. As in the
-  inventory menu (the user's choice), its top stays put and its bottom
-  border follows the content: `MeasureItemCard` lays the card out without
-  drawing before the window begins, and the window is that tall, up to the
-  panel's bottom, where a longer card scrolls. The first and last lines
-  keep clear of the frame's corner knots (`MenuFrame::Metrics::corner`);
-  the sides keep the card's 0.6 font size padding. The content scrolls in
-  a child exactly the content area's size, because a window clips its
-  content only half its padding from its edge: lines scrolled past are cut
-  at that margin, and a card scrolled to its end keeps the same space
-  under its last line as one that fits. Whether the card scrolls comes from
-  the measurement, not from ImGui: a card that fits gets a child without a
-  scrollbar, since ImGui truncates window and child sizes to whole pixels
-  and could otherwise find the content a pixel too tall, and its scrollbar
-  would narrow the text into more lines that keep it shown. A scrolling
-  card lays its text out at the content width less the scrollbar. It shows the item's
-  [details](trade.md#item-details):
-  - the name in capitals in the heading font at 1.45 times, wrapped onto
-    more lines when needed, with the count in parentheses after it for more
-    than one, as the vanilla item list writes counts, over a rule the card's
-    width.
-    Capitals are made for ASCII, Latin-1, Latin Extended-A, and Cyrillic;
-    other letters are kept;
-  - in amber at 0.9 times, why a row cannot be offered (a quest needs it,
-    the peer cannot receive it, and the other [offer blocks](trade.md#offers-and-acceptance)),
-    under the rule and before the stats, so it is read first (the user's
-    choice);
-  - damage or armor rating of one item, then weight and value of the
-    whole count it shows (held for an item list row, offered for a grid
-    cell, held again once a stack leaves the offer), so a stack and a
-    single item read the same: each a gray label at 0.95 times before its
-    value in the heading font at 1.75 times, spaced 1.6 font sizes apart
-    down to 0.8 and wrapped when they still do not fit;
-  - each effect as the game words it in gray with every number (digits
-    with single `.` or `,` between them) white in the heading font, as the
-    game shows magnitudes; an undiscovered ingredient effect is darker
-    without highlights; then the charge, current over maximum, in the same
-    style (the user kept it as text rather than the vanilla meter);
+  out as the vanilla inventory's item card. As in the inventory menu, its top
+  stays put and its bottom follows the content: `MeasureItemCard` lays the
+  card out without drawing before the window begins, and the window is that
+  tall, up to the panel's bottom, where a longer card scrolls. The content
+  scrolls in a child exactly the content area's size, because a window clips
+  its content only half its padding from its edge. Whether the card scrolls
+  comes from the measurement, not from ImGui: ImGui truncates window and
+  child sizes to whole pixels and could find a fitting card a pixel too
+  tall, and its scrollbar would then narrow the text into more lines. It
+  shows the item's [details](trade.md#item-details):
+  - the name in capitals (`Utf8Case`), with the count after it for more than
+    one, as the vanilla item list writes counts;
+  - in `Theme::kWarning`, why a row cannot be offered (the
+    [offer blocks](trade.md#offers-and-acceptance)), before the stats, so it
+    is read first;
+  - damage or armor rating of one item, then weight and value of the whole
+    count it shows (held for an item list row, offered for a grid cell), so a
+    stack and a single item read the same;
+  - each effect as the game words it, with every number highlighted as the
+    game shows magnitudes, an undiscovered ingredient effect without
+    highlights, then the charge as current over maximum.
 
-  The card shows no equipped, favorite, or enchanted note: the user
-  dropped equipped and favorite, and an enchanted item is told by its
-  effects and its glow.
+  The card shows no equipped, favorite, or enchanted note: an enchanted item
+  is told by its effects and its glow.
 
 ## Voice chat
 
@@ -2107,58 +1801,46 @@ Goal: a player sees who is speaking, whether it is heard itself, and can set
 how loud each player is, without leaving the game. How voice is captured,
 carried, and played is in [Voice chat](voice-chat.md).
 
-- A speaking peer's nameplate has the speaker glyph U+E00C of the
-  [logo](#logo) font left of its name, centered on the name's height at 0.6
-  of it, 0.4 of its size from the name, in the name's color over the name's
-  outline. The glyph is static: it shows whether the peer is heard, not how
-  loud. `NameplateSync` copies `VoiceChatSync::IsSpeaking` into each plate
-  (`Plate::isSpeaking`), so a plate shows it only while in sight and in
-  range, as its name.
-- The [player list](#player-list) draws the same glyph in the accent, the
-  marks' size, before a speaking player's mute and vanish marks; the name is
-  cut before it.
+- A speaking peer's nameplate has the [logo](#logo) font's speaker glyph
+  before its name, in the name's color. The glyph is static: it shows whether
+  the peer is heard, not how loud. `NameplateSync` copies
+  `VoiceChatSync::IsSpeaking` into each plate (`Plate::isSpeaking`), so a
+  plate shows it only while in sight and in range, as its name.
+- The [player list](#player-list) draws the same glyph in the accent before a
+  speaking player's mute and vanish marks.
 - Without the font, neither shows the speaker.
-- `VoiceIndicator` shows the microphone glyph U+E008 of the
-  [logo](#logo) font 2 font sizes high, in the accent over a dark outline,
-  while the player is heard; without the font it shows nothing. It draws on the background draw list like the nameplates, under
-  every window, but is registered after the [trade window](#trade-window),
-  so it draws over the trade's [backdrop](#backdrop) and stays visible
-  while trading wherever the trade's windows leave the screen free. It
-  shows nothing outside a game, while `UI::IsGameViewShown` is false, or
-  with `[Voice] Indicator` off ([Configuration](configuration.md#voice)).
+- `VoiceIndicator` shows the [logo](#logo) font's microphone glyph in the
+  accent while the player is heard; without the font it shows nothing. It
+  draws on the background draw list like the nameplates, under every window,
+  but is registered after the [trade window](#trade-window), so it draws over
+  the trade's [backdrop](#backdrop) and stays visible while trading wherever
+  the trade's windows leave the screen free. It shows nothing outside a game,
+  while `UI::IsGameViewShown` is false, or with `[Voice] Indicator` off
+  ([Configuration](configuration.md#voice)).
 - `[Voice] IndicatorPositionHorizontal` and `IndicatorPositionVertical` place
-  the microphone's lower left corner as the chat's
-  [position](#position) settings place the chat's: at a percentage of the
-  screen's width from its left edge and of its height from its bottom edge,
-  with any fraction and rounded to the nearest pixel. The microphone is then
-  moved back until it is wholly on the screen, so `100` and `100` put it
-  against the upper right corner. The defaults, `1` and `5`, put it in the
-  band under the chat's default place at `[UI] Scale` 100; a larger scale
-  grows it upward from the same corner. It does not follow a moved chat, and
-  it has no drag: it takes no input.
+  the microphone's lower left corner as the chat's [position](#position)
+  settings place the chat's. The microphone is then moved back until it is
+  wholly on the screen. It does not follow a moved chat, and it has no drag:
+  it takes no input.
 - The settings window shows the two positions as `FinePercent` sliders, only
   while `Indicator` is on. While the pointer is over either slider or
   dragging it, the window calls `UI::PreviewVoiceIndicator` with its draft's
   positions each frame, and the indicator draws there in its next pass, heard
-  or not, in a game or not, instead of at the live position. So the
-  microphone follows a slider as it moves, though the setting applies on
-  release like the chat's.
+  or not, in a game or not, instead of at the live position, though the
+  setting applies on release like the chat's.
 - The `[Voice]` page of the [settings window](#settings-window) draws two
   rows of its own. An audio device (`SettingsVisitor::AudioDevice`) is a combo
   of the system's default, then the devices `VoiceChatSync::CopyDeviceNames`
   lists, with a saved device that is not plugged in kept in the list; opening
   it asks the audio engine to list the devices again. The input meter
-  (`SettingsVisitor::InputMeter`) is a bar 0.4 of a frame high across the
-  control: the microphone's level from `VoiceChatSync::GetLocalStatus`, which
-  `InputVolume` does not change, in the accent while the player is heard and
-  muted otherwise, with a mark at `ActivationLevel` under voice activation.
-  While the microphone is closed, as without a connection, the bar stays empty;
-  while
-  `LocalStatus::relayUnreachable`
-  ([Voice chat](voice-chat.md#relay-link)) the row is instead a line in
-  `Theme::kWarning` saying the voice relay cannot be reached and the network
+  (`SettingsVisitor::InputMeter`) is a bar of the microphone's level from
+  `VoiceChatSync::GetLocalStatus`, which `InputVolume` does not change, in the
+  accent while the player is heard, with a mark at `ActivationLevel` under
+  voice activation. While the microphone is closed, as without a connection,
+  the bar stays empty; while `LocalStatus::relayUnreachable`
+  ([Voice chat](voice-chat.md#relay-link)) the row instead tells the player in
+  `Theme::kWarning` that the voice relay cannot be reached and the network
   may block UDP.
-
 
 ## Settings window
 
@@ -2168,128 +1850,105 @@ peers keep seeing the player.
 
 - `[Controls] OpenSettings` opens it during gameplay as a focus key and closes
   it again as a release key ([Input focus](#input-focus)); a changed key
-  applies once bound. The close button at the page's top right or Escape also
-  closes it; Escape first goes to an active text field, open combo or list, or
-  a [key binding](#key-bindings) waiting for a key. Any menu taking input
+  applies once bound. The close button or Escape also closes it; Escape first
+  goes to an active text field, open combo or list, or a
+  [key binding](#key-bindings) waiting for a key. Any menu taking input
   closes it too.
 - Every opening starts from the live configuration; closing discards unapplied
   outfit edits and text still being typed. The section that was open stays
   open, except that an opening with no display name applied shows
   `[Connection]` with the keyboard in its field.
-- Centered at 54 × 36 font sizes the first time it opens in a game session,
-  and at least 40 × 20. Later openings keep the position and size it was
-  closed with; they live in ImGui's window state only, so a restart centers it
-  again. In the [theme](#theme) and the [menu frame](#menu-frame) over the
-  theme's background, without a title bar:
+- It is centered the first time it opens in a game session, with a minimum
+  size. Later openings keep the position and size it was closed with; they
+  live in ImGui's window state only, so a restart centers it again. It is in
+  the [theme](#theme) and the [menu frame](#menu-frame), without a title bar:
   it is dragged by any empty part, resized from its edges and its four
   corners (the upper ones by [`BeginWindow`'s grips](#menu-frame)), and uses
-  the mouse. The sidebar and the page fill what the frame's
-  lines enclose. ImGui's resize grips are transparent in every state
-  ([theme](#theme)), and the line
-  ImGui draws along a hovered or dragged edge is transparent
-  (`ImGuiCol_SeparatorHovered` and `ImGuiCol_SeparatorActive` around `Begin`),
-  so resizing shows the resize cursor only.
-- A sidebar 11.5 font sizes wide, on a faint panel, lists one item per file
-  section in schema order under the [logo](#logo): `[Connection]`, which
-  opens first and is the display name beside the
-  [connection button](#connection-controls) above its other settings, then
-  `[DefaultOutfit]`, `[UI]`, `[Controls]`, `[Gameplay]`, `[Voice]`, and `[Advanced]`
-  (the user's order). Each section's title is the one its schema `Section` call gives
-  ([Schema](configuration.md#schema)), so `[UI]` and `[Controls]` have titles
-  other than their keys. The
-  open section's item has an accent tint and, like a [notice](#notices), a
-  strip in the accent 0.2 font sizes wide down its full height on its left,
-  clipped from the item's rounded box (`Controls::StripedBox`). The
-  connection status stays at the sidebar's bottom in every section
-  (`ConnectionControls::DrawSummary`).
+  the mouse. The line ImGui draws along a hovered or dragged edge is made
+  transparent (`ImGuiCol_SeparatorHovered` and `ImGuiCol_SeparatorActive`
+  around `Begin`), so resizing shows the resize cursor only.
+- A sidebar under the [logo](#logo) lists one item per file section in schema
+  order: `[Connection]`, then `[DefaultOutfit]`, `[UI]`, `[Controls]`,
+  `[Gameplay]`, `[Voice]`, and `[Advanced]`. Each section's title is the one
+  its schema `Section` call gives ([Schema](configuration.md#schema)). The
+  open section's item is marked with the accent strip of
+  `Controls::StripedBox`. The connection status stays at the sidebar's bottom
+  in every section (`ConnectionControls::DrawSummary`).
 - The open section's title and the group names inside a section are in the
   heading face; everything else is in the text face.
 - The page beside it shows the open section: its title, the section's comment
-  as one muted line where the schema has one, and its settings. Only the
-  settings scroll, with the scrollbar along the frame's line; the title and
-  the footer stay in view. The close button and the end of the settings of a
-  section without a footer stay out of the knots' squares.
-- Widgets come from the same `Config::Describe` visitor that reads and writes the
-  file, so a new setting appears without UI code. A row is the label the
-  schema gives the setting
-  ([Schema](configuration.md#schema)), and, in the right 58% of the row,
-  its control: a switch at the right edge for a bool, a slider for an
-  unsigned value or a percentage, a text field for a string, an item picker for a form, a combo for a choice, a button showing
-  the key for a key ([Key bindings](#key-bindings)), and swatches for a color
-  ([Accent color](#accent-color)). Group comments are small muted
-  capitals (`Utf8Case::AppendUpper`) above their rows, as on `[DefaultOutfit]`, `[UI]`,
-  `[Gameplay]`, and `[Advanced]` ([Configuration](configuration.md#settings)).
-  `[UI] Language` is a combo of the loaded languages
-  ([Localization](#localization)).
-  `[Connection] DisplayName` is drawn beside the
-  connection button instead of as a row
-  ([Connection controls](#connection-controls)), and a `Layout` setting, as
-  the chat's [size](#size) is, is not drawn at all.
+  where the schema has one, and its settings. Only the settings scroll; the
+  title and the footer stay in view, and content stays clear of the frame's
+  knots.
+- Widgets come from the same `Config::Describe` visitor that reads and writes
+  the file, so a new setting appears without UI code. A row is the label the
+  schema gives the setting ([Schema](configuration.md#schema)) and its
+  control: a switch for a bool, a slider for an unsigned value or a
+  percentage, a text field for a string, an item picker for a form, a combo
+  for a choice, a button showing the key for a key
+  ([Key bindings](#key-bindings)), and swatches for a color
+  ([Accent color](#accent-color)). Group comments head their rows in muted
+  capitals (`Utf8Case::AppendUpper`)
+  ([Configuration](configuration.md#settings)). `[UI] Language` is a combo of
+  the loaded languages ([Localization](#localization)).
+  `[Connection] DisplayName` is drawn beside the connection button instead of
+  as a row ([Connection controls](#connection-controls)), and a `Layout`
+  setting, as the chat's [size](#size) is, is not drawn at all.
 - A row the schema shows only while a value is true (`ShowNextIf`,
-  [Configuration](configuration.md#schema)) is left out while it is false, and
-  its text in red is dropped, so it does not come back red. `[Connection]` so shows `ServerAddress` and `ServerTls` only while `CustomServer`
-  is on ([Official and custom server](configuration.md#official-and-custom-server)):
-  `ServerAddress` as a field without a label, spanning the row from the labels' left edge,
-  with a placeholder while empty, since the switch above it already names it, and
-  `ServerTls` as a switch row under it. The official server's address is never drawn.
+  [Configuration](configuration.md#schema)) is left out while it is false,
+  and its invalid text is dropped, so it does not come back invalid.
+  `[Connection]` so shows `ServerAddress` and `ServerTls` only while
+  `CustomServer` is on
+  ([Official and custom server](configuration.md#official-and-custom-server)):
+  `ServerAddress` as a field without a label, since the switch above it
+  already names it, and `ServerTls` as a switch row under it. The official
+  server's address is never drawn.
 - A setting's comment is not drawn; it is the tooltip of the row's label, and
   of a text field while its value is invalid.
 - A number's slider runs from 0 to its maximum and shows the value. A drag
-  or a typed value is rounded to the nearest step the schema gives, `100`
-  for `ViewRadius` and `1` for the others; a value from the file off the
-  step shows as it is until the slider moves. Where
+  or a typed value is rounded to the nearest step the schema gives; a value
+  from the file off the step shows as it is until the slider moves. Where
   the schema names zero ([Configuration](configuration.md#schema)), it shows
   that name at 0: the name is the slider's format, which Dear ImGui draws as
   it is when it has no conversion. Ctrl and a click turn it into a field, and
   a typed value is clamped to the range.
 - A fine percentage's slider (`FinePercent`) runs from 0 to its maximum in
-  whole percents and shows the value rounded with a percent sign; the
-  value can hold a fraction set elsewhere.
-- A percentage's slider runs between its limits and shows the value with a
-  percent sign. Ctrl and a click turn it into a field, and a typed value is
-  clamped to the limits; a dragged or typed value is rounded to the nearest
-  step from the minimum.
-- Edits in every section but `[DefaultOutfit]` take effect and are saved as they
-  are made, with no button: a switch, combo, or swatch at once, a key when
-  it is bound, a number when its slider is released, so a drag does not save
-  the file in every frame, a percentage when its slider is released, so the
-  frame does not resize the window's content under the cursor mid-drag, a
-  color from the picker when it is released or its hex field's
-  editing ends, so a drag does not save the file in every frame, and
-  text when editing ends, on Enter, on a click
-  elsewhere, or on picking another section, so a half-typed address never
-  reconnects. Escape in a text field puts
-  back the text it had when editing started. Text that does not parse turns red
-  and leaves the setting at its last valid value, while other edits still
-  apply, and a red line under the field says that it is invalid: the display
-  name's under the [connection bar](#connection-controls), the
-  `ServerAddress`'s directly under its field, wrapped at the page's width. A
-  red line appears below the settings only while the file could not be
-  saved.
-- The footer's buttons share one width: 5.5 font sizes, or more where the
-  longest of their labels needs it.
-- `[UI]`, `[Controls]`, `[Gameplay]`, `[Voice]`, and `[Advanced]` have a footer with one Defaults
-  button at its right, enabled while a setting the page shows differs from
-  the built-in one (`Config::GetDefaultConfig`); the red line shares the
-  footer, at its left. A click restores the page's settings at once and
-  applies them, without a confirmation; a listening
-  [key binding](#key-bindings) stops listening, as on any click. `[UI]`
-  keeps the chat's [size](#size), which the page does not show.
-  `[Connection]` has no footer, so its settings are reset by editing them or
-  removing the line from the file.
-- `[DefaultOutfit]` keeps its edits until Apply, since an outfit is put together
-  from several picks and each apply can publish new equipment and appearance
-  revisions to peers. Its footer has Defaults, enabled while the edits differ
-  from the built-in outfit, then Revert and Apply, enabled while they differ
-  from the live outfit; Apply then has the accent fill. Revert returns to the
-  live outfit and Defaults to the built-in one, without applying. All three
-  leave the other sections alone, and an edit applied in another section leaves
-  pending outfit edits pending. The footer's left reports unapplied changes, a
-  successful save, or a failed one.
+  whole percents and shows the value rounded; the value can hold a fraction
+  set elsewhere. A percentage's slider runs between its limits; a dragged or
+  typed value is clamped and rounded to the nearest step from the minimum.
+- Edits in every section but `[DefaultOutfit]` take effect and are saved as
+  they are made, with no button: a switch, combo, or swatch at once, a key
+  when it is bound, a slider when it is released, so a drag neither saves the
+  file every frame nor resizes the window's content under the cursor, a color
+  from the picker when it is released or its hex field's editing ends, and
+  text when editing ends, on Enter, a click elsewhere, or picking another
+  section, so a half-typed address never reconnects. Escape in a text field
+  puts back the text it had when editing started. Text that does not parse is
+  marked invalid with a line under the field saying so and leaves the setting
+  at its last valid value, while other edits still apply. A line below the
+  settings appears only while the file could not be saved.
+- The footer's buttons share one width, the widest their labels need.
+- `[UI]`, `[Controls]`, `[Gameplay]`, `[Voice]`, and `[Advanced]` have a
+  footer with a Defaults button, enabled while a setting the page shows
+  differs from the built-in one (`Config::GetDefaultConfig`); the save
+  failure line shares the footer. A click restores the page's settings at
+  once and applies them, without a confirmation; a listening
+  [key binding](#key-bindings) stops listening, as on any click. `[UI]` keeps
+  the chat's [size](#size), which the page does not show. `[Connection]` has
+  no footer.
+- `[DefaultOutfit]` keeps its edits until Apply, since an outfit is put
+  together from several picks and each apply can publish new equipment and
+  appearance revisions to peers. Its footer has Defaults, enabled while the
+  edits differ from the built-in outfit, then Revert and Apply, enabled while
+  they differ from the live outfit, Apply as the primary button. Revert
+  returns to the live outfit and Defaults to the built-in one, without
+  applying. All three leave the other sections alone, and an edit applied in
+  another section leaves pending outfit edits pending. The footer reports
+  unapplied changes, a successful save, or a failed one.
 - `SettingsWindow` holds one draft `Config::PluginConfig`. After drawing, it
   applies the live configuration with the draft's other sections whenever they
-  differ and no slider or color picker is active, and Apply does
-  the same with the draft's `defaultOutfit`.
+  differ and no slider or color picker is active, and Apply does the same
+  with the draft's `defaultOutfit`.
 - The page is drawn before the sidebar, in one `Config::Describe` pass that
   also collects the section names the sidebar lists. A picked section
   therefore shows from the next frame, after a text field edited until the
@@ -2297,31 +1956,23 @@ peers keep seeing the player.
 
 ### Accent color
 
-The player picks the [theme](#theme)'s accent on the `[UI]` page, so the settings
-window, the open chat, and their lists can match a modpack's look.
+The player picks the [theme](#theme)'s accent on the `[UI]` page, so the
+settings window, the open chat, and their lists can match a modpack's look.
 `[UI] AccentColor` ([Configuration](configuration.md#ui)) holds it, and
 `Config::SettingsVisitor::Color` passes the swatches
 `Config::UISettings::kAccentSwatches` with it.
 
-- The `AccentColor` row has, across the control, the eight swatches, amber
-  `FF9000` (the default), grey `909090`, gold `F2C14E`, red `E5484D`, pink
-  `E0559C`, violet `9B6CF0`, blue `4F8EF7`, and teal `2EC4B6`, then a custom
-  swatch. The grey is the one whose `Accent` [frame](#menu-frame) is the
-  `Vanilla` frame's `7D7D7D`, so the widgets can match the game's grey
-  frame. Each is a square no wider than a frame is high, shrinking so the
-  nine keep at least a quarter of a font size between them; the first starts
-  at the control's left edge and the custom swatch ends at its right.
-- The swatch of the current color has a ring in the text color around it.
-  The custom swatch shows a plus on the button fill while the color is a
-  swatch's and, otherwise, that color with the ring. Hovering a swatch shows
-  its `#RRGGBB`, and the custom swatch says it is custom, with the color
-  when it is.
+- The `AccentColor` row has the swatches, then a custom swatch. The grey
+  swatch is the one whose `Accent` [frame](#menu-frame) matches the `Vanilla`
+  frame, so the widgets can match the game's grey frame.
+- The swatch of the current color is ringed; the custom swatch shows that
+  color while it is not a swatch's. Hovering a swatch shows its `#RRGGBB`.
 - A click on a swatch applies its color. A click on the custom swatch opens a
-  picker below it, right-aligned: a saturation and value square, a hue bar,
-  and a hex field, without alpha. A drag or a typed color shows in the custom
-  swatch at once and applies on release or when the hex field's editing ends.
-  Escape leaves an active hex field first, then closes the picker, then the
-  window; a click outside also closes it.
+  picker below it: a saturation and value square, a hue bar, and a hex field,
+  without alpha. A drag or a typed color shows in the custom swatch at once
+  and applies on release or when the hex field's editing ends. Escape leaves
+  an active hex field first, then closes the picker, then the window; a click
+  outside also closes it.
 - The new accent shows everywhere from the next frame, including the
   `Accent` [frame](#menu-frame). The status panel and state colors stay as
   they are.
@@ -2331,10 +1982,9 @@ window, the open chat, and their lists can match a modpack's look.
 The `[Controls]` page binds each key ([Configuration](configuration.md#controls))
 by pressing it, as games' control menus do.
 
-- A row's button shows its key's label, or that it is unbound in muted
-  text. A click on it, on the press, makes it listen: the button asks for a
-  key with an accent tint and outline. Nothing is added under it, so the rows
-  below stay in place.
+- A row's button shows its key's label, or that it is unbound. A click on
+  it, on the press, makes it listen, which the button shows in the accent.
+  Nothing is added under it, so the rows below stay in place.
 - The next key pressed is bound and applied at once, and listening ends.
   Escape, the key it already has, and any mouse click end it without a
   change; a click on another key's button makes that one listen instead.
@@ -2345,9 +1995,9 @@ by pressing it, as games' control menus do.
   pressed key.
   `SettingsVisitor::Key` passes the value Backspace sets, `a_cleared`: 0 for
   an action that can be unbound.
-- A reserved key, one without a name, shows a red line under the button
-  saying it cannot be bound, and a key another action has a line naming
-  that action by its row label; listening goes on, so the player
+- A reserved key, one without a name, shows a line under the button that it
+  cannot be bound, and a key another action has a line naming that action by
+  its row label; listening goes on, so the player
   presses another key or cancels.
 - Losing focus or reopening the window ends listening.
 - The page's Defaults button ([Settings window](#settings-window)) restores
@@ -2367,25 +2017,22 @@ by pressing it, as games' control menus do.
 
 `[Connection]` is one step: the name peers see, and joining with it. The
 rows below hold `ConnectAutomatically`, `CustomServer`, `ServerAddress`, and
-`ServerTls`, without a group heading, so every setting that enables or
-disables the button is on the same page. `SettingsWindow` draws `[Connection] DisplayName` as a label
-over one line of
+`ServerTls`, so every setting that enables or disables the button is on the
+same page. `SettingsWindow` draws `[Connection] DisplayName` as a label over
 its text field and the connection button, as multiplayer clients lay out
 joining a server, and `ConnectionControls` draws the button (`DrawButton`)
-and one line under the two (`DrawNotice`). The section has no status, server
-name, or ping of its own: the sidebar's summary and the status panel show
-those.
+and one line under the two (`DrawNotice`), then a divider
+(`DrawConnectionDivider`). The section has no status, server name, or ping of
+its own: the sidebar's summary and the status panel show those.
 
-- The field takes the page's width less the button, has a placeholder while
-  empty, and applies like any text setting, when its editing ends. Applying
-  it by a click elsewhere never connects.
+- The field applies like any text setting, when its editing ends. Applying it
+  by a click elsewhere never connects.
 - The field takes only the characters a display name may hold
   (`Multiplayer::IsDisplayNameCharacter`) and at most
   `Multiplayer::kMaximumDisplayNameLength` of them (`FilterDisplayName`):
   other typed or pasted characters are dropped, and a paste past the limit
   is cut at it. Text shorter than `kMinimumDisplayNameLength` is still
-  invalid, so the field can be red while a name is being typed, with the
-  minimum under it.
+  invalid, so the field can be invalid while a name is being typed.
 - Enter or keypad Enter in the field applies its text and, when the button
   could connect (`ConnectionControls::CanConnect`), connects like a press of
   the button; otherwise it only applies. The window stays open. The editor
@@ -2394,111 +2041,85 @@ those.
   before the edit ([Network](network.md#sessions)).
 - The field is editable only while `Network::GetConnectionState` is
   `kDisconnected`, because a session takes its display name from the hello
-  ([Network](network.md#sessions)), and hovering it then shows the setting's
-  comment. Otherwise it is disabled, and hovering it shows why instead
-  (`ConnectionControls::GetDisplayNameLock`): the connection must be
-  cancelled while connecting, and ended while connected or disconnecting.
+  ([Network](network.md#sessions)). Otherwise it is disabled, and hovering it
+  shows why (`ConnectionControls::GetDisplayNameLock`): the connection must
+  be cancelled while connecting, and ended while connected or disconnecting.
 - Opening the window with no display name applied puts the keyboard in the
   field. Escape then leaves the field, and a second press closes the window.
 
 The button and Enter in the field are the only controls that connect. The
-button follows
-`Network::GetConnectionState`, so its label never claims a state the transport
-has not reached, and keeps its width and identity when the label changes:
+button follows `Network::GetConnectionState`, so it never claims a state the
+transport has not reached, and keeps its width and identity when its label
+changes:
 
-| State | Button | Fill | Press |
-| --- | --- | --- | --- |
-| Connected | disconnect | red | stops wanting a connection |
-| Connecting | cancel | plain | stops wanting a connection |
-| Disconnecting | disconnecting, disabled | plain | — |
-| Disconnected, the field holds a display name | connect | accent | wants a connection |
-| Disconnected, the field is empty or its text is invalid | connect, disabled | plain | — |
-| Disconnected, `CustomServer` on without an address | connect, disabled | plain | — |
-| Disconnected while the [vanilla intro](network.md#vanilla-intro-hold) holds the connection | connect, disabled | plain | — |
+| State | Button | Press |
+| --- | --- | --- |
+| Connected | disconnect, `DangerButton` | stops wanting a connection |
+| Connecting | cancel | stops wanting a connection |
+| Disconnecting | disabled | — |
+| Disconnected, the field holds a display name | connect, `PrimaryButton` | wants a connection |
+| Disconnected, the field is empty or invalid, `CustomServer` is on without an address, or the [vanilla intro](network.md#vanilla-intro-hold) holds the connection | connect, disabled | — |
 
-Connecting goes by the field's text, not by the applied display name: pressing
-the button ends the field's editing, which applies the text before the press
-lands, so a name that was only typed connects with one click.
+Connecting goes by the field's text, not by the applied display name:
+pressing the button ends the field's editing, which applies the text before
+the press lands, so a name that was only typed connects with one click.
 
 While disconnected, hovering the disabled button shows why it cannot connect
-(`ConnectionControls::GetButtonLock`): while the vanilla intro holds the
-connection, that the player cannot connect at this point of the game
-(`kConnectionGameStage`), the only place the plugin shows that; otherwise, with `CustomServer` on and no address, to enter an
-address in the field below, which is the only place the plugin shows that.
-Enter in the field does not connect in either case (`CanConnect`).
+(`ConnectionControls::GetButtonLock`): that the player cannot connect at this
+point of the game while the vanilla intro holds the connection
+(`kConnectionGameStage`), or, with `CustomServer` on and no address, that an
+address is needed. These are the only places the plugin shows either. Enter
+in the field does not connect in either case (`CanConnect`).
 
-The line under the field and the button is wrapped at the page's width and
-shows the first of these that holds. It is the only place the plugin shows
-them. Otherwise it stays empty at one text line's height, so the rows below
-do not move when a message appears:
+The line under the field and the button shows the first of these that holds,
+and is the only place the plugin shows them. Otherwise it keeps its height
+empty, so the rows below do not move:
 
 | Condition | Line |
 | --- | --- |
-| The field's text is not a display name ([Network](network.md#sessions)); the field's filter leaves being shorter than `kMinimumDisplayNameLength` as the only way | how many characters a name needs at least, red |
-| Disconnected because the server refused the connection, for its display name (`kDisplayNameTaken`, `kDisplayNameInvalid`) or otherwise (`kClientOutdated`, `kServerOutdated`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`, `kAddressFull`, `kBanned`) | a sentence for the reason of `Network::GetConnectionRefusal` (`FormatRefusal`), red, until the button connects again. `kClientOutdated` tells the player the server runs a newer version of the mod and `kServerOutdated` an older one; neither shows protocol numbers, the user's choice, and neither raises a notice |
-| Disconnected by a kick (`kKicked`) | no sentence; the [notice](#notices) told the player |
+| The field's text is not a display name ([Network](network.md#sessions)); the filter leaves being too short as the only way | the minimum length, as an error |
+| Disconnected because the server refused the connection (`kDisplayNameTaken`, `kDisplayNameInvalid`, `kClientOutdated`, `kServerOutdated`, `kSessionReplaced`, `kServerFull`, `kTooManyNewSessions`, `kAddressFull`, `kBanned`) | the reason of `Network::GetConnectionRefusal` (`FormatRefusal`), as an error, until the button connects again. `kClientOutdated` and `kServerOutdated` tell whether the server runs a newer or older version of the mod, without protocol numbers |
+| Disconnected by a kick (`kKicked`) | nothing; the [notice](#notices) told the player |
 
-A divider in the separator color (`DrawConnectionDivider`) follows the line
-and parts the bar from the rows below. The gap below it equals the gap from
-the field's bottom to the divider while the line is empty, so the divider sits
-midway between the field and the first switch.
+The sidebar's summary (`ConnectionControls::DrawSummary`) is a state
+indicator (`Theme::kPositive` connected, `kWarning` pulsing while connecting,
+`kNegative` refused, neutral otherwise) and the state on one line, with the
+ping while connected.
 
-The sidebar's summary (`ConnectionControls::DrawSummary`) is an indicator and
-the state on one line, with the ping in muted text at the right while
-connected:
-
-| State | Indicator |
-| --- | --- |
-| Connected | green |
-| Connecting | amber, pulsing |
-| Disconnecting | grey |
-| Disconnected, refused by the server | red |
-| Disconnected | grey |
-
-A game that starts with `ConnectAutomatically` and a display name connects
-by itself;
-nothing else connects without a press. A refusal leaves the player
+A game that starts with `ConnectAutomatically` and a display name connects by
+itself; nothing else connects without a press. A refusal leaves the player
 disconnected with the field editable, and the button then retries with
-whatever is applied, which clears the sentence. The refusals are in
+whatever is applied, which clears the line. The refusals are in
 [Network](network.md#connection).
 
 Not wanting a connection closes it and removes every remote player until the
 next connect. The button acts on the live settings, which a display name or
 address reaches when its editing ends. Applying an address or switching
-`CustomServer` or `ServerTls` keeps a live connection on its server; the next connect, or
-a reconnect after a loss, goes to the server they now name
+`CustomServer` or `ServerTls` keeps a live connection on its server; the next
+connect, or a reconnect after a loss, goes to the server they now name
 ([Network](network.md#connection)).
 
 ### Discord link
 
-The bottom of the `[Connection]` page holds an invitation to the mod's Discord
-server (`DiscordLink`): the Discord symbol in Discord's `5865F2`, and beside it
-a one-line invitation (`SettingsDiscord`) in the text color at 0.68 alpha,
-full while hovered. Both are one button with the hand cursor inside a rounded
-border, aligned with the page's right padding; a click opens the invite in the
-default browser.
+The bottom of the `[Connection]` page holds an invitation to the mod's
+Discord server (`DiscordLink`): the [logo](#logo) font's Discord symbol and a
+one-line invitation (`SettingsDiscord`), as one bordered button; a click
+opens the invite in the default browser. Without the font, the text alone is
+in the border.
 
 - The invite comes from the build: the `discord_invite` xmake option
   (`xmake f --discord_invite=https://...`, default empty), which the
   PlayerHub target's `on_config` passes as the `PLAYERHUB_DISCORD_INVITE`
   string define, like `server_address`
   ([Configuration](configuration.md#connection)). A build without it has no
-  link at all (`DiscordLink::IsEnabled`); the symbol stays in the font. The
-  define is present even when empty, because xmake 3.0.6 recompiles for a
-  changed define but not for one that was added. A value that does not start
-  with `https://`, or that holds whitespace, a quote, or a backslash, fails
-  the configuration.
-- The symbol is the logo font's U+E002 ([Logo](#logo)) 1.25 font sizes high,
-  floored to whole pixels, half a font size from the text, which is centered
-  on it. Without the font, the text alone is in the border.
-- The border is padded 0.625 font sizes on the sides and 0.375 above and
-  below, with the style's `FrameRounding`. Its line is a sixteenth of a font
-  size and at least a pixel, drawn inside the button's bounds, white at 0.25
-  alpha and 0.6 while hovered.
+  link at all (`DiscordLink::IsEnabled`). The define is present even when
+  empty, because xmake 3.0.6 recompiles for a changed define but not for one
+  that was added. A value that does not start with `https://`, or that holds
+  whitespace, a quote, or a backslash, fails the configuration.
 - `EndSection` puts it at the bottom right of the section's scrolling area,
-  by `DiscordLink::GetSize`, inside the scrollbar when there is one, and as low
-  as the area's closing spacer still fits under it, so it never makes the page
-  scroll; when the rows reach lower, it follows them.
+  by `DiscordLink::GetSize`, as low as the area's closing spacer still fits
+  under it, so it never makes the page scroll; when the rows reach lower, it
+  follows them.
 - `ShellExecuteW` runs on a detached thread with COM initialized, because it
   waits for the browser to take the URL; a failure logs a warning with its
   result.
@@ -2513,24 +2134,24 @@ catalog and filters are in
 [Appearance and equipment](appearance-and-equipment.md#item-filter-and-catalog).
 
 - The picker has no colors or sizes of its own: it takes the style of the
-  window that draws it, the [theme](#theme) in the settings window, and the
-  theme's amber for warnings.
+  window that draws it, the [theme](#theme) in the settings window, and
+  `Theme::kWarning` for warnings.
 - The closed field shows the item's name, its `Plugin|0xID` marked as not
-  loaded in amber for a missing plugin, or the name in amber for an item the filter rejects,
-  each with an explaining tooltip. A value for a plugin that is not loaded can
+  loaded for a missing plugin, or the name marked as a warning for an item
+  the filter rejects, each with an explaining tooltip. A value for a plugin that is not loaded can
   still be written to the file.
-- The open list is 40 × 22 font sizes, with a search field that takes keyboard
-  focus and a two-column table of name and plugin. A setting that may be empty
+- The open list has a search field that takes keyboard focus and a
+  two-column table of name and plugin. A setting that may be empty
   (`allowNone`, from the `Config::SettingsVisitor::Form` call) has a none row
   first while the search field is empty, which picks the empty reference and
-  shows the closed field's dimmed none label; other settings have no empty
+  shows none in the closed field; other settings have no empty
   row, since they always hold an item. Only visible rows are drawn
   (`ImGuiListClipper`), and the current value is scrolled into view.
 - Clicking a row picks it, Enter picks the first row, Escape closes the list.
 - While the value differs from the setting's default, the field narrows for a
   reset icon button beside it, which sets the default; its tooltip names the
   default item.
-- With `[UI] ItemPreview`, a 13-font-size square panel to the right shows the
+- With `[UI] ItemPreview`, a square panel to the right shows the
   hovered item's model, or the current value's, with its name and
   `Plugin|0xID` below; it is empty for the none row or an empty value. Race lists have no panel, since the inventory renderer
   shows only items (`Forms::HasModel`).
@@ -2544,20 +2165,16 @@ picker's panel) or as cached thumbnails for many cells.
 
 - `DrawModel(formID, size)` takes the area as an invisible button and draws
   the item's model fitted and centered in it over whatever is behind it; the
-  item picker draws its dark panel first. A new item shows nothing for
-  0.3 s, then a loading line, and a no-preview line once it fails. While the button
-  is held, the mouse turns the model, one radian per 8 font sizes of
-  movement, the horizontal part negated as the inventory menu's mouse
-  handler does. A new item starts unturned.
+  item picker draws its panel first. A new item shows nothing for a
+  moment, then a loading state, and a no-preview state once it fails. While
+  the button is held, the mouse turns the model, the horizontal part negated
+  as the inventory menu's mouse handler does. A new item starts unturned.
 - Once captured, the model spins about its vertical axis at
-  `kSpinRadiansPerSecond` (30° a second, one turn in 12 s; the user's
-  choice), as a horizontal drag to the right turns it. Holding the button
-  pauses the spin, which resumes from where the player left the model as
-  soon as it is released (the user's choice).
-  A spinning model is captured at most every `kSpinCaptureIntervalSeconds`
+  `kSpinRadiansPerSecond`. Holding the button pauses the spin, which resumes
+  from where the player left the model when it is released. A spinning model is captured at most every `kSpinCaptureIntervalSeconds`
   (1/30 s), on the update closest to it assuming the next update is as long
   as the current one, since each capture renders the inventory scene twice
-  on the main thread; at 30°/s a capture turns it by about 1°. The draw
+  on the main thread. The draw
   keeps the last capture in between. A turn, a new size, a watch, or an
   animation still captures on its own schedule. The spin advances by the
   frame time of the updates that render the model or wait for its next
@@ -2576,7 +2193,7 @@ picker's panel) or as cached thumbnails for many cells.
   its load, else none, which stops the renderer (`End3D`) and keeps the
   images. Pending stills come before
   the model's refresh and glow watch, which would otherwise hold stills back
-  for up to 3 s while the player moves between items (seen in a log).
+  for seconds while the player moves between items.
   `Inventory3DManager::Begin3D(kInventory)` is called once, and
   `LoadInventoryItem` only when the form changes or a refresh needs a load
   that started after the capture it replaces.
@@ -2589,8 +2206,8 @@ picker's panel) or as cached thumbnails for many cells.
   attached only by `Render`, so while none is attached, `Update` calls
   `Render` with `UI::numDisablePauseMenu` at zero, which draws nothing. A
   model counts as attached only when the last `loadedModels` entry's
-  `itemBase` is the loaded form, since the previous item's model was seen
-  still attached a frame after a new load. A job captures once the model is
+  `itemBase` is the loaded form, since the previous item's model can still be
+  attached a frame after a new load. A job captures once the model is
   attached, one more update pass has run, and every diffuse and normal
   texture of its lighting materials has a `rendererTexture` with a D3D
   texture and view; a model that has not rendered within
@@ -2643,8 +2260,8 @@ picker's panel) or as cached thumbnails for many cells.
   `directionalAmbientTransform`, `ambientSpecular`, and
   `ambientSpecularEnabled` and the colors ID 105643 keeps (ID 414646, SE
   527705, which MistMenu reads back through ID 105644). The scene's own light,
-  the `fInventoryMenuLight*` INI point light (by default at (100, -350, 100),
-  radius 400, in front of and above the item), stays as the inventory menu has
+  the `fInventoryMenuLight*` INI point light in front of and above the item,
+  stays as the inventory menu has
   it and gives the shading. The first capture of each start logs the world's
   ambient it replaced (`worldAmbient`, the transform's translation).
 - After restoring or fitting a transform, `ItemPreview` calls
@@ -2664,9 +2281,8 @@ picker's panel) or as cached thumbnails for many cells.
 - Loads share models. In 1.7.104 `LoadInventoryItem` (ID 51758) reuses a
   model still in `loadedModels` (up to 7, keyed by model object) as it was
   left, and only `End3D` (ID 51756) releases them, so a still captured
-  after the panel showed the same item would get the panel's size and turn
-  (logged as thumbnail boxes of about 1176 px right after a model capture of
-  the form). The first time a form attaches after `Begin3D`,
+  after the panel showed the same item would get the panel's size and turn.
+  The first time a form attaches after `Begin3D`,
   `ItemPreview` keeps its local transform as the game's (`gameTransforms`,
   cleared on stop). Each still capture starts from it, and each model
   capture from the model's kept transform (`SetTransform`), since both
@@ -2676,25 +2292,24 @@ picker's panel) or as cached thumbnails for many cells.
   shader property has effect data (`BSShaderProperty::effectData`, which
   is where an enchantment's glow is). The check runs after each capture
   until one finds either. The game attaches the glow a frame or two after
-  the model (logged as absent at a load's first capture and present at the
-  next). A form with its own enchantment
+  the model, so a form with its own enchantment
   (`TESEnchantableForm::formEnchanting`; items load without extra data, so
   no other can glow) is therefore watched: after the first capture of each of its loads, the
   refresh's included, the model is captured on every update for
   `kEffectWatchSeconds` (0.5) while no still waits for its first capture,
-  as otherwise it showed its glow only once turned. A still, captured
+  so it shows its glow without being turned. A still, captured
   once per load, instead waits for effect data until
   `kStillEffectWaitSeconds` (0.25) have passed since its load attached or
   in all across its loads (`ThumbnailSlot::effectWaited`, so a model
   taking the renderer back does not restart it), running only `Render`'s
   update pass with the count at zero meanwhile; one without a glow by then
-  is captured as it is. In a log the glow came within 6 to 9 ms of the
-  first capture, and Ruin's Edge (FE002D63), enchanted but animated by a
-  time controller, never got effect data, so a longer wait from each load
-  would hold back every still after it. An animated model is captured on
-  every update that has no other job, as the inventory menu renders it each
-  frame; captured only when due, its glow froze between captures and jumped
-  at each turn, which a drag showed as flicker (seen in game). Afterwards it gives way only to a thumbnail that is due, so the loaded
+  is captured as it is: the glow comes within milliseconds, and some
+  enchanted items animated by a time controller never get effect data, so a
+  longer wait from each load would hold back every still after it. An
+  animated model is captured on every update that has no other job, as the
+  inventory menu renders it each frame, since captured only when due its glow
+  would freeze between captures and flicker during a drag. Afterwards it
+  gives way only to a thumbnail that is due, so the loaded
   item does not switch every frame. The first capture that finds it
   animated logs the counts (`Item model animated`), and the first 6 log
   the first effect data's offsets and alphas against the clock
@@ -2713,11 +2328,10 @@ picker's panel) or as cached thumbnails for many cells.
   finished load (load task state 5), updates the model, and tail-calls the UI 3D
   scene render (ID 52727), which draws nothing unless the scene's light scheme
   matches and `UI::numDisablePauseMenu` (`UI + 0x168`) is positive. The count is
-  positive while an inventory menu is open. The overlay is not a menu, and opening one would take input
-  focus, so `ItemPreview` sets the count for the call and restores it. The scene
-  draws into the engine's current render target, which a one-time pixel readback
-  confirmed is the back buffer at the overlay hook; with the count at zero every
-  captured pixel matched the cleared background.
+  positive while an inventory menu is open. The overlay is not a menu, and
+  opening one would take input focus, so `ItemPreview` sets the count for the
+  call and restores it. The scene draws into the engine's current render
+  target, the back buffer at the overlay hook.
 - `DrawThumbnail(drawList, formID, background, min, max)` fills the rectangle
   with the opaque `background` and draws the item's still fitted and
   centered, returning `kDrawn`, `kLoading` while it waits for its capture,
@@ -2942,16 +2556,17 @@ and share a language without a plugin build.
 
 ## Engine assumptions
 
-Not confirmed in game:
+Not confirmed in game. IDs are 1.7.104's, read from its disassembly, with SE
+IDs matched against 1.5.97 where given.
 
-1. A model captured again 1.5 s after its first capture, from a fresh
-   load, is drawn with all its textures. In game some first captures,
-   taken one update pass after attaching, lacked textures even though
-   every lighting texture already had its `rendererTexture`: in 1.7.104
+1. A model captured again `kRefreshDelaySeconds` after its first capture,
+   from a fresh load, is drawn with all its textures. Some first captures,
+   taken one update pass after attaching, lack textures even though every
+   lighting texture already has its `rendererTexture`:
    `BSShaderManager::GetTexture` (ID 105640) reads a texture file
    synchronously on the model loader thread, and `BSShaderResourceManager`
-   (vtable slot `0xD0`, ID 108531) sets `rendererTexture` when it creates
-   the `NiSourceTexture`. What the first capture misses is not identified.
+   (vtable slot `0xD0`, ID 108531) sets `rendererTexture` when it creates the
+   `NiSourceTexture`. What the first capture misses is not identified.
 2. Skyrim's back buffer format supports `D3D11_FORMAT_SUPPORT_MIP_AUTOGEN`,
    as `R8G8B8A8_UNORM` does, and `ClearView` writes the same value the
    overlay's draw of the same 8-bit color does, so a cell's background meets
@@ -2962,568 +2577,390 @@ Not confirmed in game:
    attaches is the form passed to it. A reused entry is found by its model
    object (ID 51771) and keeps its `itemBase`, so two forms sharing one
    model object within a run would leave the second waiting until its
-   5 s timeout; no capture in game has timed out so far.
+   capture timeout.
 5. The UI 3D scene draws a model the same over black and over white within
    one frame, so the difference of the two captures is its coverage: no
    part of the scene render reads the cleared background.
 6. ID 51778, called as the inventory menu's mouse handler (ID 51770) calls
    it, with a `NiPoint2` of angles in radians, turns the last loaded model
-   about its bound's center by changing its local transform. From the
-   disassembly, `Render` does not reset that transform: its zoom step (ID
-   51777) moves the model only while a zoom is under way. Setting the kept
-   transform on a newly attached model before its update pass shows it
-   turned.
+   about its bound's center by changing its local transform. `Render` does
+   not reset that transform: its zoom step (ID 51777) moves the model only
+   while a zoom is under way. Setting the kept transform on a newly attached
+   model before its update pass shows it turned.
 7. The state `PassScope` puts back is all the engine's state tracking
    relies on, so the frame after a blur or a model capture draws unchanged.
-   `D3DCompile` compiled the shaders in game for the trade backdrop.
 8. The frame target at the overlay hook is single-sampled and can be copied
    whole (`CopyResource`) into a texture of its own format.
 9. Scaling a model's local transform in the inventory scene keeps its
    lighting and textures as the unscaled model has them, and calling
    `NiAVObject::Update` (ID 70251) with a time of zero on the attached model
-   advances nothing visible. From the disassembly, a controller accumulates
-   the time since its last update (`NiTimeController::ComputeScaledTime`,
-   ID 70824), so the zero steps it back by the last time and the update
-   `Render` makes before drawing, at the application's run time (ID 410201,
-   in ms), steps it forward again.
+   advances nothing visible: a controller accumulates the time since its last
+   update (`NiTimeController::ComputeScaledTime`, ID 70824), so the zero
+   steps it back by the last time and the update `Render` makes before
+   drawing, at the application's run time (ID 410201, in ms), steps it
+   forward again.
 10. Clearing `taaEnabled` for the scene render's call removes the jitter,
-    the motion vector target, and the TAA resolve together, read from the
-    disassembly (the camera setup it calls, ID 77506, takes the same flag),
-    and nothing else that frame reads the flag between the clear and the
-    restore.
-11. An enchanted item's glow is attached by the game within
-    `kEffectWatchSeconds` of the model's attach. A log showed it as effect
-    data on one shader property of enchanted armor (no
-    controllers), absent at the first capture and present one update
-    later, its `vOffset` advancing between frames; what attaches it, and
-    whether it can take longer, was not traced. Only forms with their own
-    enchantment get one, and `Render` with the count at zero, which draws
-    nothing, still lets it attach.
+    the motion vector target, and the TAA resolve together (the camera setup
+    it calls, ID 77506, takes the same flag), and nothing else that frame
+    reads the flag between the clear and the restore.
+11. An enchanted item's glow, effect data on a shader property, is attached
+    by the game within `kEffectWatchSeconds` of the model's attach; what
+    attaches it is not traced. Only forms with their own enchantment get one,
+    and `Render` with the count at zero, which draws nothing, still lets it
+    attach.
 12. The lighting shader reads the directional ambient and ambient specular
     from `BSShaderManager::State` during the scene render's call, so setting
     them with ID 105643 for the call and restoring the fields afterwards
-    lights the capture without changing the world's frame. Read from the
-    disassembly: ID 105643 writes only those fields and its color copy at
-    ID 414646, the inventory scene's render path does not call it, and the
-    lighting shader's geometry setup (ID 107312) reads the transform. How
-    bright 0.45 looks against the scene's light was not seen in game.
-13. Only an English and Russian switch was seen on Windows; other
-    languages were not tried. Dead keys compose in the polling thread's
-    own keyboard state, so a dead key pressed while the poll changes
-    threads may be lost.
+    lights the capture without changing the world's frame: ID 105643 writes
+    only those fields and its color copy at ID 414646, the inventory scene's
+    render path does not call it, and the lighting shader's geometry setup
+    (ID 107312) reads the transform.
+13. [Input language](#input-language) switching works for every layout as
+    for English and Russian. Dead keys compose in the polling thread's own
+    keyboard state, so a dead key pressed while the poll changes threads may
+    be lost.
 14. Nameplates: `Actor::HasLineOfSight` (ID 53829) on the player calls ID
-    40520, which sets its second argument from a frustum test of the
-    target's bound and only then casts a ray, on collision layer `0x29`,
-    from the camera; this was read from the 1.7.104 disassembly, not seen
-    in game. That other remote actors and the target's own collision do not
-    block the ray is assumed. `WorldRootCamera`'s `worldToCam` at the
-    overlay hook is the matrix the frame was rendered with, its fourth row
-    gives a depth that is positive in front of the camera, and its viewport
-    is 0 to 1 with y up; ID 70640's arithmetic matches a standard
-    projection, but none of this was seen in game. The SE IDs (53029,
-    69270, and 39444 for ID 40520, with the same layer) match the 1.5.97
-    disassembly.
-15. `INISettingCollection` holds `sLanguage:General` with the game's language
-    by the overlay's first frame, since the renderer starts after the INI
-    files are read. The setting's name is in the 1.7.104 executable. Its
-    values for the official languages are assumed to be `ENGLISH`, `FRENCH`,
-    `GERMAN`, `ITALIAN`, `SPANISH`, `POLISH`, `RUSSIAN`, `JAPANESE`, and
-    `CHINESE`, which the shipped files' `X-Skyrim-Language` headers name and
-    which are matched without case, and `CHINESE` is assumed to be the game's
-    Traditional Chinese.
+    40520, which sets its second argument from a frustum test of the target's
+    bound and only then casts a ray, on collision layer `0x29`, from the
+    camera. Other remote actors and the target's own collision do not block
+    the ray. `WorldRootCamera`'s `worldToCam` at the overlay hook is the
+    matrix the frame was rendered with, its fourth row gives a depth that is
+    positive in front of the camera, and its viewport is 0 to 1 with y up
+    (ID 70640's arithmetic matches a standard projection). SE IDs: 53029,
+    69270, and 39444 for ID 40520, with the same layer.
+15. `INISettingCollection` holds `sLanguage:General` with the game's
+    language by the overlay's first frame, since the renderer starts after
+    the INI files are read. Its values for the official languages are
+    `ENGLISH`, `FRENCH`, `GERMAN`, `ITALIAN`, `SPANISH`, `POLISH`, `RUSSIAN`,
+    `JAPANESE`, and `CHINESE`, matched without case, and `CHINESE` is the
+    game's Traditional Chinese.
 16. The `sHealthDataPrefixWeap1`–`6` and `sHealthDataPrefixArmo1`–`6` game
-    settings hold the tempering tiers' names in the game's language, `Fine` to
-    `Legendary` in English. An empty or missing one falls back to the English
-    name.
+    settings hold the tempering tiers' names in the game's language. An empty
+    or missing one falls back to the English name.
 17. Without a plugin that redirects it, the `kFRAMEBUFFER` render target
     view at the overlay hook views the swap chain's back buffer, and the
     menus have drawn on it. Community Shaders draws its own ImGui menu there
-    at Present when its HDR output is off. Under Community Shaders' HDR
-    output, the inventory renderer used by item captures draws on the UI
-    texture that `kFRAMEBUFFER` then names. Its frame generation proxy's
-    swap chain buffer has both shared flags, and a real swap chain's buffer
-    has neither (checked against its source, not in game).
+    at Present when its HDR output is off. Under its HDR output, the
+    inventory renderer used by item captures draws on the UI texture that
+    `kFRAMEBUFFER` then names. Its frame generation proxy's swap chain buffer
+    has both shared flags, and a real swap chain's buffer has neither (read
+    from its source).
 18. `BSTEventSource<InputEvent*>::SendEvent` calls its sinks with an empty
     list as with any other, and stops at the first sink that returns
-    `kStop` (1.7.104 disassembly). Community Shaders and SKSE Menu Framework
-    dispatch an empty list while their menu is open (checked against their
-    source), and on 1.5.97 the same detection is assumed to work.
-19. The game's cursor is 60 px tall at 1080p. In 1.7.104 `CursorMenu`'s
-    constructor loads its movie with `ScaleModeType::kShowAll` (the
-    `mov dword ptr [rsp+0x20], 1` before `BSScaleformManager::LoadMovie`),
-    the movie's stage is 640 x 480, and the shape is placed at 0.634 of its
-    height. That assumes the movie's viewport is the whole screen, so the
-    stage fits the screen's height.
+    `kStop`. Community Shaders and SKSE Menu Framework dispatch an empty list
+    while their menu is open (read from their source), also on 1.5.97.
+19. The game's cursor height follows from `CursorMenu`'s constructor loading
+    its movie with `ScaleModeType::kShowAll` (the `mov dword ptr [rsp+0x20],
+    1` before `BSScaleformManager::LoadMovie`), the movie's 640 × 480 stage,
+    and the shape's placement, assuming the movie's viewport is the whole
+    screen, so the stage fits the screen's height.
 
 ## Acceptance criteria
 
-1. The main menu shows no status panel, and a game shows none by default. With
-   `StatusPanel = true`, in a game the panel shows the connection, a stable
-   ping, traffic, and plugin time, and scales at 1080p and 4K;
-   `StatusPanel = false` hides it at once.
-2. Enter opens the chat only with no menu open; the character stands still while
-   typing, and W held from before keeps running until released. Enter sends and
-   the line appears for both players, and closes the chat, or with
-   `CloseChatOnSend = false` keeps it open for the next line, where Enter in
-   an empty field does nothing; Escape closes without sending and does not
-   open the journal; a menu that opens by itself closes the chat; recent lines
-   show over the game with no background, readable over snow or sky by
-   their shadow, and fade after 10 s with it; the wheel and Page Up/Down scroll; sending while disconnected
-   shows a failure note above the field and keeps the chat open with the
-   text, and typing clears the note.
-3. The chip shows Nearby at first, and `hi` reaches players within 8192 units
-   or in the same interior with a lime name, and not a player farther away.
-   Tab turns the chip to Global; the line reaches every player with a gold
-   name, and so does the next one, until Tab again. `/g hi` is sent as
-   written.
-4. `F4` opens the settings window with a cursor, and the game receives no input
-   until it closes; `F4` again closes it. A new `OpenSettings` key opens and
-   closes it and the old one no longer does, as soon as it is bound.
-   Chat still opens with Enter and shows no cursor until the mouse moves.
-   With another plugin's ImGui menu bound to Delete, Delete and letters typed
-   into the chat or a settings field do not open its menu, and Delete opens it once
-   the window is closed; `PlayerHub.log` has one line about detouring input
-   dispatch again.
-   With the Community Shaders or SKSE Menu Framework menu open, `T`, `F4`,
-   and the other focus keys open no overlay window and reach that menu,
-   for example typed into its search field. Once it closes they work again.
-5. The `[Connection]` page holds the display name field with one button beside
-   it and a line under them. Opening the window with no display name puts the
-   cursor in the field, the button cannot connect, and the status panel shows
-   only that it is disconnected; typing a name and then clicking the button
-   once or pressing Enter connects, and the window stays open, while a click
-   elsewhere only saves the name. Enter with an invalid name, or with
-   `CustomServer` on and no address, only leaves the field. Spaces, punctuation,
-   and non-ASCII letters cannot be typed or pasted into the field, and it
-   takes no 16th character. Once
-   connected the button is red and disconnects, the field is greyed out and
-   says on hover to disconnect first, and the sidebar shows the connected
-   state with a green indicator and the ping; disconnecting makes the button
-   orange and connecting with the field editable and the sidebar
-   disconnected with a grey indicator, removes remote players, and keeps
-   them away through a save load until the next connect. Connecting right
-   after disconnecting shows a plain cancel button and a pulsing amber
-   indicator until the connection opens, never a disconnect button while
-   disconnected. A display name another player holds shows a red indicator
-   and the refusal's sentence under the field beside the button, and only
-   the disconnected state in the status panel; entering another display name
-   and connecting clears it. A name shorter than three characters turns red
-   with the minimum of three under the field and disables connecting. The sidebar shows the
-   same status in every section.
-6. `[Connection]` has nothing below its settings, and `[UI]` and
-   `[Advanced]` only a disabled Defaults button. Switching `StatusPanel` off hides the panel at once; typing
-   a display name changes nothing until a click elsewhere, which saves it
-   without connecting. `[Connection]` shows `ConnectAutomatically`
-   on, `CustomServer` off, and no address, without a group heading.
-   `ViewRadius` is a slider showing its zero name at the left end and game
-   units up to 15000 in steps of 100 as it is dragged, saved on release. After changes on
-   `[UI]` and `[Advanced]`, each page's Defaults restores only its own
-   settings, leaves the chat's size as dragged, and is disabled again. Each
-   change is in `PlayerHub.ini` without pressing anything. `[DefaultOutfit]`
-   shows Defaults, Revert, and Apply; a picked item shows a reset icon and reaches
-   peers only on Apply, and Defaults leaves the display name and server address as
-   they are.
-7. The picker lists only matching base-game items and races. Hovering rows
-   switches the model without flicker on the world behind, and the model spins
-   slowly; background loads
-   appear after the attach pass (a stall logs `Item preview waiting`); nothing is
-   left on screen after the list closes; the inventory shows its own models
-   normally afterwards; FPS stays steady while a list is open;
-   `ItemPreview = false` removes the panel.
-8. With the default accent the settings window has no blue: the open
-   section's sidebar item, switches that are on, the connection button and a
-   pending Apply, and hovered or pressed widgets are orange at 1080p and 4K, and the
-   lists it opens have a rounded `FF9000` border. Picking a sidebar item shows that section, and the window can be
-   dragged by its sidebar or title.
-9. The settings window, its lists, and its tooltips are in Sovngarde, with
-   section titles and group names bold, at 1080p and 4K. The
-   open chat, with its filters, field, name list, and menus, and the recent lines
-   are in Sovngarde too, with each line's label, up to its colon, bold,
-   and the lines stay in the same column and at the same
-   height when the chat opens; the status panel stays in the system font. The
-   log has one `UI overlay: font` line per file. A display name or chat line
-   with characters Sovngarde lacks still shows every character. With
-   `PlayerHub/fonts/` removed, the log warns for each file and the window and
-   the chat show in the system font.
-   The sidebar is headed by the sharp PlayerHUB logo at 1080p and 4K, left-aligned
-   with the section labels and as wide as the space between their insets, its bar
-   in the accent color and following a new accent from the next frame; without
-   `PlayerHub.ttf` the log warns and the sidebar shows a text title.
-   In a build with `discord_invite` set, the `[Connection]` page ends in the
-   Discord symbol with the invitation beside it on one line, in a rounded
-   border, at its bottom right, without a
-   scrollbar at the default size; a click opens the invite in the default
-   browser. A build without it shows neither.
-10. The settings window and the open chat have the game's menu frame in the
-    game's grey, with a knot in each corner, at 1080p and 4K; nothing in
-    either window touches a knot, and resizing the settings window keeps the
-    knots in its corners. The `BorderThickness` slider shows 50%; dragging it
-    to its right end, 100, makes the frame as large as on a message box of the
-    game once released, its left end is 30, and at each the content stays
-    inside the lines and clear of the knots.
-    Picking
-    `Accent` for `BorderColor` on the `[UI]` page turns both frames
-    the accent at once and writes `BorderColor = Accent` to `PlayerHub.ini`;
-    `Vanilla` turns them grey again. Recent chat lines have no frame and do
-    not move sideways when the chat opens. The log has one
-    `UI overlay: menu frame` line. With `PlayerHub/frame/` removed, the log
-    warns and both windows have a rounded line in the frame color.
-    Over either window the cursor is the [font cursor](#font-cursor),
-    smaller than in the game's menus, sharp at 1080p, 1440p, and 4K, clicking
-    at its tip, and a tooltip appears right of it without covering it;
-    with `PlayerHub/fonts/PlayerHub.ttf` removed, the log warns and it
-    is the plugin's woven pointer; it becomes a resize cursor
-    on the chat's edges and knots, the move cursor while the chat is dragged,
-    and the I-beam over a text field, whose lines turn the accent with
-    `BorderColor = Accent`. No other cursor shows under or beside it.
-11. With `Ulf` online, a click on its name in a line turns the chip to a
-    whisper to that player, and a line reaches only that player, labeled in
-    violet as sent to it for the sender and as from the sender for the
-    recipient. Enter, text, Enter whispers the same player again.
-    Backspace in the empty field leaves the chip as it is. Once the player
-    disconnects, a note above the field says it is offline and the chat
-    stays open with the text.
-12. With `Ulf` and `Ulfar` online, `hi @u` lists both above the field and
-    `@` alone lists up to 8 others online; Tab, Enter, or a click writes
-    `hi @Ulf ` with the caret at the end, keeps the chip, and keeps the chat
-    open. Picking a name with the caret after `@Ul` in `@Ulxyz` replaces the
-    whole word. `@ulfar` typed in full hides the list and Enter sends. `@zz`,
-    which no name starts, shows no list. The sent line shows `@Ulf` in
-    the heading face for every player, in the theme's text color, and in the
-    accent for `Ulf`, also among the closed chat's recent lines, and a long
-    line with mentions still wraps inside the chat; `mail@Ulf`
-    and, with nobody of that name online, `@Ulfric` stay plain. Up recalls a line ending in `@Ulf` without
-    listing names.
-13. Up in the field recalls the last sent line with its target, and Down
-    returns the text that was being written. In a text of several lines Up
-    and Down first move the caret to the first or last line. Closing and
-    opening the chat clears a note.
-14. A text longer than the field's width wraps, and the field grows upward
-    by a line at a time while the chat keeps its size and shows fewer lines;
-    at 7 lines it stops growing and the text scrolls inside it. Typing or
-    pasting stops at 512 characters, in Cyrillic too, with no message, and
-    the 512 characters reach the other player whole. A pasted line break
-    becomes a space, and Shift+Enter sends.
-15. Moving the mouse in the open chat shows a cursor in the middle of the
-    chat, and the character does not turn or attack. A click on another
-    player's name turns the chip to that player; a right click on its line
-    offers whisper, mute, and vanish; a click on the chip lists
-    Global, Nearby, and the latest partners. Typing continues after each click,
-    and a click outside the chat changes nothing.
-16. The Global, Nearby, and Whisper filters are all on at first. A
-    click on Global turns its chip grey and leaves the other two and the
-    send target as they were; a global line then shows neither in the open
-    chat nor among the closed chat's lines, and Global gets a dot on its
-    corner. With Whisper off a
-    whisper stays out of the closed chat too. A second click shows the
-    channel again with the lines that arrived meanwhile. With Global off,
-    Tab to Global turns it on, and so does the player's own global line coming
-    back. With all three off no line shows.
-17. With the default accent the open chat has no blue and no square corners,
-    at 1080p and 4K: the
-    field is a faint rounded tint, the chip is rounded in its channel's
-    color, the name list and both menus have a rounded `FF9000` border with
-    orange hovered and selected rows, and the scrollbar is thin. Each filter
-    is a rounded chip, filled and outlined in its channel's color when shown
-    and a grey outline when off, and a rule under the filters separates them
-    from the lines. The filters, the lines, and the chip start at one column,
-    and the rule and the field end at one.
-18. A chat line wider than the chat continues from the left edge under its
-    sender's name, in the open chat and among the closed chat's lines. Over
-    each of the open chat's edges and knots the cursor is a resize one; a
-    drag grows or shrinks the chat with the cursor from the opposite edge or
-    corner, as smoothly as a drag resizes the settings window, between 24 by
-    9 and 100 by 40 or what the screen has room for. During a left or bottom
-    drag the right or top edge does not move, nor on release.
-    Throughout, the filters, the field, and the chip keep their place in the
-    window without flickering and the latest line stays at the bottom. On
-    release the chat settles on whole lines and font sizes. After a drag
-    `PlayerHub.ini` has `ChatWidth` and `ChatLines`, the closed chat's lines
-    are as wide, the chat has that size after the game restarts, and the
-    `[UI]` page shows neither key. After a left or bottom drag the `[UI]`
-    page's position sliders show the new place.
-19. The open chat's filter row ends with a chip showing a person and the
-    number of players online, or that it is offline while disconnected. A click opens
-    a framed list right of the chat and as high, with a search field on the
-    filters' row and the other players by name, the ones nearby first and
-    in the Nearby color. A click on a name turns the chip to a whisper to
-    that player and typing continues in the field; a right click offers
-    whisper. Typing `ul` in the search leaves the names containing it,
-    and Escape there closes the chat. After Escape or Enter
-    closes the chat, the list shows again when it opens, until the button
-    closes it. The wheel over the list
-    scrolls it and not the lines, and with the chat dragged to the screen's
-    right edge the list is still on the screen. With hundreds of players
-    online the frame rate with the list open is the same as with it closed.
-20. A right click on another player's name in the list or on its chat line
-    offers mute and vanish; on the local player's line, neither. After
-    a mute no notice shows, the player's lines vanish from the open and
-    closed chat, earlier ones included, and its new lines and whispers do
-    not show, and its whispers do not move it in the Tab order. After a vanish
-    its character disappears at once while the other player still sees this
-    one and is told nothing, and it stays gone after either game reconnects
-    or restarts. The list marks the player with a struck bubble or eye.
-    Unmuting shows every held line again, and unvanishing brings the
-    character back where the player stands, if it is in range.
-21. The button at the bottom of the player list opens a framed window in
-    the middle of the screen over the open chat, with a tab each for
-    friends, muted, and vanished players. Each lists the connected server's
-    players, offline ones included, those connected first with a green dot
-    and the others after with a gray one, which tell online from offline
-    under the cursor, and a search field while the tab has anyone; a row's
-    button removes the row at once and has the effect the menu has. A name is
-    underlined under the cursor; a click whispers an online player, and a
-    right click opens the player's menu, an offline player's with
-    whisper disabled. Escape closes the window
-    and leaves the chat open; closing the chat closes it too. Connecting to
-    another server lists only that server's players.
-22. Adding another player as a friend from its menu, in the chat, the
-    player list, or the world, adds it to the friends tab with no notice,
-    and the menu then offers to remove it; the other player is told nothing.
-    When that player next connects, a notice on the right says so, with the
-    chat open or closed, and the chat's lines do not; friends already online when this game connects are not
-    announced. An offline friend shows its last name in the friends tab.
-    A friend stays one after either game restarts, and muting or vanishing
-    a friend keeps the friend.
-23. Pressing E on another player's character, or the horse it rides,
-    shows a cursor and a menu at the crosshair with the player's name, race,
-    and level, then whisper, mute, and vanish, and no dialogue starts. Mute
-    and vanish act as in the chat's menu. Whisper opens the chat with the
-    chip whispering
-    that player. Escape, E again, or a click outside closes the menu without
-    opening the journal or activating anything, and the character moves
-    again at once.
-24. On the `[UI]` page, a click on the blue swatch turns the settings window's
-    sidebar mark, switches, slider, and hovered widgets blue at once, and
-    with `BorderColor` at `Accent` its frame and the open chat's too; the
-    open chat's player list button and lists follow. `PlayerHub.ini` then
-    has `AccentColor = 4F8EF7`, which the next game loads. The custom swatch
-    opens a picker; dragging in it changes only the custom swatch until
-    release, then the whole window, and a typed hex color applies on Enter.
-    A dark custom color gives the connection button light text. Amber returns the
-    default look. The status panel stays as it was.
-25. The menus a right click opens on a player's chat line or on its name in
-    the player list look like the one E opens: its name in bold in the
-    accent color with its level after it, then a line with a pin naming
-    where the player is, also for a player far away, whose details fill in
-    a moment later without the menu changing height. A place from a plugin
-    the local game lacks shows as unknown. With the accent changed, the
-    name and the pin follow it.
-26. A new install connects to the official server, and its address appears
+1. No status panel shows in the main menu or, by default, in a game. With
+   `StatusPanel` on, in a game the panel shows the connection, ping,
+   traffic, and plugin time; turning it off hides it at once.
+2. `OpenChat` opens the chat only with no menu open; the character stands
+   still while typing, and a key held from before keeps acting until
+   released. Enter sends, the line appears for both players, and the chat
+   closes, or with `CloseChatOnSend` off stays open, where Enter in an empty
+   field does nothing. Escape closes without sending and does not open the
+   journal; a menu that opens by itself closes the chat. Recent lines show
+   over the game without a background, readable over bright scenes, and fade
+   after 10 s. Sending while disconnected shows a failure note and keeps the
+   text; typing clears the note.
+3. The chip starts at Nearby, and a line reaches players within
+   `chat.nearby_radius` or in the same interior, not farther ones. Tab turns
+   the chip to Global, which reaches every player until Tab again. `/g hi` is
+   sent as written.
+4. `OpenSettings` opens the settings window with a cursor, the game receives
+   no input until it closes, and the key closes it again; a rebound key works
+   at once and the old one no longer does. With another plugin's ImGui menu
+   bound to Delete, Delete and letters typed into the chat or a settings field
+   do not open its menu, and Delete opens it once the window is closed; the
+   log has one line about detouring input dispatch again. With the Community
+   Shaders or SKSE Menu Framework menu open, focus keys open no overlay window
+   and reach that menu; once it closes they work again.
+5. With no display name, opening the window puts the keyboard in the
+   `[Connection]` field and the button cannot connect. Typing a name and then
+   one click on the button, or Enter, connects with the window still open; a
+   click elsewhere only saves the name. Characters a display name cannot hold
+   cannot be typed or pasted, nor more than the maximum. Connected, the button
+   disconnects and the field is disabled with a hover hint to disconnect
+   first; disconnecting removes remote players and keeps them away through a
+   save load until the next connect. While connecting the button cancels and
+   never claims a connection. A taken display name shows the refusal under
+   the field until another name connects. A name below the minimum length is
+   invalid and disables connecting. The sidebar shows the same status in
+   every section.
+6. Settings apply and save as they are edited, sliders on release, text when
+   editing ends, and a typed display name never connects by itself. A slider
+   with a zero name shows it at its left end. Each page's Defaults restores
+   only its own settings, leaves the chat's size as dragged, and is disabled
+   again. `[DefaultOutfit]` applies only on Apply, and its Defaults leaves
+   other sections alone.
+7. The item picker lists only matching items and races. Hovering rows
+   switches the spinning model without flicker on the world behind; nothing
+   stays on screen after the list closes; the inventory shows its own models
+   normally afterwards; the frame rate stays steady while a list is open;
+   `ItemPreview` off removes the panel.
+8. With the default accent, everything the [theme](#theme) marks follows the
+   accent, and the window can be dragged by its sidebar or title. Picking a
+   sidebar item shows that section.
+9. The themed windows and the chat are in Sovngarde, headings and line labels
+   in the heading face, the status panel in the system font, and the log has
+   one `UI overlay: font` line per file. Characters Sovngarde lacks still
+   show. With `PlayerHub/fonts/` removed, the log warns for each file and the
+   windows use the system font. The sidebar's logo is sharp at every scale,
+   its bar follows the accent, and without `PlayerHub.ttf` the log warns and
+   a text title shows. A build with `discord_invite` shows the Discord link at
+   the bottom right of `[Connection]` without making the page scroll, and a
+   click opens the invite; a build without it shows none.
+10. The settings window and the open chat have the game's menu frame;
+    content never touches a knot, also after resizing and at both ends of
+    `BorderThickness`, whose right end matches the game's message box.
+    `BorderColor = Accent` turns both frames the accent at once and is
+    saved; `Vanilla` turns them back. The log has one
+    `UI overlay: menu frame` line; with `PlayerHub/frame/` removed, the log
+    warns and both windows have a plain rounded line. Over either window the
+    cursor is the [font cursor](#font-cursor), sharp at any resolution and
+    scale, clicking at its tip, with tooltips beside it, uncovered; without
+    `PlayerHub.ttf` it is the drawn pointer. It becomes a resize cursor on the
+    chat's edges and knots, the move cursor while the chat is dragged, and an
+    I-beam over a text field. No other cursor shows.
+11. A click on another player's name in a line turns the chip to a whisper
+    to that player, which only that player receives, labeled as sent to it
+    for the sender and as from the sender for the recipient; the next line
+    whispers the same player. Once the player disconnects, a note says it is
+    offline and the chat keeps the text.
+12. With `Ulf` and `Ulfar` online, `hi @u` lists both above the field, and
+    `@` alone lists up to 8 others; Tab, Enter, or a click writes `hi @Ulf `
+    with the caret at the end, keeping the chip and the chat open. Picking a
+    name with the caret inside `@Ulxyz` replaces the whole word. `@ulfar`
+    typed in full hides the list and Enter sends; `@zz` shows no list. The
+    sent line sets `@Ulf` apart for every player, in the accent for `Ulf`,
+    also among recent lines, and still wraps inside the chat; `mail@Ulf` and
+    `@Ulfric` with nobody of that name online stay plain. Up recalls a line
+    ending in `@Ulf` without listing names.
+13. Up recalls the last sent line with its target, and Down returns the text
+    that was being written; in a text of several lines they first move the
+    caret to the first or last line. Closing and opening the chat clears a
+    note.
+14. A long text wraps and the field grows upward while the chat keeps its
+    size, up to `kMaximumFieldLines`, then scrolls inside. Typing or pasting
+    stops at the character limit, in Cyrillic too, and the whole text reaches
+    the other player. A pasted line break becomes a space, and Shift+Enter
+    sends.
+15. Moving the mouse in the open chat shows a cursor, and the character does
+    not turn or attack. A right click on another player's line opens its
+    player menu; a click on the chip lists Global, Nearby, and the latest
+    partners. Typing continues after each click, and a click outside the chat
+    changes nothing.
+16. The filters are all on at first. A click on one turns only that channel
+    off, without changing the send target: its lines leave the open and
+    closed chat, and new ones mark it unread. A second click shows the
+    channel again with the lines that arrived meanwhile. With Global off, Tab
+    to Global turns it on, and so does the player's own global line. With
+    all three off no line shows.
+17. The open chat has no colors or corners outside the [theme](#theme) and
+    `ChatStyle`, and its filters, lines, and chip start at one column, the
+    rule and the field ending at one.
+18. A wrapped line continues from the left edge under its sender's name.
+    Each edge and knot of the open chat resizes it from the opposite edge or
+    corner as smoothly as the settings window, within the limits and the
+    screen; during and after a left or bottom drag the right or top edge does
+    not move. The filters, field, and chip keep their place without
+    flickering, and the latest line stays at the bottom. On release the chat
+    settles on whole lines and font sizes, which `PlayerHub.ini` keeps across
+    restarts, and the position sliders follow a left or bottom drag.
+19. The player button shows the number of players online, or that the
+    player is offline. A click opens the list beside the chat, nearby players
+    first; a click on a name whispers that player and typing continues, and a
+    right click opens its menu. The search keeps names containing its text,
+    and Escape there closes the chat. After Escape or Enter closes the chat,
+    the list shows again when it opens, until the button closes it. The wheel
+    over the list scrolls it and not the lines; with the chat at the right
+    edge the list is still on screen. With hundreds of players online the
+    frame rate with the list open is the same as with it closed.
+20. A right click on another player's name in the list or its line offers
+    mute and vanish; on the local player's line, neither. After a mute no
+    notice shows, the player's lines leave the open and closed chat, earlier
+    ones included, its new lines and whispers do not show, and its whispers do
+    not move it in the Tab order. After a vanish its character disappears at
+    once while the other player still sees this one and is told nothing, and
+    it stays gone after either game reconnects or restarts. The list marks the
+    player. Unmuting shows every held line again, and unvanishing brings the
+    character back if in range.
+21. The player list's button opens the player manager over the open chat,
+    with friends, muted, and vanished tabs listing the connected server's
+    players, offline ones included, connected ones first with their online
+    state, and a search field while the tab has anyone; a row's button
+    removes the row at once with the menu's effect. A click whispers an online
+    player, and a right click opens the player's menu, an offline player's
+    with whisper disabled. Escape closes the window and leaves the chat open;
+    closing the chat closes it too. Another server lists only its own
+    players.
+22. Adding a friend from its menu, anywhere, adds it to the friends tab with
+    no notice, and the menu then offers to remove it; the other player is
+    told nothing. When that player next connects, a notice says so and the
+    chat's lines do not; friends already online when this game connects are
+    not announced. An offline friend shows its last name. A friend stays one
+    after either game restarts, and muting or vanishing a friend keeps the
+    friend.
+23. Activate on another player's character, or the horse it rides, shows a
+    cursor and its [player menu](#player-menu) at the crosshair, and no
+    dialogue starts. Whisper opens the chat whispering that player. Escape,
+    Activate again, or a click outside closes the menu without opening the
+    journal or activating anything, and the character moves again at once.
+24. A click on an accent swatch changes every accented element at once, the
+    frames too with `BorderColor = Accent`, and saves `AccentColor`, which
+    the next game loads. The custom picker changes only the custom swatch
+    until release, and a typed hex color applies on Enter. A dark accent gets
+    light text on the accent fill. The status panel does not change.
+25. A player's menu looks the same wherever it opens: its name in the accent
+    with its level, then the place, also for a player far away, whose details
+    fill in without the menu changing height. A place from a plugin the local
+    game lacks shows as unknown.
+26. A new install connects to the official server, whose address appears
     nowhere in the settings window or `PlayerHub.ini`. Switching
-    `CustomServer` on while connected keeps the connection and remote
-    players, and an address field without a label appears under it, with the
-    `ServerTls` switch off below. Disconnecting
-    with the field empty disables connecting on `[Connection]` with a sentence
-    saying why. A host typed into the field applies on Enter, and connecting
-    joins that server on port 14201, or on the port typed after a colon; with
-    `ServerTls` on, it joins over TLS. An address with a scheme, a path, or
-    a port outside `1..65535` turns red. Switching
-    `CustomServer` off while connected to the custom server keeps that
-    connection; disconnecting and connecting join the official server.
+    `CustomServer` on while connected keeps the connection and shows the
+    address field and `ServerTls`. Disconnected with the field empty,
+    connecting is disabled with a hover reason. A typed host applies on
+    Enter, and connecting joins it on the default port, or on the port typed
+    after a colon, over TLS with `ServerTls` on. An address with a scheme, a
+    path, or a port outside `1..65535` is invalid. Switching `CustomServer`
+    off keeps a live custom connection; the next connect joins the official
+    server.
 27. Activating a nearby player and picking trade shows both players the
-    prompt at the top, which `Y` and `N` answer for the other player,
-    without moving the character or opening a game menu. Accepting opens
-    the trade window on both screens with the cursor, also over an open
-    chat. A click on a stack asks how many, starting at 1, and only the
-    popup's button or Enter offers them; they show in the own grid as its
-    thumbnail with its count. Clicking the stack's row again starts at that
-    count and updates it. Clicking the cell opens its count and a remove
-    button, and
-    stepping the count down from 1 removes it; clicking a cell that offers
-    one item removes it with no popup, and right clicks do
-    nothing. The other window shows it
-    within a moment. An accepted side turns green. A modded item the other game lacks
-    never appears in either offer, and its giver gets a notice naming the
-    plugin and sees the item's row disabled. Escape, Cancel, and a
-    message box or dialogue a script opens each close both windows.
-    The chat stands left of the panel during the trade, whispering the other
-    player, and shows lines as they arrive. Enter, or a click on it, also
-    with `OpenChat` unbound, lets the player type there with the cursor
-    where it was; a line sent leaves the field focused for the next one;
-    Escape returns to the trade, which stays open, and a click
-    on the panel leaves the chat with its text kept and does what it would
-    without it. Enter in the search field or a count popup does not focus the
-    chat. At 1920×1080 and 3440×1440, at `Scale` 100 and 130, chat, panel,
-    and preview column look the same, centered, with nothing cut off.
-28. Both trade grids fill with thumbnails of the offered items within a
-    second or two, each on a dark cell, enchanted or not,
-    every one textured within about 2 s (`latest.log` shows `pending=0`
-    on each `Item thumbnail captured` line), and keep them while the
-    window is open; FPS stays steady meanwhile. With 15 lines offered
-    every cell is filled, the grid does not scroll, the full mark shows
-    right after the own grid's heading label and goes when a line is
-    removed, rows not yet offered are grayed out, clicking one does nothing
-    and posts no notice, and hovering one still shows it in the preview
-    column, while an offered row's count can still change. With `ItemPreview = false` the cells show names
-    and the preview column only the card. The inventory looks normal
-    afterwards. An item's thumbnail and preview model look equally bright
-    in a dark interior, outside by day, and outside at night, with no face
-    left black, and the world's lighting is unchanged while they capture.
-29. Notices stack on the right edge from 40% of the screen's height, at
-    1080p and 4K, each with a strip in the accent: a completed trade, the
-    other player's decline, a friend connecting. Each fades after about 5 s, a long one later; the same
-    notice twice shows twice; a fifth pushes out the oldest. They show over the inventory and under the open chat or trade
-    window, and never add a chat line.
-30. The open trade takes the screen at 1080p, 1440p, 4K, and 21:9: the
-    game behind it, HUD included, is blurred and darker and keeps moving,
-    the panel takes the same share of the screen's height on each, and the
-    preview column sits to its right; nothing else on screen changes, and
-    the game looks normal after the window closes. FPS stays steady with
-    the window open. Hovering a row or a cell shows its model at once,
-    textured, floating over the blur without a box or a dark fringe, as
-    the inventory menu shows it, and its card with its numbers laid out
-    as the inventory menu's, in capitals where the game shows them; moving off
-    the panel keeps it. The model spins slowly and evenly, one turn in
-    about 12 s, without flicker. Dragging the model stops the spin and turns
-    it smoothly like the inventory menu's model; on release it spins on
-    from there, and it keeps its angle after other items were hovered
-    and the grid thumbnails captured. The item picker's model shows on its
-    dark panel and spins too.
-31. The settings window's sidebar lists `[Connection]`, `[DefaultOutfit]`,
-    `[UI]`, `[Controls]`, and `[Advanced]`. `[UI]` shows its settings under
-    the Display, Players, Chat, and Items headings, and `[Advanced]` under
-    Performance and Diagnostics, `StatusPanel` alone in Diagnostics.
-    `[Controls]` lists `OpenSettings`, `OpenChat`, `ManagePlayers`,
-    `AcceptTrade`, and `DeclineTrade` with their keys, and `[UI]` lists none. A click on
-    `AcceptTrade`'s key, then `H`, shows `H` and saves `AcceptTrade = H`
-    under `[Controls]`; a trade invitation then shows `H` as the accept key
-    and `H` accepts it. While a button listens, `F4` shows that
-    `OpenSettings` has it and does not close the window, Escape cancels
-    without closing it, the game sees none of these presses, and a click
-    anywhere cancels. Binding `OpenSettings` to Num 7 makes Num 7 open and
-    close the window and F4 do nothing. A display name typed with a letter
-    bound to `OpenSettings` keeps the letter and the window open. Backspace
-    on `AcceptTrade`'s button shows it unbound, saves `AcceptTrade =`, and
-    the next invitation shows only the decline hint; `Y` then reaches the
-    game. Backspace on `OpenSettings`' button restores `F4`. The footer's
-    Defaults button is disabled with the default keys; after rebinding any,
-    a click restores `F4`, `Enter`, `O`, `Y`, and `N`, saves them, and is
-    disabled again.
-32. With `OpenChat` bound to `T`, `T` opens the chat with an empty field and
-    Enter and keypad Enter reach the game; Enter still sends and closes it.
-    Backspace on `OpenChat`'s button restores `Enter`. `O` opens the player
-    manager alone in the middle of the screen with the cursor shown and the
-    chat closed, its recent lines still fading; `O` again changes nothing,
-    and Escape or its close button returns input to the game. Clicking an
-    online friend's name there closes it and opens the chat whispering
-    that friend. With `ManagePlayers` unbound, `O` reaches the game.
-33. On Windows with English and Ukrainian layouts, switching the input
-    language with the Windows hotkey while the chat's field is open makes
-    the next letters Cyrillic, and switching back makes them Latin, without
-    closing the chat. The log shows the new layout with the first
-    character typed in it.
-34. Another player standing in view within 30 m has their display name
-    above their head, following it while they walk, run, sit, ride, or
-    crouch, in third and first person, at 1080p and 4K. A friend's name is
-    in the accent and changes at once when the friend is added or removed.
-    Walking behind a wall or a hill fades the name out within about half a
-    second and stepping back into view fades it in. Beyond
-    `NameplateDistance` the name is gone, fading over the last stretch.
-    Turning the camera toward a player shows the name almost at once. No
-    name shows in the main menu, the pause or inventory menus, dialogue,
-    with the HUD hidden (`tm`), behind the trade window, or with
-    `Nameplates` off. Many players in view do not lower the frame rate
-    noticeably.
-35. The `Scale` slider at the top of the `[UI]` page shows 100% and moves
-    in steps of 5 between 80 and 130. Releasing it at 130 makes the text and
-    every overlay window, the chat, notices, and nameplates larger from the
-    next frame and writes `Scale = 130`; the open settings window grows
-    around its center and stays on the display, and the cursor moves at the
-    same speed. At 80 all of them shrink the same way. `Scale = 107` or
-    `150` in the file warns in the log and loads `100`.
-36. In a game with an empty `DisplayName`, the framed hint at the top center
-    names the `OpenSettings` key and the `[Connection]` page; rebinding
-    `OpenSettings` changes the key it names. It is gone in the pause,
-    inventory, and map menus, in dialogue, with the HUD hidden (`tm`), and
-    while the chat or settings window is open. Pressing the key opens
-    `[Connection]` with the keyboard in the field, and applying a name there
-    leaves no hint after the window closes. Clearing the name brings it back.
-37. The `[UI]` page's `ChatPositionHorizontal` and `ChatPositionVertical`
-    sliders show 1% and 8%, with the chat above the magicka bar; at `50` and `40`
-    the open chat and the recent lines sit around the
-    screen's middle, in the same column, at 1080p and 4K alike; a chat
-    dragged wider there grows to the right up to the screen's edge and its
-    left edge stays put, and one too large for the room at `70` is narrowed
-    and shortened to fit while `PlayerHub.ini` keeps its size. At `100` and
-    `100` the chat is at its minimum size against the upper right corner and
-    wholly on the screen, and the player list opens on its left; at `0` and `0` it is
-    against the lower left corner, over the magicka bar. Defaults puts it back
-    above the magicka bar, and the positions are in `PlayerHub.ini` after a
-    restart.
-38. The settings window first opens centered at 54 × 36 font sizes
-    (864 × 576 px at a 16 px font). Each of its four corners and edges resizes
-    it with the resize cursor, keeping the opposite corner or edge in place.
-    Dragged to a corner, resized, closed, and
-    opened again, during gameplay or after another menu, it is where and as
-    large as it was left; after a game restart it is centered again at the
-    default size.
-39. Dragging the open chat by a gap in the filters' row or the lines away
-    from a name moves it with the cursor and
-    the move cursor, keeping its size; it stops at each screen edge, wholly on
-    the screen. A press on a filter, the players chip, the target chip, the
-    field, the scrollbar, or a name does what it did before and moves nothing,
-    as does a click without a drag. On release the chat stays where it was
-    dropped, at its size, the `[UI]` page's sliders
-    show the new percentages, and the chat is there after a restart. Dragged
-    into the upper right corner with the player list open, the list opens on
+    prompt, which the trade keys answer, without moving the character or
+    opening a game menu. Accepting opens the trade window on both screens,
+    also over an open chat. A click on a stack asks how many and only the
+    popup's button or Enter offers them; they show in the own grid with their
+    count. A click on an offered row or cell changes or removes its line; a
+    cell that offers one item removes it at once, and right clicks do nothing.
+    The other window shows changes within a moment, and an accepted side is
+    marked. A modded item the other game lacks never appears in either offer,
+    its giver gets a notice naming the plugin, and its row is disabled.
+    Escape, Cancel, and a message box or dialogue a script opens each close
+    both windows. The chat stands left of the panel whispering the other
+    player; `OpenChat` or a click on it, also with `OpenChat` unbound, lets
+    the player type there; a line sent keeps it focused; Escape returns to the
+    trade, and a click on the panel leaves the chat with its text kept and
+    does what it would without it. Enter in the search field or a count popup
+    does not focus the chat. At 16:9 and 21:9, at any `Scale`, the layout is
+    the same, centered, with nothing cut off.
+28. Both grids fill with textured thumbnails of the offered items within a
+    second or two and keep them, with a steady frame rate. With a full offer
+    every cell is filled, the grid does not scroll, the full mark shows and
+    goes when a line is removed, rows not yet offered are disabled without a
+    notice but still preview, and an offered row's count can still change.
+    With `ItemPreview` off the cells show names and the preview column only
+    the card. The inventory looks normal afterwards. A thumbnail and the
+    model look equally bright in any light, with no face left black, and the
+    world's lighting does not change while they capture.
+29. Notices stack on the right edge: a completed trade, the other player's
+    decline, a friend connecting. Each fades after a time that grows with its
+    length, the same notice twice shows twice, and a fifth pushes out the
+    oldest. They show over menus and the trade window and never add a chat
+    line.
+30. The open trade takes the screen at any resolution and aspect: the game
+    behind it is blurred and darker and keeps moving, the panel takes the
+    same share of the screen's height, and the game looks normal after the
+    window closes, with a steady frame rate meanwhile. Hovering a row or cell
+    shows its model at once, textured and anti-aliased over the blur as the
+    inventory menu shows it, and its card laid out as the inventory menu's;
+    moving off the panel keeps it. The model spins evenly without flicker;
+    dragging stops the spin and turns it like the inventory menu's model, and
+    on release it spins on from there, keeping its angle after other items
+    were hovered and thumbnails captured.
+31. `[Controls]` lists every key setting with its key. A click on a key's
+    button, then a key, binds and saves it, and the action follows at once.
+    While a button listens, another action's key is named and not bound, and
+    Escape or a click cancels, neither closing the window nor reaching the
+    game. Rebinding `OpenSettings` moves opening and closing to the new key. A
+    display name typed with a letter bound to `OpenSettings` keeps the letter
+    and the window open. Backspace unbinds and saves an action, whose hint
+    the trade prompt then leaves out, and restores the default for
+    `OpenSettings` and `OpenChat`. Defaults restores every key.
+32. With `OpenChat` bound to a letter, that letter opens the chat with an
+    empty field and Enter reaches the game. `ManagePlayers` opens the player
+    manager alone with the cursor, the key again changes nothing, and Escape
+    or its close button returns input to the game; a click on an online
+    friend there opens the chat whispering that friend. Unbound, its key
+    reaches the game.
+33. Switching the Windows input language while the chat's field is open
+    changes the layout of the next letters without closing the chat, and the
+    log shows the new layout with the first character typed in it.
+34. Another player in view within `NameplateDistance` has their display
+    name above their head, following it in every stance, mounted, and in
+    first and third person; a friend's name is in the accent, changing at once
+    when added or removed. Behind a wall or hill the name fades out within
+    about half a second, and fades in on returning to view; near the range's
+    end it fades out. Turning the camera to a player shows the name almost at
+    once. No name shows in menus, dialogue, with the HUD hidden, behind the
+    trade window, or with `Nameplates` off. Many players in view do not lower
+    the frame rate noticeably.
+35. Releasing the `Scale` slider resizes the text and every overlay window,
+    notices, and nameplates from the next frame; the open settings window
+    grows around its center and stays on the display, and the cursor speed
+    does not change. An invalid value in the file warns and loads the
+    default.
+36. In a game with no display name, the [display name hint](#display-name-hint)
+    names the `OpenSettings` key, following a rebind, and is hidden in menus,
+    dialogue, with the HUD hidden, and while an overlay window is open. The
+    key opens `[Connection]` with the keyboard in the field, and applying a
+    name removes the hint; clearing it brings the hint back.
+37. The chat position sliders place the open chat and the recent lines in the
+    same column at any resolution; a chat dragged wider grows right up to the
+    screen's edge, and one too large for the room is drawn smaller while
+    `PlayerHub.ini` keeps its size. At `100` and `100` the chat is at its
+    minimum size, wholly on screen, with the player list on its left. The
+    positions survive a restart.
+38. The settings window first opens centered. Every corner and edge resizes
+    it, keeping the opposite one in place. Closed and opened again in the
+    same game session it keeps its place and size; after a restart it is
+    centered again.
+39. Dragging the open chat by a part that takes no click moves it with the
+    move cursor, keeping its size and stopping at each screen edge. A press on
+    a filter, chip, the field, the scrollbar, or a name does what it did and
+    moves nothing, as does a click without a drag. On release the chat stays
+    where it was dropped, the position sliders follow, and the place survives
+    a restart. Dragged into the upper right corner, the player list opens on
     the chat's left.
-40. With `sLanguage=GERMAN`, the settings window, chat, player menus, trade
-    window and prompt, notices, and status panel are in German, the log has
+40. With `sLanguage=GERMAN`, the overlay's text is German, the log has
     `Localization: de.po with <n> of <n> texts translated (0 fuzzy, 0
     rejected) for GERMAN` and `Localization: the game's language GERMAN is
-    de`, and
-    `PlayerHub.ini` keeps its English comments. With `sLanguage=JAPANESE`,
-    Han characters have their Japanese shapes and a long Japanese effect
-    description wraps inside the item card. With a language the plugin has no
-    table for, everything is English.
-    With `sLanguage=GERMAN` and no `Language` line, the `[UI]` page's
-    `Language` combo shows German selected. Picking Russian turns the open
-    settings window, the chat, and the status panel Russian in the next
-    frame, writes `Language = ru`, and keeps Russian after a restart.
-    Picking Japanese then gives Han characters their Japanese shapes without
-    a restart, and the page's Defaults button returns to German and empties
-    the line. A `uk.po` made from the deployed `playerhub.pot`, with
-    `Language: uk`, a three-form `Plural-Forms`, and a few texts and
-    `LanguageName` translated, appears in the combo by that name after a
-    restart, shows those texts in Ukrainian and the rest in English, and
-    `Language = uk` keeps it after a restart. Removing the file then logs that
-    no `uk.po` exists and shows the game's language.
-41. The `BackgroundOpacity` slider on the `[UI]` page shows 75% and moves in
-    steps of 5 between 25 and 100. Dragging it changes the background of the
-    settings window and its open lists and tooltips together, from the next
-    frame. Released at 100, it writes `BackgroundOpacity = 100`, and the
-    settings window, the open chat with its player list and menus, the player
-    manager, the trade window, item card, and prompt, the display name hint,
-    and new notices are all fully opaque. At 25 the game shows through each of
-    them alike, while the status panel and the closed chat's recent lines look
-    as they did. `BackgroundOpacity = 20` or `77` in the file warns in the log
-    and loads `75`.
-42. With `BackgroundOpacity` at 75 over a detailed scene, the settings
-    window, the open chat and its player list, the player manager, the trade
-    prompt, the display name hint, notices, and an open list, menu, or tooltip
-    each show the scene blurred behind them, the blur ending at each frame's
-    silhouette and rounded corners without a seam, and a notice's blur
-    fading with it. Moving the camera moves the blur with the scene. Over the
-    trade window, the offer and pick popups match the darkened backdrop
-    around them. At 100 nothing is blurred. The status panel and the closed
-    chat's recent lines are never blurred. The frame rate with the chat open
-    does not drop noticeably.
-43. While the player is heard, the microphone shows near the screen's lower
-    left corner, under the chat's default place. With `Indicator` off on
-    the `[Voice]` page it never shows, and the page's two position sliders
-    are gone. With it on, they show 1% and 5%; pointing at either shows the
-    microphone without speaking, and dragging one moves the microphone with
-    it along that axis. Released at `50` and `50`, the microphone shows
-    around the screen's middle while the player is heard, at 1080p and 4K
-    alike; at `100` and `100` it is against the upper right corner and wholly
-    on the screen. Defaults puts it back and turns it on, and the three
-    values are in `PlayerHub.ini` after a restart. The microphone is sharp
-    at 1080p and 4K, and with `PlayerHub/fonts/PlayerHub.ttf` removed it
-    never shows.
-44. At the default positions, the microphone shows over the blurred
-    backdrop while the player is heard in an open trade, and the trade's
-    windows draw over it where they overlap.
+    de`, and `PlayerHub.ini` keeps its English comments. With
+    `sLanguage=JAPANESE`, Han characters have their Japanese shapes and a long
+    Japanese effect description wraps inside the item card. A language without
+    a table shows English. Picking another language in `[UI] Language`
+    switches the open windows in the next frame, saves the code, and survives
+    a restart, also changing the Han shapes; Defaults returns to the game's
+    language. A community `.po` made from the deployed template appears in the
+    combo by its `LanguageName` after a restart, with untranslated texts in
+    English; removing it logs that no file exists and shows the game's
+    language.
+41. Dragging `BackgroundOpacity` changes the background of the settings
+    window and its lists and tooltips together from the next frame; on
+    release it saves, and every surface in
+    [Background opacity](#background-opacity) follows, while the status panel
+    and the recent lines do not. An invalid value in the file warns and loads
+    the default.
+42. Below full opacity, every translucent surface shows the scene blurred
+    behind it, the blur ending at each frame's silhouette without a seam and
+    fading with a notice, and moving with the camera; over the trade window,
+    popups match the darkened backdrop. At full opacity nothing is blurred.
+    The status panel and recent lines are never blurred. The frame rate with
+    the chat open does not drop noticeably.
+43. While the player is heard, the microphone shows at its configured
+    position, wholly on screen at any position and resolution. With
+    `Indicator` off it never shows and its position sliders are hidden;
+    pointing at either slider previews the microphone without speaking and a
+    drag moves it. Defaults restores and enables it, and the values survive a
+    restart. Without `PlayerHub.ttf` it never shows.
+44. In an open trade, the microphone shows over the blurred backdrop while
+    the player is heard, and the trade's windows draw over it where they
+    overlap.
 
 ## Known limitations
 
@@ -3536,15 +2973,15 @@ Not confirmed in game:
   still takes focus while another plugin holds input, and the other menu
   then gets no keyboard or mouse input until the trade window closes. A
   plugin that blocks input some other way, or whose detour runs before
-  this one and empties the list, is not detected. In the second case focus
+  this one and empties the list, is not detected; in the second case focus
   keys never reach the overlay anyway.
 - Under Community Shaders' frame generation the [backdrop](#backdrop) and
   [translucent surfaces](#background-blur) blur the scene without the HUD or
   menus, which draw on the UI layer. Under its HDR output without frame
   generation they are not blurred.
 - A [blurred](#background-blur) popup or tooltip over an overlay window shows
-  the game behind that window, blurred, rather than the window: the blur is
-  taken from the frame before the overlay draws.
+  the game behind that window, blurred, rather than the window. The blur's
+  strength and darkening are fixed.
 - After a [language switch](#localization), text composed before it, such
   as chat lines, notices, and trade rejection reasons, stays in the earlier
   language.
@@ -3553,102 +2990,80 @@ Not confirmed in game:
   Hebrew, or an Indic script loads but does not display correctly, and a
   script without a system font shows no glyphs. Numbers use
   `std::format`'s defaults, not the language's decimal separator.
-- Translation files are read once at startup: a new or edited file needs a
+  Translation files are read once at startup: a new or edited file needs a
   restart.
-- The first time a player's menu opens in a run, it shows the race and
-  level a game pass later for a player with a character in range, and a
+- The first time a player's menu opens in a run, it shows the level and
+  place a game pass later for a player with a character in range, and a
   server round trip later for anyone else; later opens show the known ones
   at once. Opening more than five menus within a few seconds can exceed the
   server's [inspection limit](network.md#inspection), and those menus show
   the known details, or the name alone for a player not seen before.
 - Any accent is accepted, so a very dark one or one close to the surfaces
-  makes selection and hover marks hard to see; picking amber restores the
-  default. `[Connection]` has no reset button
-  ([Settings window](#settings-window)).
-- The accent follows a picker drag only on release, since each apply saves
-  the file; the custom swatch shows the color meanwhile.
-- A window over the right edge, such as a wide trade window, hides the
-  notices under it; they keep their time meanwhile.
+  makes selection and hover marks hard to see. The accent follows a picker
+  drag only on release, since each apply saves the file.
+- `[Connection]` has no Defaults button ([Settings window](#settings-window)).
+- A window over the right edge, such as the trade window, hides the notices
+  under it; they keep their time meanwhile.
 - Nameplates are tested from the camera to the actor, so a name stays shown
   while only part of the character is in sight, and keeps its result for up
   to 0.2 s after the view changes. Plates of players standing close
   together overlap; nearer ones are drawn over farther ones. A plate shows
-  while another plugin's menu that neither pauses nor hides the HUD is
-  open.
-- Lists, tooltips, notices, notes, and recent chat lines have no menu frame: its corners need
-  about 65 px of height at 1080p at the default thickness. The settings window's
-  resize grip and edge highlight and the chat's grips are not drawn, so only
-  the cursor shows where each resizes. Nothing shows where the chat can be
-  grabbed to move it, and the move cursor shows only once it moves.
-- `BorderThickness` sizes the whole frame; thinner lines with knots of the same
-  size would need another shape. Below about 60 the knots are hard to read at
-  1080p.
-- The frame is exported ahead of time from the vanilla `messagebox.swf`, not
-  read from the player's game, so a mod that replaces the game's menu art does
-  not change it.
-- Keys are keyboard keys only: mouse buttons and the gamepad cannot be bound,
-  and neither can a key with a modifier. Labels are a US layout's, since
-  scan codes are positions: on another layout a label can differ from what
-  the key prints.
-- A key a mod or the game also uses is bound without a warning; only the
-  plugin's own keys are checked against each other.
+  while another plugin's menu that neither pauses nor hides the HUD is open.
+- Lists, tooltips, notices, notes, and recent chat lines have no menu frame,
+  since its corners are taller than a line or two. Nothing marks where a
+  window resizes or where the chat can be grabbed to move it but the cursor.
+- `BorderThickness` sizes the whole frame; thinner lines with knots of the
+  same size would need another shape. The frame is exported ahead of time
+  from the vanilla `messagebox.swf`, so a mod that replaces the game's menu
+  art does not change it.
+- Keys are keyboard keys only: mouse buttons, the gamepad, and keys with a
+  modifier cannot be bound. Labels are a US layout's, since scan codes are
+  positions. A key a mod or the game also uses is bound without a warning;
+  only the plugin's own keys are checked against each other.
 - A focused window keeps its keys only from plugins that take them from the
   input dispatch call. One that reads the keyboard another way, such as
   `GetAsyncKeyState`, the window procedure, or DirectInput, still sees them.
-- Another plugin's menu that neither pauses the game nor pushes an input
-  context does not block focus keys, so a focus key typed there opens the
-  window over it.
-- A script none of the system fonts cover shows placeholders; emoji cannot be
-  typed.
-- In a themed window, a character Sovngarde lacks is drawn in the
-  system font, so a word can mix the two faces
-  ([Themed faces](#themed-faces)); in chat that is any line in a script other
-  than Latin or Russian and Ukrainian Cyrillic. Sovngarde's `1` and `l` look
-  alike, which shows in the server address.
-- An input method editor's composition, such as Chinese or Japanese, does
-  not type into a window: Skyrim takes only single `ToUnicode` characters.
-- Editing shortcut letters (Ctrl+A/C/V/X/Y/Z) follow physical QWERTY positions,
-  not the keyboard layout. Chat lines and player names cannot be selected
-  or copied.
-- The field shows a mention as plain text while it is written; only the
-  sent line sets it apart. A mention is found against the players online
-  when its line arrives, so naming a player who connects a moment later
-  leaves it plain.
-- The chat is resized with the mouse only. A word wider
-  than the chat is cut at the row's end wherever that falls, not at a
-  syllable or after punctuation.
+  Another plugin's menu that neither pauses the game nor pushes an input
+  context does not block focus keys.
+- A script none of the system fonts cover shows placeholders; emoji and an
+  input method editor's composition cannot be typed, since Skyrim takes only
+  single `ToUnicode` characters. In a themed window a character Sovngarde
+  lacks is drawn in the system font, so a word can mix the two faces.
+  Sovngarde's `1` and `l` look alike, which shows in the server address.
+- Editing shortcut letters (Ctrl+A/C/V/X/Y/Z) follow physical QWERTY
+  positions, not the keyboard layout. Chat lines and player names cannot be
+  selected or copied.
+- The field shows a mention as plain text while it is written. A mention is
+  found against the players online when its line arrives, so naming a player
+  who connects a moment later leaves it plain.
+- The chat is resized and its filters toggled with the mouse only. A word
+  wider than the chat is cut at the row's end, not at a syllable. A click
+  made before the mouse has moved since the chat opened is dropped.
 - The player list sorts by folded bytes, so `Aela 194` comes before
   `Aela 2`, cuts a long name without an ellipsis, and is picked from with
-  the mouse only. It shows names and who is nearby, not levels or places,
-  which the roster does not carry.
-- The chat's filters are toggled with the mouse only. Names in scripts other
-  than Latin, Greek, and Cyrillic match only in the case they are written in.
-- A click made before the mouse has moved since the chat opened is dropped.
+  the mouse only. Names in scripts other than Latin, Greek, and Cyrillic
+  match only in the case they are written in.
 - The send target, the filters, the whisper partners, and the sent lines last
   until the game exits.
 - An offline player in the player manager shows the name the roster last gave
-  it while this game ran, or the kept one; online, the roster's. The window lists the last
-  server that welcomed the client, or the configured address's before the
-  first connection of a game, so an address changed while disconnected
-  shows its list only once connected.
-- Friends, mutes, and vanishes are kept per server URL, so the same server
-  reached under another address starts with none.
-- A gamepad's Activate opens the player menu as E does, but the menu takes
-  the mouse and keyboard only, while gamepad input keeps reaching the game.
-- The picker covers armor, weapons, ammunition, and races, not torches, spells,
-  or actors; `ItemKind` is where more kinds would go.
+  it while this game ran, or the kept one. The window lists the last server
+  that welcomed the client, or the configured address's before the first
+  connection of a game, so an address changed while disconnected shows its
+  list only once connected. Friends, mutes, and vanishes are kept per server
+  URL, so the same server reached under another address starts with none.
+- A gamepad's Activate opens the player menu, but the menu takes the mouse
+  and keyboard only, while gamepad input keeps reaching the game.
+- The picker covers armor, weapons, ammunition, and races, not torches,
+  spells, or actors; `ItemKind` is where more kinds would go.
 - A trade thumbnail or model shows the base form's model, without a player
-  enchantment's glow or the item's own name. Each is captured twice, so an
-  item whose textures were missing at the first capture shows untextured
-  for about 1.5 s; one still missing them at the refresh stays so until it
-  is shown again. Thumbnails are captured one per frame or more, so a full
-  grid fills over a moment, and while the hovered item's model loads they
-  wait: sweeping the cursor across rows delays them. The atlas holds 64;
-  more distinct items in view than that show names.
-- The blur's strength and darkening are fixed. A display narrower than
-  about 1.07 times its height leaves no room for the preview column, and
-  the trade then shows no item numbers at all. The model cannot be zoomed,
-  and a turn applies the drag's angles in one call per frame, so a fast
-  drag turns in larger steps than the inventory menu's. The spin captures
-  the model on every frame it is shown, two renders and a separation pass,
-  and stops while thumbnails are captured.
+  enchantment's glow or the item's own name. An item whose textures were
+  missing at the first capture shows untextured until its refresh; one still
+  missing them then stays so until it is shown again. A full grid fills over
+  a moment, and while the hovered item's model loads thumbnails wait, so
+  sweeping the cursor across rows delays them. The atlas holds 64; more
+  distinct items in view than that show names.
+- A display narrower than about 1.07 times its height leaves no room for the
+  preview column, and the trade then shows no item numbers. The model cannot
+  be zoomed, and a fast drag turns in larger steps than the inventory menu's.
+  The spin re-renders the model up to every `kSpinCaptureIntervalSeconds`
+  and pauses while thumbnails are captured.

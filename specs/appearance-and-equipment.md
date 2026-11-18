@@ -2,29 +2,23 @@
 
 ## Status
 
-The face tint paths that differ by runtime have not run: the tint mask
-offset on AE 1.6.x and the face tint render on SE 1.5.97 (ID 26454), which
-rest on CommonLib and the 1.5.97 disassembly.
-
-Head parts of mod-added types and the extra parts listed on the receiver
-([Actor base](#actor-base)) have not run in game.
-
-Tint textures that differ from the receiver's race asset and RaceMenu overlays
-([Overlays](#overlays)) have not run in game.
+Not run in game: the tint mask offset on AE 1.6.x and the face tint render on
+SE 1.5.97 (ID 26454); head parts of mod-added types and the extra parts listed
+on the receiver ([Actor base](#actor-base)); tint textures that differ from
+the receiver's race asset; RaceMenu [overlays](#overlays).
 
 ## Scope
 
 A remote actor looks like its source player's character, carries the player's
-display name, and wears and wields what the source has
-equipped, from any plugin the receiver also has. While the source is in a
-vanilla beast form, the actor is that beast ([Shapeshifts](#shapeshifts)). What the receiver cannot
-resolve falls back to vanilla data or to the source's own default outfit, so
-players with different modpacks still see each other dressed and armed.
+display name, and wears and wields what the source has equipped, from any
+plugin the receiver also has. In a vanilla beast form the actor is that beast
+([Shapeshifts](#shapeshifts)). What the receiver cannot resolve falls back to
+vanilla data or the source's default outfit, so players with different
+modpacks still see each other dressed and armed.
 
-The wire format is in [Network](network.md#appearance-and-equipment). How the
-draw and attacks wait for the hands is in [Combat
-presentation](combat-presentation.md). Where the display name and the outfit are
-configured is in [Configuration](configuration.md#settings).
+The wire format is in [Network](network.md#appearance-and-equipment); how draws
+and attacks wait for the hands in [Combat presentation](combat-presentation.md);
+the settings in [Configuration](configuration.md#settings).
 
 ## Components
 
@@ -59,103 +53,88 @@ face paint).
 On the game thread, once per second:
 
 - `race`: the [playable race](#playable-race) of the actor base race; without
-  one, `originalRace` when that is playable, otherwise the capture is skipped.
-  The player's `originalRace` is the player record's template race, not the
-  character's, so it comes last. While the player is in a
-  vanilla beast form, the last published revision stands and the form
-  travels apart ([Shapeshifts](#shapeshifts)).
-- `level`: `Actor::GetLevel`, so a level-up publishes a new revision. Peers
-  receive it and show it in the [player menu](ui-overlay.md#player-menu)
-  only ([Player label](#player-label)). `name`
-  is left empty: the server sets the [display name](#display-name).
+  one, `originalRace` when playable (it is the player record's template race,
+  so it comes last); otherwise the capture is skipped. In a vanilla beast form
+  the last revision stands and the form travels apart
+  ([Shapeshifts](#shapeshifts)).
+- `level`: `Actor::GetLevel`, shown only in the
+  [player menu](ui-overlay.md#player-menu). `name` is left empty: the server
+  sets the [display name](#display-name).
 - `defaultRace`: the configured `[DefaultOutfit]` race when `race` is not from
   a base-game plugin, else unset.
-- `height`: the visual height multiplier, `TESNPC::height` × the reference
-  scale (`refScale / 100`) × the local scale of the third-person skeleton's
-  `NPC` node rounded to 0.01, clamped to `0.25..4`. RaceMenu's height slider
-  scales that node ([skeleton scale](#engine-assumptions)); without RaceMenu it
-  stays 1 and `height` is the base's, 1.0 on the vanilla player record. The
-  race's height is left out: the receiver's resolved race applies its own.
-  While the player has no 3D the last node scale stands. The remote plays the
-  source's graph `Speed` unchanged ([graph speed](remote-actor.md#graph-speed)),
-  so a scaled character's legs keep the pace the source sees.
+- `height`: `TESNPC::height` × the reference scale (`refScale / 100`) × the
+  local scale of the third-person skeleton's `NPC` node rounded to 0.01,
+  clamped to `0.25..4`. RaceMenu's height slider scales that node
+  ([skeleton scale](#engine-assumptions)); without RaceMenu it stays 1. The
+  race's height is left out, since the receiver's resolved race applies its
+  own. Without 3D the last node scale stands. The remote plays the source's
+  graph `Speed` unchanged ([graph speed](remote-actor.md#graph-speed)), so a
+  scaled character's legs keep the source's pace.
 - `female`, `weight`, `headParts[0..numHeadParts)`, the hair color
   form's RGB, `faceDetails`, and `faceData` morphs and parts. Extra parts are
   implied by their parent and skipped; the receiver lists them again
   ([Actor base](#actor-base)). A head part's `type` is `BGSHeadPart::type`
-  (PNAM), a `uint32` a mod can set to anything, and is sent as it is: RaceMenu
-  add-ons such as `Racemenu Handnails.esp` nails (41) and
-  `InariTail_RM_2-3.esp` tails (40) lie outside the vanilla `0..6`
-  ([head part types](#engine-assumptions)). At most 32 top-level parts are
-  sent (`kMaximumHeadParts`); a capture over the limit logs one warning naming
-  the first part left out, again only after a capture within it. Parts (presets)
-  are clamped to `-1..255` (`ClampFacePart`), with `-1` for none; see
-  [face presets](#engine-assumptions).
+  (PNAM), a `uint32` sent as is, since RaceMenu add-ons use types outside the
+  vanilla `0..6` (nails 41, tails 40;
+  [head part types](#engine-assumptions)). At most 32 top-level parts are sent
+  (`kMaximumHeadParts`); a capture over it logs one warning naming the first
+  part left out. Presets are clamped to `-1..255` (`ClampFacePart`, `-1` none;
+  [face presets](#engine-assumptions)).
 - `bodyTint`: `TESNPC::bodyTintColor`, or the skin tone mask's color if black.
 - `tints`: `PlayerCharacter` runtime `tintMasks` in blend order, through
-  CommonLib's `GetPlayerRuntimeData`: `0xB10` on SE, the offset `GetNumTints`
-  reads there (ID 39614), and `0xB20` on 1.7.104, as `GetNumTints` (ID 40700)
-  reads it. Each mask maps to the race's `TintAsset` for the sex by
-  texture (pointer, then case-insensitive path) for its stable `index`.
-  Zero-alpha masks and masks without an asset are skipped. `texture` is the
-  mask's `TESTexture::textureName`. RaceMenu shows an alternative or add-on
-  war paint by rewriting the path of the slot's race asset, which the mask
-  points at ([tint textures](#engine-assumptions)), so the index alone would
-  show the receiver's original texture for that slot. A mask whose path fails
-  the [texture path](network.md#texture-paths) rule is skipped and logged once
-  per path.
+  CommonLib's `GetPlayerRuntimeData` (`0xB10` on SE as `GetNumTints` ID 39614
+  reads it, `0xB20` on 1.7.104 as ID 40700 does). Each mask maps to the race's
+  `TintAsset` for the sex by texture (pointer, then case-insensitive path) for
+  its stable `index`; zero-alpha masks and masks without an asset are skipped.
+  `texture` is the mask's `TESTexture::textureName`, since RaceMenu shows an
+  alternative or add-on war paint by rewriting the race asset's path
+  ([tint textures](#engine-assumptions)), which the index alone would lose. A
+  path failing the [texture path](network.md#texture-paths) rule is skipped and
+  logged once.
 - `overlays`: `RaceMenuOverlays::Capture` ([Overlays](#overlays)).
 
-A capture that differs from the last published one must repeat in two
-consecutive captures, so dragging an editor slider does not stream updates.
-A look that keeps changing for 10 s (`kUnsettledCaptureWarningSeconds`) is
-never published; the sender logs one warning per such streak, naming the first
-differing value of each changed field, so the mod changing it can be found.
-A settled look that fails `IsValidAppearance` is dropped and never published;
-the sender logs the first failing field and its value
-(`DescribeInvalidAppearance`), once per distinct reason until a publish
-succeeds.
-Publishes are at least 3 s apart, each increments `revision`, and the last one
-is republished on every new connection.
+A changed capture must repeat in two consecutive captures, so dragging an
+editor slider does not stream updates. A look that keeps changing for 10 s
+(`kUnsettledCaptureWarningSeconds`) logs one warning per streak naming the
+first differing value of each changed field. A settled look failing
+`IsValidAppearance` is never published; the first failing field and value is
+logged (`DescribeInvalidAppearance`) once per reason. Publishes are at least
+3 s apart, each increments `revision`, and the last is republished on every new
+connection.
 
 ### Playable race
 
-`Forms::GetPlayableRace` returns a race flagged playable as it is, and
-otherwise its morph race (`TESRace::morphRace`, NAM8) when that one is
-playable. Every vanilla vampire race (`NordRaceVampire` `088794`,
-`KhajiitRaceVampire` `088845`, and the rest in `Skyrim.esm`, carried over by
-`Dawnguard.esm` and `Update.esm`) is not playable and names its own race there,
-so a vampire character is captured as that race, for both appearance and
-equipment, and peers see the character's own race and items. The beast races
-name no playable morph race (the werebear names `WerewolfBeastRace`), and only
-one step is taken, so transformations stay unplayable. These records were read
-from the masters.
+`Forms::GetPlayableRace` returns a playable race as is, otherwise its morph
+race (`TESRace::morphRace`, NAM8) when that is playable. Every vanilla vampire
+race (`NordRaceVampire` `088794`, ...) is not playable and names its own race
+there, so a vampire character is captured, for appearance and equipment, as
+its own race. The beast races name no playable morph race (the werebear names
+`WerewolfBeastRace`), and only one step is taken, so transformations stay
+unplayable.
 
 ### Actor base
 
-Each accepted revision gets a new runtime `TESNPC`, created with the form
-factory and a dynamic form ID (`TESDataHandler::GetNextID`), and built from
-engine defaults rather than copied from a template record, so remote actors
-depend on no particular base form. The constructor leaves no class, AI
-packages, factions, inventory, or outfits, and points `faceData` at a shared
-engine default that is replaced rather than written. The base then gets:
+Each accepted revision gets a new runtime `TESNPC` from the form factory with a
+dynamic form ID (`TESDataHandler::GetNextID`), built from engine defaults
+rather than a template record, so remote actors depend on no particular base
+form. It has no class, AI packages, factions, inventory, or outfits, and its
+`faceData` points at a shared engine default that is replaced, never written.
+The base then gets:
 
 - the `kUnique` flag: a remote player is one character, not a generic NPC;
 - the full name set to the player label, read by the crosshair and other name
   displays;
 - the race's default voice type for its sex when `Skyrim.esm` `VoicesPlayer`
   (`0x068ACA`) holds it, else `MaleEvenToned` (`0x013AD2`) or
-  `FemaleEvenToned` (`0x013ADD`): the shouted words' dialogue requires a voice
-  type in that list
-  ([Combat presentation](combat-presentation.md#shout-and-power-receiver)),
-  and the `PlayerVoiceMale`/`PlayerVoiceFemale` default objects are empty in
-  `Skyrim.esm`;
-  every other line a remote actor would say is suppressed
+  `FemaleEvenToned` (`0x013ADD`), since the shouted words' dialogue requires a
+  voice in that list
+  ([Combat presentation](combat-presentation.md#shout-and-power-receiver)) and
+  the `PlayerVoiceMale`/`PlayerVoiceFemale` default objects are empty; every
+  other line is suppressed
   ([Remote actor](remote-actor.md#reaction-suppression));
-- race and original race, sex, weight, and height, with height clamped to
-  `0.85..1.15` (`kMinimumRemoteHeight`, `kMaximumRemoteHeight`) so an extreme
-  scale cannot make a remote actor a giant or a doll in another player's world;
-  the wire keeps the full [`height`](#capture) range;
+- race and original race, sex, weight, and height clamped to `0.85..1.15`
+  (`kMinimumRemoteHeight`, `kMaximumRemoteHeight`), so an extreme scale cannot
+  make a giant or a doll in another player's world;
 - the race's attack data map and the default combat style, which
   `TESNPC::InitItemImpl` fills only for NPCs loaded from plugins; weapon draws
   read the attack data map without a null check;
@@ -166,16 +145,15 @@ engine default that is replaced rather than written. The base then gets:
   asset's path when `texture` names the same file, else the sent path.
 
 `TESNPC::InitItemImpl` lists a plugin NPC's extra parts after their parent, and
-the head build attaches only the listed parts ([head
-parts](#engine-assumptions)). A runtime base skips `InitItemImpl`, so
-`ResolveHeadParts` lists the extras itself; otherwise every mesh a mod puts in
-an extra part, such as a hairline or a hair's main mesh, would be missing. The list
-follows the engine's rules (`HeadPartList`): a part of a type that holds one
-part (face, eyes, hair, facial hair, brows) that is already listed is skipped
-with its extras, a part already listed is not repeated, and the list stops at
-127 parts (`TESNPC::numHeadParts` is an `int8_t`). The engine tracks the
-types in a 32-bit mask indexed by `type` modulo 32, so a mod-added type can
-collide with a vanilla one there; `HeadPartList` compares exact types.
+the head build attaches only listed parts ([head parts](#engine-assumptions)).
+A runtime base skips `InitItemImpl`, so `ResolveHeadParts` lists the extras
+itself (otherwise meshes a mod puts in extra parts, such as a hairline, would
+be missing), following the engine's rules (`HeadPartList`): a second part of a
+single-part type (face, eyes, hair, facial hair, brows) is skipped with its
+extras, a listed part is not repeated, and the list stops at 127
+(`TESNPC::numHeadParts` is an `int8_t`). The engine tracks types in a 32-bit
+mask by `type` modulo 32, where a mod-added type can collide;
+`HeadPartList` compares exact types.
 
 Bases are never freed: a deleted reference may still point at its base for a
 few frames, and the leak is bounded by the source's publish rate. A revision
@@ -193,11 +171,10 @@ that cannot be built keeps the previous base.
 | Tint layer | no race tint asset with that index and type, or a `texture` other than the asset's that `TextureExists` does not find | dropped |
 | Overlay | no SKEE, no free overlay slot of its area, or a texture `TextureExists` does not find | dropped |
 
-A fallback race keeps the source's own sex and takes the race's default look for
-it: default head parts and skin tone. Mods add races but not sexes, so the
-outfit has no sex setting. The source's head parts, tints, morphs, presets, face details, and hair color belong
-to its own race and sex and are dropped; display name, level, weight, and height
-are kept. Each fallback is logged once per revision.
+A fallback race keeps the source's sex and takes the race's default look for
+it. The source's head parts, tints, morphs, presets, face details, and hair
+color belong to its own race and are dropped; display name, level, weight, and
+height are kept. Each fallback is logged once per revision.
 
 ### Spawn and respawn
 
@@ -214,17 +191,15 @@ are kept. Each fallback is logged once per revision.
   `UpdateSkinColor` run once.
 - The face tint: `PrepareHeadPartForShaders` (ID 26838, SE 26259) gives a
   runtime-built face a blank tint texture and fills it only for the player base
-  or with `bUseFaceGenPreprocessedHeads` off, the same on both runtimes, so a
-  remote actor's face would render dark. The receiver
-  finds the face geometry (named after the face part's editor ID), takes its
-  FaceGen material's tint texture, and queues the engine's tint render
-  (ID 27040, SE 26454) with masks from the base's layers: the layer's texture
-  from `baseTintTextures`, layer color, and `interpolationValue / 100` alpha,
-  at most 16 non-zero layers. The render reads only the mask texture's
-  `textureName` ([tint render](#engine-assumptions)), so each mask points at a
-  stack `MaskTexture` with `TESTexture`'s layout and the asset's vtable. It
-  renders again whenever the head gets a new tint texture, such as after a 3D
-  reset.
+  or with `bUseFaceGenPreprocessedHeads` off, so a remote face would render
+  dark. The receiver finds the face geometry (named after the face part's
+  editor ID), takes its FaceGen material's tint texture, and queues the
+  engine's tint render (ID 27040, SE 26454) with masks from the base's layers
+  (texture from `baseTintTextures`, color, `interpolationValue / 100` alpha, at
+  most 16 non-zero layers). The render reads only the mask's `textureName`
+  ([tint render](#engine-assumptions)), so each mask is a stack `MaskTexture`
+  with `TESTexture`'s layout and the asset's vtable. It renders again whenever
+  the head gets a new tint texture, such as after a 3D reset.
 - RaceMenu overlays are applied in the same pass as the colors, when the
   spawned revision is the latest ([Overlays](#overlays)).
 
@@ -285,24 +260,22 @@ Vanilla gives the player no way to become a werebear, so only a mod triggers
 it; its race is still the vanilla one. All three masters are base-game
 plugins, so every receiver resolves them.
 
-- **Source:** `Forms::ResolveBeastForms` resolves the races at `kDataLoaded`.
+- **Source:** `Forms::ResolveBeastForms` resolves the races at `kDataLoaded`;
   `ShapeshiftSync::ObserveLocalForm` compares `Actor::GetRace` with them each
   pass, and the context's `shapeshift` carries the form
   ([Network](network.md#checkpoint-and-context)). A race switch rebuilds the
-  player's graph, so the graph epoch advances with it
-  ([assumption 14](#engine-assumptions)). The equipment capture keeps the
-  character's items in a non-playable race and adds a vampire lord's spell
-  hands and armor ([Equipment](#equipment)). The appearance capture does not run while the form is
-  not `none` once a revision is published (`SyncAppearance`'s
-  `a_transformed`): a beast race's `originalRace` is the player record's
-  race (Nord for an Argonian player, seen in game), and every revision would
-  respawn the beast on each peer. A game loaded in a beast form publishes its
-  first revision with that race; the swap back publishes the right one.
+  player's graph, advancing the graph epoch. The equipment capture keeps the
+  character's items and adds a vampire lord's spell hands and armor
+  ([Equipment](#equipment)). Appearance capture pauses while transformed once a
+  revision is published (`SyncAppearance`'s `a_transformed`), since a beast's
+  `originalRace` is the player record's race and would respawn the beast on
+  every peer. A game loaded in a beast form publishes its first revision with
+  that race; the swap back publishes the right one.
 - **Beast base:** `AppearanceSync::GetSpawnBase` builds, per form and
   appearance revision, a base like the [actor base](#actor-base) with the
   beast race and the race's attack data. The beast races have no head data,
   so it takes only the label, sex, weight, and height; the sex picks the
-  vampire lord's model ([assumption 13](#engine-assumptions)). Hair, skin color, and face tint presentation never runs
+  vampire lord's model. Hair, skin color, and face tint presentation never runs
   for it (`ApplyActorPresentation` serves only the human base). A race that
   does not resolve logs once and shows the player's own look (`failedForm`).
 - **Swap:** a played checkpoint whose form differs from the spawned one
@@ -346,33 +319,23 @@ plugins, so every receiver resolves them.
 
 ### Display name
 
-A player is known to others by a display name chosen in the settings,
-`[Connection] DisplayName`
+A player is known to others by `[Connection] DisplayName`
 ([Configuration](configuration.md#connection)), the same for every character
-and save: 3 to 15 Latin letters, digits, and underscores
-([Network](network.md#sessions)). The character's own name is not read or sent.
-There is no default: the player must enter a display name before the plugin
-connects ([Network](network.md#connection)), so no peer is shown under a
+and save; the character's own name is not read or sent. There is no default,
+and the plugin does not connect without one, so no peer is shown under a
 placeholder.
 
-The display name belongs to the player's session, and no two sessions of a
-server share one ([Network](network.md#sessions)). The hello carries it, and the
-server writes the session's display name into the `name` of the appearance it
-relays, whatever the client sent; the capture leaves `name` empty. The display
-name holds for the connection: the settings window locks it while a connection
-is wanted or open, and another one takes effect with the next hello
-([Network](network.md#connection)), so peers see the player leave and enter
-under it. A replayed player keeps the name it was recorded with.
+The display name belongs to the player's session, unique per server
+([Network](network.md#sessions)). The hello carries it, and the server writes
+it into the `name` of every appearance it relays. It holds for the connection;
+a new one takes effect with the next hello, so peers see the player leave and
+enter under it. A replayed player keeps the name it was recorded with.
 
 ### Player label
 
-`PlayerLabel::Format` builds the label used for the actor base's name, chat
+`PlayerLabel::Format` builds the label for the actor base's name, chat
 senders, and [nameplates](ui-overlay.md#nameplates): the display name, or a
-placeholder for an empty one, as before a peer's appearance arrives.
-
-The level is not part of the label. It stays in `Appearance`
-([Network](network.md#appearance)), captured, validated, relayed, and parsed,
-and the [player menu](ui-overlay.md#player-menu) shows it.
+placeholder before a peer's appearance arrives. The level is not part of it.
 
 ## Equipment
 
@@ -474,27 +437,21 @@ Unrelenting Force; it is not equipped, only cast
 ### Fake lights
 
 Goal: a remote actor's light never takes one of the engine's few
-shadow-casting light slots, so remote players cannot crowd out the world's
-shadows, while it looks the same. Vanilla `Skyrim.esm` has a shadow-casting
-torch, `Torch01Shadow` (`00036343`, Shadow Omni), beside the plain `Torch01`
-(`0001D4EC`), with the same mesh; a player who picks it up, or a mod that
-flags torches, would otherwise carry a shadow light into every peer's world.
+shadow-casting light slots, while looking the same. `Skyrim.esm` has a
+shadow-casting `Torch01Shadow` (`00036343`) beside the plain `Torch01`
+(`0001D4EC`), and mods may flag torches too.
 
-`FakeLight::Get` returns a light without `kSpotShadow`, `kHemiShadow`,
-and `kOmniShadow` as it is. For one with any of them it returns a runtime copy,
-created on the game thread with `DynamicForm::Create`, that has the same name,
-model and texture swaps, icons, weight, value, destruction data, equip slot,
-bounds, light data (radius, color, flicker, falloff, FOV), fade, sound,
-emittance, and lens flare, and none of the shadow flags, so the engine makes
-it a fake light, the usual Skyrim name for a light that casts no shadow.
-Copies are cached by the source's form ID, shared by every actor and peer,
-never deleted, and logged once as `Fake light created`.
-
-It applies to a remote torch in `ResolveHandEntry`, whether the source's own
-or the outfit's, and to the hand light of every spell stand-in
-([Combat presentation](combat-presentation.md#spell-look)), not to a spell
-the actor holds as its own. The scene light
-budget still counts these lights ([Remote actor](remote-actor.md#light-budget)).
+`FakeLight::Get` returns a light without `kSpotShadow`, `kHemiShadow`, and
+`kOmniShadow` as is; for one with any, a runtime copy (`DynamicForm::Create`,
+game thread) with the same name, model and texture swaps, icons, weight,
+value, destruction data, equip slot, bounds, light data, fade, sound,
+emittance, and lens flare, without the shadow flags. Copies are cached by the
+source's form ID, shared, never deleted, and logged once as `Fake light
+created`. It applies to a remote torch in `ResolveHandEntry` (own or outfit)
+and to every spell stand-in's hand light
+([Combat presentation](combat-presentation.md#spell-look)), not to a spell the
+actor holds as its own. The [light budget](remote-actor.md#light-budget) still
+counts them.
 
 ### Reconciliation
 
@@ -556,16 +513,13 @@ Hand timing:
 ### Default outfit
 
 Each player configures a default outfit and race that peers show in place of
-the player's items and race they cannot resolve. Its forms are limited to
-base-game plugins (`Multiplayer::IsBaseGamePlugin`): the five Special Edition
-masters, which every receiver has, so they are expected to resolve, and
-`ccFSVSSE001-Backpacks.esl`. Other Creation Club plugins are not base-game,
-since a Special Edition receiver, or an Anniversary Edition one without the
-upgrade, lacks them: an outfit cannot use them, and a worn Creation Club item
-gets a stand-in like any modded item. The backpacks are the exception because
-they only use slot 47: a receiver without them shows no backpack and every
-other slot as usual. It is the source's choice; the receiver has no outfit of
-its own.
+the player's items and race they cannot resolve; the receiver has no outfit of
+its own. Its forms are limited to base-game plugins
+(`Multiplayer::IsBaseGamePlugin`): the five Special Edition masters and
+`ccFSVSSE001-Backpacks.esl`, which only uses slot 47, so a receiver without it
+shows no backpack and everything else. Other Creation Club plugins are not
+base-game, since a receiver without the Anniversary upgrade lacks them; a worn
+Creation Club item gets a stand-in like any modded item.
 
 `DefaultOutfit` resolves every configured form at `kDataLoaded` and whenever
 the settings change `[DefaultOutfit]` (`Refresh`, first in each pass), checked
@@ -588,10 +542,9 @@ plugins:
   the only carriable base-game torch besides test items.
 - `ammo`: the `Bolt` or `Arrow` piece for modded bolts or arrows.
 
-An all-base-game player sends an empty outfit. A changed outfit or setting
-changes the next capture and publishes a new revision, as does a changed default
-race or sex in the next appearance capture (every receiver then respawns the
-player once).
+An all-base-game player sends an empty outfit. A changed outfit publishes a
+new equipment revision, a changed default race a new appearance revision
+(every receiver then respawns the player once).
 
 The receiver treats the outfit as part of the equipment revision:
 
@@ -653,135 +606,84 @@ missing plugin apart from an unlisted item.
 
 ## Engine assumptions
 
-Verified in game:
+For a dynamic form without a preprocessed FaceGen file, Skyrim builds the head
+at runtime from the base's head parts and face data.
 
-1. For a dynamic form without a preprocessed FaceGen file, Skyrim builds the
-   head at runtime from the base's head parts and face data.
-
-Not confirmed in game:
-
-2. `CreateReferenceAtLocation` completes 3D and graph initialization for a base
+1. `CreateReferenceAtLocation` completes 3D and graph initialization for a base
    built from engine defaults, and the firewall, combat suppression, and
    furniture entry behave as with a base copied from the player's.
-3. `TintAsset::texture.index` matches `TESNPC::Layer::tintIndex`, and
+2. `TintAsset::texture.index` matches `TESNPC::Layer::tintIndex`, and
    `interpolationValue = alpha × 100` with the matching preset reproduces war
    paint and face tint colors exactly.
-4. `TESEquipEvent` fires for favorites swaps, the inventory menu, hotkeys, and
+3. `TESEquipEvent` fires for favorites swaps, the inventory menu, hotkeys, and
    script `EquipItem`/`UnequipItem`; otherwise the 1 s poll covers it.
-5. `GetEquippedObject(true)` may also report two-handed weapons, bows, and
+4. `GetEquippedObject(true)` may also report two-handed weapons, bows, and
    crossbows in the left hand; capture handles either answer.
-6. `EquipObject` with `forceEquip=true` swaps a drawn weapon in place and updates
-   `iRightHandType`/`iLeftHandType` without events the firewall blocks.
-7. Actors do not auto-equip or unequip once their inventory holds only the
-   synchronized set; removing items without a destination deletes them silently.
-8. Every vanilla enchanted item's template chain ends at a non-dynamic,
+5. `EquipObject` with `forceEquip=true` swaps a drawn weapon in place and
+   updates `iRightHandType`/`iLeftHandType` without events the firewall blocks.
+6. Actors do not auto-equip or unequip once their inventory holds only the
+   synchronized set; removing items without a destination deletes them.
+7. Every vanilla enchanted item's template chain ends at a non-dynamic,
    unenchanted form.
-9. `EquipObject` with `queueEquip=false` updates `ExtraWorn` and the equipped hand
+8. `EquipObject` with `queueEquip=false` updates `ExtraWorn` and the hand
    objects before the next check, 0.25 s later; twenty equipped arrows show in
    the quiver.
-
-Verified against the 1.7.104 executable for [fake lights](#fake-lights):
-
-10. `TESObjectLIGH::GenDynamic` (ID 17610) creates a shadow light exactly when
-    the form's flags (+0xEC) have a bit of `0x1C00`. The light's `Copy` is
-    TESForm's empty one (ID 14657). The `CopyComponent` of each of its
-    components (`TESFullName` 14716, `TESModelTextureSwap` 14829, `TESIcon`
-    14957, `BGSMessageIcon` 14278, `TESWeightForm` 14987, `TESValueForm` 14977,
-    `BGSDestructibleObjectForm` 14144, `BGSEquipType` 14217) casts its source
-    by RTTI and copies its data.
-
-Verified against the 1.7.104 executable for face presets, which the receiver
-also clamps to `-1..255` when parsing:
-
-11. `TESNPC::FaceData::parts` default to `-1` when the engine allocates face
-    data (ID 24689). Outside `RaceSexMenu` (ID 52402), which edits only the
-    player's own base, the parts are read only to format a morph name
-    (IDs 24713, 24714, 24766): `NoseType`, `BrowType`, `EyesType`, or
-    `LipType` followed by the number, or a fixed name for `0`. An unknown
-    preset therefore names a morph that is not found rather than indexing a
-    table. The race preset bitmasks (`TESRace` +0x4A8, ID 25378) hold 256 bits
-    per part type, so presets stop at 255. SE 1.5.97 was not checked.
-
-Not confirmed in game:
-
-12. A factory-built `TESObjectLIGH` with copied components and data equips as a
-    torch, raises the torch arm, and shows the same flame, light, and flicker,
-    and a spell's hand light accepts it.
-
-Not confirmed in game for [shapeshifts](#shapeshifts):
-
-13. `CreateReferenceAtLocation` completes 3D, character controller, and graph
-    for a runtime base of a beast race without head data, the race's skin
-    dresses it, a female base takes the vampire lord's female model, and the
-    beast races' own abilities stay behind the magic firewall.
-14. `Actor::GetRace` on the player returns the beast race from the pass the
-    race switch takes effect, and the original race from the pass it ends;
-    the switch replaces the player's graph manager, which advances the graph
-    epoch ([Locomotion](locomotion.md#source-capture)).
-
-Verified against the 1.7.104 executable for head parts, not confirmed in game:
-
-17. The head build for an actor (ID 25366) attaches exactly the base's
-    `headParts` (ID 26836 per part, without extra parts) when
-    `numHeadParts` is non-zero, and otherwise the race's defaults with their
-    extras (ID 24730). `TESNPC::InitItemImpl` (ID 24719) replaces a plugin
-    NPC's list with the expanded one from ID 24730: its own parts, then the
-    race's defaults, each part followed by its extras through the visitor at
-    ID 24856. That visitor skips a part whose type is one of `1..4` and `6`
-    (ID 23632) when the mask already has its bit.
-18. No head part code in the TESNPC or head build ranges indexes a table by
-    `BGSHeadPart::type`: it is compared with fixed vanilla types (face in
-    `PrepareHeadPartForShaders`, ID 26838; hair) or with another part's type,
-    or used as a 32-bit mask bit, where the shift wraps. A scan of both
-    executables for a `type` load used as an index found none in this code.
-    The 1.5.97 type check (ID 23632) is byte-identical; the 1.5.97 visitor and
-    head build were not traced.
-
-Read from RaceMenu's scripts and the vanilla skeleton for the
-[skeleton scale](#capture), not confirmed in game:
-
-15. RaceMenu's height slider (`RaceMenuPlugin.pex`) sets an SKEE node
-    transform scale on the `NPC` node with the key `RSMPlugin`, and SKEE writes
-    the combined transform into the node's local scale. In `skeleton.nif` that
-    node is a child of the `BSFadeNode` root, with scale 1, and holds
-    `NPC Root [Root]` and every animated bone; animation does not drive it.
-    The engine scales the root by the reference scale and the base and race
-    heights, so the node's scale is RaceMenu's factor alone.
-16. A beast form's skeleton is not checked: the beast base takes the published
-    `height`, node scale included, whether or not SKEE scales the source's
-    beast skeleton.
-
-Verified against the 1.7.104 and 1.5.97 executables for the
-[tint render](#spawn-and-respawn):
-
-19. The face tint render (ID 27040, SE 26454) reads a mask's `texture` only
-    for `textureName` (+0x8) and passes it to the texture load (ID 76005,
-    SE 74273) before it returns; the render job keeps the loaded texture, not
-    the mask.
-
-Read from RaceMenu's scripts (`RaceMenu.psc`) for
-[tint textures](#capture) and [overlays](#overlays), not confirmed in game:
-
-20. A war paint choice calls `Game.SetTintMaskTexturePath`
-    (`OnTintTextureChange`), and a loaded game reapplies the saved paths
-    (`LoadTints`, `Game.SetNthTintMaskTexturePath`); add-on war paints
-    (`AddWarpaint`) go through the same call. SKSE writes the path into the
-    mask's `TESTexture`, which is the race asset's, so the player's masks still
-    match their asset by pointer.
-21. Overlay editing saves node overrides on `<Area> [Ovl#]` with the keys in
-    [Overlays](#overlays) (`OnOverlayTextureChange`, `OnOverlayColorChange`,
-    `OnOverlayGlowColorChange`), and `UpdateOverlay` reads them back the same
-    way.
-
-Not confirmed in game:
-
-22. SKEE's `AddOverlays` installs overlays on a non-player reference whatever
-    `[Overlays] bPlayerOnly` says, and SKEE reinstalls them and reapplies its
-    node overrides when that reference's 3D is rebuilt. SKEE's co-save entries
-    for actors that are live when the game saves name no reference on load,
-    since remote actors are left out of saves
+9. [Fake lights](#fake-lights), from the 1.7.104 executable:
+   `TESObjectLIGH::GenDynamic` (ID 17610) creates a shadow light exactly when
+   the form's flags (+0xEC) have a bit of `0x1C00`. The light's `Copy` is
+   TESForm's empty one (ID 14657); each component's `CopyComponent`
+   (`TESFullName` 14716, `TESModelTextureSwap` 14829, `TESIcon` 14957,
+   `BGSMessageIcon` 14278, `TESWeightForm` 14987, `TESValueForm` 14977,
+   `BGSDestructibleObjectForm` 14144, `BGSEquipType` 14217) copies its data. A
+   factory-built copy equips as a torch with the same flame, light, and
+   flicker, and a spell's hand light accepts it.
+10. Face presets, from the 1.7.104 executable (SE not checked): `parts` default
+    to `-1` (ID 24689); outside `RaceSexMenu` (ID 52402), which edits only the
+    player's base, they only format a morph name (IDs 24713, 24714, 24766:
+    `NoseType`, `BrowType`, `EyesType`, or `LipType` plus the number), so an
+    unknown preset names a missing morph rather than indexing a table. The race
+    preset bitmasks (`TESRace` +0x4A8, ID 25378) hold 256 bits per type.
+11. [Shapeshifts](#shapeshifts): `CreateReferenceAtLocation` completes 3D,
+    controller, and graph for a beast-race runtime base without head data, the
+    race's skin dresses it, a female base takes the vampire lord's female
+    model, and the beast races' abilities stay behind the magic firewall.
+    `Actor::GetRace` on the player returns the beast race from the pass the
+    switch takes effect and the original race from the pass it ends, and the
+    switch replaces the graph manager.
+12. Head parts, from the 1.7.104 executable: the head build (ID 25366)
+    attaches exactly the base's `headParts` (ID 26836 per part, without extras)
+    when `numHeadParts` is non-zero, otherwise the race's defaults with extras
+    (ID 24730). `TESNPC::InitItemImpl` (ID 24719) replaces a plugin NPC's list
+    with the expanded one: own parts, then the race's defaults, each followed
+    by its extras (visitor ID 24856, which skips a type in `1..4` or `6` whose
+    mask bit is set, ID 23632). No head part code indexes a table by
+    `BGSHeadPart::type`: it is compared with fixed vanilla types or another
+    part's, or used as a wrapping mask bit. The 1.5.97 type check is
+    byte-identical; its visitor and head build were not traced.
+13. [Skeleton scale](#capture), from RaceMenu's scripts and the vanilla
+    skeleton: the height slider (`RaceMenuPlugin.pex`) sets an SKEE node
+    transform scale on the `NPC` node (key `RSMPlugin`), written into its local
+    scale. In `skeleton.nif` that node is a child of the root with scale 1,
+    holds `NPC Root [Root]`, and is not animated; the engine scales the root by
+    the reference scale and heights, so the node's scale is RaceMenu's alone.
+    A beast skeleton is not checked: the beast base takes the published
+    `height` either way.
+14. [Tint render](#spawn-and-respawn), from both executables: the render
+    (ID 27040, SE 26454) reads a mask's `texture` only for `textureName` (+0x8)
+    and passes it to the texture load (ID 76005, SE 74273) before returning.
+15. From `RaceMenu.psc`: a war paint choice calls
+    `Game.SetTintMaskTexturePath`, and a loaded game reapplies saved paths
+    (`Game.SetNthTintMaskTexturePath`), add-on war paints too; SKSE writes the
+    path into the mask's `TESTexture`, the race asset's, so the masks still
+    match their asset by pointer. Overlay editing saves node overrides on
+    `<Area> [Ovl#]` with the keys in [Overlays](#overlays), and `UpdateOverlay`
+    reads them back the same way.
+16. SKEE's `AddOverlays` installs overlays on a non-player reference whatever
+    `[Overlays] bPlayerOnly` says, and reinstalls them with the node overrides
+    when its 3D is rebuilt. SKEE's co-save entries for live remote actors name
+    no reference on load, since they are left out of saves
     ([Saves](sync-pipeline.md#saves)).
-23. A path `TextureExists` finds, with or without a leading `textures\`, loads
+17. A path `TextureExists` finds, with or without a leading `textures\`, loads
     the same file in the tint render and in SKEE.
 
 ## Acceptance criteria
@@ -837,7 +739,7 @@ Not confirmed in game:
 16. A player with up to 32 top-level head parts publishes all of them.
 17. A player wearing a RaceMenu alternative or add-on war paint appears to
     peers with it when they have its texture, and without that layer when they
-    do not; vanilla war paint shows as before.
+    do not; vanilla war paint shows as usual.
 18. A player's RaceMenu body, hand, feet, and face paint appear on peers who
     have RaceMenu and the textures, with the same color, transparency, and
     glow, also after a cell change and a respawn. A peer without RaceMenu or a
@@ -856,12 +758,11 @@ Not confirmed in game:
   (`skee64.ini` `iNumOverlays`) shows only the first overlays of it. A tint or
   overlay whose path is not printable ASCII is not sent.
 - The transformation itself, its animation, effect shader, and sound, is not
-  shown: the user chose an instant swap. The swap waits for a respawn,
-  so the actor is briefly absent while the new form's 3D loads. Custom skin armor and far skins use the resolved race's.
+  shown; the swap is a respawn, so the actor is briefly absent while the new
+  form's 3D loads. Custom skin armor and far skins use the resolved race's.
 - Enchantments, tempering, poison, charge, player-given names, and SMP/CBPC
   physics are not shown, except the spell a staff casts.
 - An outfit piece stands in only for its slot and weapon type, not for the
   missing item's look. A default race shows its own default face.
-- Tint capture is off on VR.
 - Lights built into a mesh (an `NiLight` in the model, not a `TESObjectLIGH`),
   such as some modded armor or weapons, keep their shadows.

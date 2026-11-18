@@ -10,9 +10,9 @@ game.
 
 Some things the actor does are Skyrim's to perform: sitting in furniture,
 riding, and dying. For these the receiver hands the actor to a native engine
-path and takes it back afterwards, while no animation, idle, or event name of
-the interaction crosses the wire. Only reconstructable checkpoint state does: `furniture`,
-`mounted`, `flyingMount` with the mount's fly state, and `dead`
+path and takes it back afterwards. No animation, idle, or event name of the
+interaction crosses the wire, only reconstructable checkpoint state:
+`furniture`, `mounted`, `flyingMount` with the mount's fly state, and `dead`
 ([Network](network.md#checkpoint-and-context)).
 
 While an interaction owns the actor, it owns its graph and placement:
@@ -36,40 +36,35 @@ targeting, and survival policies stay enforced.
 ## Furniture
 
 A remote player enters, uses, and leaves the same world furniture as its
-source, with Skyrim's native entry point, entry idle, furniture idle, and exit
-idle. A remote actor must never keep the local player out of furniture nor stack
-on a marker another actor uses. Each peer keeps its own world, so several
-players can use one reference at once; where they would collide locally, the
-remote actor is hidden instead.
+source, with Skyrim's native entry point, entry, furniture, and exit idles. A
+remote actor must never keep the local player out of furniture nor stack on a
+marker another actor uses. Several players can use one reference at once, each
+in their own world; where they would collide locally, the remote actor is
+hidden instead.
 
 ### Source
 
 `furniture` is the [form reference](network.md#form-references) of
-`Actor::GetOccupiedFurniture()`, which Skyrim sets when the player activates the
-furniture, before walking to the entry point and playing the entry idle. It is
-published as none once the player's sit/sleep
-state is WantToStand or WantToWake: the occupancy itself clears only when the
-player's exit clip ends (1.1 s for a chair, 3.3 s for a table), and peers start
-their own exit clip only when the furniture leaves the checkpoint, so they would
-otherwise stay seated for the source's whole exit. Furniture travels in the
-checkpoint's `Context`, so a change sends a context before the checkpoint. The
-server rejects attacks whose context has furniture, and a furniture checkpoint discards the source's queued attacks. A
-reference created at runtime (`FF`) has no form reference and is published as
-none. The idle events Skyrim sends the player around furniture
-(`IdlePlayer`, `IdleChairFrontEnter`, ...) are not relayed as idles
+`Actor::GetOccupiedFurniture()`, which Skyrim sets on activation, before the
+walk to the entry point and the entry idle. It is published as none once the
+sit/sleep state is WantToStand or WantToWake: the occupancy clears only when
+the exit clip ends (1.1 s for a chair, 3.3 s for a table), and peers start
+their own exit only when the furniture leaves the checkpoint. Furniture travels
+in the `Context`. The server rejects attacks whose context has furniture, and a
+furniture checkpoint discards queued attacks. A runtime reference (`FF`) has no
+form reference and is published as none. The idle events Skyrim sends around
+furniture are not relayed as idles
 ([Idle presentation](idle-presentation.md#capture)).
 
-**Resolution.** A raw FormID names different references on peers whose load
-orders differ, such as furniture a light plugin adds to a replaced interior, so
-the reference carries its plugin name. `FurnitureSync::OnCheckpointPlayed`
-resolves it once per change with `FormLookup::ResolveFormID`, and the receiver
-works with that local FormID (`RemoteFrame::furnitureRefID`). The ID is computed
-from the plugin's local compile index without looking the reference up, so a
-reference in a cell that has not loaded yet still resolves, and entry waits for
-it to load. A light plugin's `formId` above `0xFFF` is refused rather than
-carried into the compile index. A reference whose plugin is not loaded here
-resolves to zero and is logged once per change: the actor stays standing at its
-source's seat, while combat still treats the source as seated.
+**Resolution.** The reference carries its plugin name, since a raw FormID names
+different references on peers with different load orders.
+`FurnitureSync::OnCheckpointPlayed` resolves it once per change with
+`FormLookup::ResolveFormID` into `RemoteFrame::furnitureRefID`, computed from
+the plugin's compile index without a lookup, so a reference in a cell not yet
+loaded resolves and entry waits for it. A light plugin's `formId` above
+`0xFFF` is refused. A reference whose plugin is not loaded resolves to zero and
+is logged once per change: the actor stands at its source's seat, while combat
+still treats the source as seated.
 
 ### Entry
 
@@ -77,77 +72,62 @@ source's seat, while combat still treats the source as seated.
 receiver uses the NPC path. It waits until:
 
 - the reference resolves to a loaded `TESFurniture` in the actor's space;
-- the actor has been ready for 1.5 s. An actor created in the pass the local
-  cell finished loading has not run one update with its do-nothing package,
-  equipment, or a settled AI process; an entry there is accepted, torn down by
-  the engine within one pass of `IsSitting`, and leaves the marker reserved. An
-  actor resuming its source's furniture (below) waits only one update after
-  readiness: it has no entry idle to tear down, and waiting would leave it
-  standing on the seat;
+- the actor has been ready for 1.5 s, since an entry before its first update
+  with the do-nothing package, equipment, and a settled AI process is torn
+  down by the engine and leaves the marker reserved. A resuming actor (below)
+  waits only one update, since it has no entry idle to tear down;
 - its locomotion has settled and no attack, weapon, presentation, idle, or
-  recovery transition is pending; furniture in the checkpoint releases an idle
-  ([Idle presentation](idle-presentation.md#release)). A completed weapon clip counts as settled while the
-  target is idle (after a sheathe, once the default state was forced), though
-  its locomotion replay stays armed for later movement;
+  recovery transition is pending (furniture releases an idle,
+  [Idle presentation](idle-presentation.md#release)). A completed weapon clip
+  counts as settled while the target is idle;
 - the actor is within 24 units of its pose;
-- the furniture has an available marker (ID 20162), and one of its markers is
-  within 96 units (2D). The distance is to the nearest marker, not the probe's:
-  the probe returns the first free index while the native entry picks its own,
-  so on a bench the probe's marker could be at the far end and held the entry
-  back for as long as the source sat;
-- the local player does not occupy that reference. The probe does not report the
-  player's own occupancy, and an entry there records occupancy the engine takes
-  back on the next pass, restarting the entry idle while the player sits. Such an
-  actor is hidden instead.
+- the furniture has an available marker (ID 20162) and any of its markers is
+  within 96 units (2D); the nearest marker counts, since the native entry picks
+  its own, not the probe's first free index;
+- the local player does not occupy the reference, which the probe does not
+  report and the engine would take back on the next pass, restarting the entry
+  idle; such an actor is hidden instead.
 
 The settled-locomotion, transition, checkpoint-distance, and marker-distance
-gates each log once when they start holding, with the distances. The receiver
-does not wait for the source to settle on the marker, which would delay the actor
-by the source's whole entry idle; the native entry aligns it.
+gates each log once when they start holding. The receiver does not wait for the
+source to settle on the marker; the native entry aligns the actor.
 
-The receiver snaps the actor to the checkpoint transform and calls the entry NPC
-Sit procedures use (ID 37330): it records the occupied reference, chooses an
-entry point (ID 39923: entry idle, path point, angle, marker), and reserves the
-marker. Without an entry point the occupancy is cleared and entry retried after
-1 s. With a weapon drawn, ID 39923 only requests a sheathe and returns without
-an entry point; Skyrim's Sit procedure (ID 39648) selects again while the marker
-is unset, so the entry is repeated once sheathed, every second, and a fresh
-entry is attempted when none is chosen within 10 s. Before each repeat the
-receiver releases the actor's reservations on the reference and returns it to
-Normal: while it waits, Skyrim's sit/sleep update can already set WantToSit and
-reserve the unset marker ([assumption 10](#engine-assumptions)). An entry point
-chosen after that played its entry idle from WantToSit, and the actor sat in
-the air beside the seat.
+The receiver snaps the actor to the checkpoint transform and calls the entry
+NPC Sit procedures use (ID 37330), which records the occupied reference, picks
+an entry point (ID 39923: entry idle, path point, angle, marker), and reserves
+the marker. Without an entry point the occupancy is cleared and entry retried
+after 1 s. With a weapon drawn, ID 39923 only requests a sheathe, so the entry
+repeats every second once sheathed, and afresh when none is chosen within 10 s.
+Before each repeat the receiver releases its reservations on the reference and
+returns the actor to Normal, since Skyrim's sit/sleep update may already have
+set WantToSit and reserved the unset marker
+([assumption 10](#engine-assumptions)), which made the later entry sit in the
+air.
 
 ID 37330 reports success before its occupancy is observable, and sometimes
-records none. An entry is confirmed on a later pass, when the actor is seen
-occupying the target; an unconfirmed one is retried after 1.5 s rather than the
-10 s allowed for an entry that sat and then dropped.
+records none, so an entry is confirmed when the actor is seen occupying the
+target on a later pass; an unconfirmed one is retried after 1.5 s.
 
 **Resuming.** An actor spawned while its source already uses furniture resumes
-it seated, since the source's entry played before the actor existed: a peer
-coming into view seated, an actor rebuilt after an appearance change or fast
-travel, or one returning after being hidden. Its first entry into that reference
-passes the same gates (with the shorter settle), then follows the path Skyrim
-uses to reseat an actor whose 3D loads in furniture (ID 40438): record the
-occupancy (ID 39955), choose an entry point (ID 39923), and pass the chosen
-marker to the quick entry (ID 37324), which reserves it, plays the
-`Idle*EnterInstant` record, sets IsSitting or IsSleeping, and snaps the actor onto
-the marker (ID 37326, whose result it returns). The quick entry takes the marker
-as a third argument; an attempt without it failed to seat the actor. A seated
-state counts as success even if the snap failed. A refusal releases what it
-recorded and falls back to the transition entry. Once the source moves to
-another target, resuming no longer applies, so a later entry plays its
+it seated: a peer coming into view seated, an actor rebuilt after an appearance
+change or fast travel, or one returning from being hidden. Its first entry into
+that reference passes the same gates, then follows Skyrim's reseat path for an
+actor whose 3D loads in furniture (ID 40438): record the occupancy (ID 39955),
+choose an entry point (ID 39923), and pass the marker to the quick entry
+(ID 37324, which needs it as third argument), which reserves it, plays the
+`Idle*EnterInstant` record, sets IsSitting or IsSleeping, and snaps the actor
+onto the marker (ID 37326). A seated state counts as success even if the snap
+failed; a refusal releases what it recorded and falls back to the transition
+entry. Once the source moves to another target, a later entry plays its
 transition.
 
 ### Use
 
-While occupied, the receiver runs Skyrim's per-frame sit/sleep state machine (ID
-37332 → 39861) itself, because Skyrim reaches it only from package procedure
-branches the do-nothing package never takes. It plays the entry idle (WantToSit
-→ WaitingForSitAnim), and the graph completes IsSitting. The actor stays on its
-do-nothing package, and any other package is taken back as outside furniture;
-alias and scene packages are refused
+While occupied, the receiver runs Skyrim's per-frame sit/sleep state machine
+(ID 37332 → 39861) itself, since Skyrim reaches it only from package branches
+the do-nothing package never takes. It plays the entry idle (WantToSit →
+WaitingForSitAnim), and the graph completes IsSitting. Any package other than
+do-nothing is taken back; alias and scene packages are refused
 ([Remote actor](remote-actor.md#package-takeover)).
 
 ### Exit
@@ -155,136 +135,104 @@ alias and scene packages are refused
 When the checkpoint changes to zero or another reference:
 
 - **Seated actor:** from IsSitting or IsSleeping, the receiver calls the get-up
-  NPC package procedures run (ID 39865), which the do-nothing package never
-  reaches. It performs `ActionActivate` (AACT `00013009`) on the occupied
-  furniture, so Skyrim chooses the exit idle from the receiver's own idle
-  records, then sets WantToStand or WantToWake. Exit idles are not the entry
-  idles' siblings; they sit under `ActivateRootChar` behind sit/sleep conditions:
-  `ExitChair` (`GetSitting` 3–4) with Front, Left, Right, and Back variants chosen
-  by `IsFurnitureEntryType`, each crafting root's `…Exit` idle, and `ExitBedRoot`
-  (`GetSleeping` 3–4). Setting WantToStand directly skips that selection, and
-  `AIProcess::PlayIdle` performs `ActionIdle`, whose tree holds none of them.
-  Each peer plays its own exit idle, vanilla or modded, at its own length, in
-  full.
+  procedure (ID 39865), which performs `ActionActivate` (AACT `00013009`) on the
+  furniture, so Skyrim picks the exit idle from the receiver's own idle records
+  (`ExitChair` variants by `IsFurnitureEntryType`, each crafting root's
+  `…Exit`, `ExitBedRoot`, under `ActivateRootChar`), then sets WantToStand or
+  WantToWake. Setting WantToStand directly would skip that selection, and
+  `AIProcess::PlayIdle`'s `ActionIdle` tree holds none of them. Each peer plays
+  its own exit idle in full.
 
-  The engine releases the furniture when the exit clip ends: the graph emits
-  `IdleFurnitureExit`, `tailMTLocomotion`, `IdleStop`, and `idleChairGetUp`, and
+  The engine releases the furniture when the exit clip ends:
   `ChairFurnitureExitHandler`/`BedFurnitureExitHandler` return the actor to
-  Normal and clear the occupancy (ID 39912). Captures measured about 1.1 s for a
-  chair and 3.3 s for a table; the vanilla bed and bedroll wake clips
-  (`bed_*exit`, `bedroll_*exit`) run 6.8–8.3 s. A chair's clip has ended by
-  then. A table's has not: `bAnimationDriven` stays set and a second `idleChairGetUp` follows about
-  0.2 s later, and locomotion dispatched in between is accepted but never
-  played. The exit therefore completes once the furniture is released and
-  `bAnimationDriven` is clear, or 2 s after the release. In both cases the clip
-  itself has ended about 0.2 s earlier, when the graph emits `IdleFurnitureExit`
-  and leaves the furniture node; the rest is a get-up settle. If the actor is
-  then more than 32 units from its network target, the source has moved on and
-  the settle is cut: the receiver releases the furniture itself, sets Normal
-  (the engine's exit handler then ignores the actor), forces
-  `IdleForceDefaultState`, and completes the exit in that pass. An exit in progress
-  runs to completion before the actor enters any furniture again, including the
-  seat its source has just returned to.
+  Normal and clear the occupancy (ID 39912). A table's clip still drives the
+  actor for about 0.2 s after (`bAnimationDriven` set, a second
+  `idleChairGetUp`), and locomotion sent then is accepted but never played, so
+  the exit completes once the furniture is released and `bAnimationDriven` is
+  clear, or 2 s after the release. If the actor is then more than 32 units from
+  its network target, the source has moved on and the get-up settle is cut: the
+  receiver releases the furniture, sets Normal, forces
+  `IdleForceDefaultState`, and completes the exit at once. An exit runs to
+  completion before the actor enters any furniture again.
 - **Forced exit:** when the get-up leaves the actor in neither WantToStand nor
   WantToWake, or the furniture is not released within 5 s of WantToStand or
-  12 s of WantToWake, the receiver sets WantToStand/WantToWake and sends
+  12 s of WantToWake, the receiver sets the state and sends
   `IdleFurnitureExit`, which leaves the furniture node without an exit clip,
-  retrying the state once per second. The actor returns to Normal in about
-  200 ms.
-
-  No get-up package is installed. `InitiateGetUpPackage` installs a run-once
-  package whose procedure can never finish once the actor has left the
-  furniture. It outranks and survives the do-nothing package, so combat
-  sanitization retook it every pass for the rest of the session, and the engine
-  moved the actor off its marker in between.
-- **Entry idle still playing:** a source stands only once seated, so an exit
-  that arrives while the requested entry is in WaitingForSitAnim means the entry
-  here started later or runs longer. The receiver lets the entry finish and then
-  starts the native exit, for at most 10 s. Cancelling the entry instead snapped
-  the actor upright when its source stood up right after sitting down.
-- **Entry not yet seated:** otherwise there is no native exit, so the receiver
-  releases marker reservations, clears the occupancy, returns the state to
-  Normal, and forces `IdleForceDefaultState`. The event matters: the engine bookkeeping is not
-  what plays the entry idle, and left alone the idle reaches its seated node a
-  second later and sets IsSitting on an actor that occupies nothing. Occupancy
-  taken on a reference never requested resolves the same way; if it survives 3 s,
-  the interaction is abandoned and retried from entry.
-- **Seated without occupancy:** a sit or sleep state other than Normal is unwound
-  through the forced exit even with no occupancy, request, or target left, since
-  the get-up needs the occupied reference. Nothing else observes that state, and
-  the actor would hold the pose until something reset its graph. While a network
-  [idle](idle-presentation.md#ownership) owns the graph it is left alone: idles
-  such as sitting cross-legged set the sitting state themselves, and their exit
-  clip returns it.
-- **Completion:** once the actor is Normal and, unless a native exit released
-  it, unoccupied, and a native exit's clip no longer drives it, the receiver
-  clears any occupancy left behind, restores the do-nothing package, and
-  rebuilds the latest locomotion checkpoint.
+  retrying once per second. No get-up package is installed:
+  `InitiateGetUpPackage`'s run-once package can never finish once the actor has
+  left the furniture, and it outranks and survives the do-nothing package.
+- **Entry idle still playing:** an exit during WaitingForSitAnim lets the entry
+  finish, then starts the native exit, for at most 10 s; cancelling the entry
+  snapped the actor upright.
+- **Entry not yet seated:** the receiver releases marker reservations, clears
+  the occupancy, returns to Normal, and forces `IdleForceDefaultState`, without
+  which the entry idle would still reach its seated node and set IsSitting on
+  an actor occupying nothing. Occupancy on a reference never requested resolves
+  the same way; if it survives 3 s the interaction is abandoned and retried.
+- **Seated without occupancy:** a sit or sleep state other than Normal with no
+  occupancy, request, or target is unwound through the forced exit, unless a
+  network [idle](idle-presentation.md#ownership) owns the graph (such idles set
+  the sitting state themselves).
+- **Completion:** once the actor is Normal, unoccupied unless a native exit
+  released it, and no longer driven by an exit clip, the receiver clears any
+  leftover occupancy, restores the do-nothing package, and rebuilds the latest
+  locomotion checkpoint.
 - **Stuck exit:** 10 s after the exit starts, or after a native exit gives way
   to the forced exit, the receiver clears the occupancy, forces
   `IdleForceDefaultState`, and restores the do-nothing package. Target changes
   during an exit do not reset this timer.
 
-Changing directly between references exits the old one first. If Skyrim drops a
-started entry, ownership is held at most 10 s before the request is released and
-retried.
+Changing directly between references exits the old one first. A started entry
+Skyrim drops holds ownership at most 10 s before it is released and retried.
 
 ### Shared furniture
 
-When a remote actor would block the local player or share a marker, it is hidden
-locally: retired like any respawn (occupancy and reservations released,
-reference disabled and deleted) while its source keeps using the furniture. A
-hidden actor is not respawned while its played checkpoint still names that
-reference.
+When a remote actor would block the local player or share a marker, it is
+hidden locally: retired like any respawn while its source keeps using the
+furniture, and not respawned while its checkpoint still names that reference.
 
 **Local player activation.** Skyrim runs the player's furniture activation
 (`TESFurniture::Activate`, vfunc 0x37) on a worker thread. A hook there reads,
 under the registry lock, the furniture each remote actor holds (occupied or
-requested), which every furniture pass publishes. If one holds the reference,
-the hook refuses the activation, so Skyrim shows no "in use" message, and
-defers it. Either way the activation is queued. At the start of the next pass,
-before the local checkpoint is sampled, each queued activation resolves:
+requested, published by every furniture pass). If one holds the reference, the
+hook refuses the activation, so no "in use" message shows, and defers it. Either
+way the activation is queued and resolves at the start of the next pass,
+before the local checkpoint is sampled:
 
-- if the local player already occupies or reserves the reference, it was
-  accepted and nothing is done;
-- otherwise every remote actor holding it (occupied, requested, or reserved)
-  while the probe (ID 20162) finds no free marker for the player is hidden;
+- if the player already occupies or reserves the reference, nothing is done;
+- otherwise every remote actor holding it is hidden while the probe (ID 20162)
+  finds no free marker for the player;
 - if an actor was hidden or the activation deferred, the reference is activated
   again through `ActivateRef` with default processing only, since its scripts
   already ran.
 
-On a bench with a free marker nobody is hidden, and the player sits beside the
-actor.
+On a bench with a free marker nobody is hidden.
 
-**Remote entry.** Before its actor is updated, a remote actor is hidden if the
-local player occupies the checkpoint's reference and the actor does not already
-hold it (an actor seated beside the player on a bench keeps its seat), or if its
-last entry attempt found no free marker and the reference carries a reservation
-by another live, enabled actor, local or remote. The later actor yields. A probe
-failure without such a reservation (stale) keeps the 1 s retry. The flag comes
-from the entry attempt, so the actor is hidden one pass later.
+**Remote entry.** Before its update, a remote actor is hidden if the local
+player occupies the checkpoint's reference and the actor does not already hold
+it, or if its last entry attempt found no free marker and another live,
+enabled actor reserves the reference. The later actor yields; a probe failure
+without such a reservation keeps the 1 s retry.
 
-**Return.** A hidden actor spawns again when its checkpoint leaves the reference
-(standing), or when the reference is vacated locally: the player neither
-occupies nor reserves it and the probe finds a free marker for the player (the
-actor then resumes seated). If the player sits back down
-before the returned actor entered, it is hidden again.
+**Return.** A hidden actor spawns again when its checkpoint leaves the
+reference, or when the reference is vacated locally (the player neither
+occupies nor reserves it and the probe finds a free marker); it then resumes
+seated. If the player sits back down first, it is hidden again.
 
-Logs: `Hiding remote player actor ... reason=`,
-`Restoring remote player actor ... was vacated`,
-`Observed local furniture activation`, and
-`Reactivated furniture for the local player`.
+Logs: `Hiding remote player actor ... reason=`, `Restoring remote player actor
+... was vacated`, `Observed local furniture activation`, `Reactivated furniture
+for the local player`.
 
 ### Ordering
 
-- An already playing attack finishes before furniture entry; furniture exit
-  finishes before newer locomotion or attacks apply.
+- A playing attack finishes before furniture entry; furniture exit finishes
+  before newer locomotion or attacks apply.
 - Respawns and coordinate-space changes discard local furniture progress and
-  reconstruct from the played checkpoint. Historical enter and exit transitions
-  are not replayed.
+  reconstruct from the played checkpoint; historical transitions are not
+  replayed.
 - Shared-furniture resolution runs after coordinate-space and fast-travel
-  retirement and before the actor is updated; local activations are resolved
-  before the local checkpoint is sampled.
+  retirement and before the actor update; local activations resolve before the
+  local checkpoint is sampled.
 
 ## Mounts
 
@@ -295,27 +243,23 @@ the player rides and is removed with its rider in every case.
 ### Source
 
 `MountSync::SampleLocalMount` reads the mount once per checkpoint (`IsOnMount`,
-`GetMount`), and the checkpoint's position, heading, speed, `Direction`,
-swimming, and `pitch` are then sampled from the mount. Speed is still measured
-against the previous sample, so mounting and dismounting cost one speed sample
-across the rider-to-mount offset. The player counts as mounted for the whole
-interaction, including its mount and dismount animations.
+`GetMount`); position, heading, speed, `Direction`, swimming, and `pitch` are
+then sampled from the mount. Speed is measured against the previous sample, so
+mounting and dismounting cost one sample across the rider-to-mount offset. The
+player counts as mounted for the whole interaction, including its animations.
 
 A mount whose race has `kFlies` (`DragonRace`) is a flying mount: the
-checkpoint sets `flyingMount` and carries the mount's `ActorState` fly state
-(`GetFlyState`), and the speed is measured along the flight, vertical included
-([Locomotion](locomotion.md#source-capture)). While it cruises
-(`cruising`, `action`), the checkpoint also carries its wing stroke
-(`ActorFlight::ReadWingState`): its graph's `Speed` against
-`TargetSpeedDamped` times `TargetSpeedThresholdMin` and `Max`, the comparison
-its own wing state modifier makes ([Dragon flight](#wing-strokes)); `none`
-otherwise. `Publishing local flying mount state` logs each fly state change.
-Every 2 s, `Local flying mount sample` logs the source dragon's graph flight
-inputs (`Speed`, `TargetSpeed`, `TargetSpeedDamped`, `TurnDelta`,
-`PitchDelta`, `Pitch`, `MoveDirZ`, `FlightPitchBlend`, wing flags, `iState`),
-the wing stroke sent, its controller's pitch and roll, `data.angle.x`, and its
-measured heading and pitch rates, which the receiver's
-[flight channels](#dragon-flight) are meant to match.
+checkpoint sets `flyingMount` and carries its `ActorState` fly state
+(`GetFlyState`), with speed measured along the flight
+([Locomotion](locomotion.md#source-capture)). While it cruises (`cruising`,
+`action`), the checkpoint also carries its wing stroke
+(`ActorFlight::ReadWingState`): its graph's `Speed` against `TargetSpeedDamped`
+times `TargetSpeedThresholdMin` and `Max`, as its own wing state modifier
+compares ([Wing strokes](#wing-strokes)). `Publishing local flying mount
+state` logs each fly state change, and `Local flying mount sample` logs the
+dragon's graph flight inputs, wing stroke, controller pitch and roll,
+`data.angle.x`, and measured heading and pitch rates every 2 s, for comparison
+with the receiver's.
 
 ### Receiver
 
@@ -323,201 +267,137 @@ measured heading and pitch rates, which the receiver's
 every on-foot stage:
 
 1. While the played checkpoint rides and the player is alive, a mount is spawned
-   at the checkpoint through `ActorSpawner`, so it is registered like a remote
-   actor: survival, combat, magic, hostility, and collision isolation, and
-   blocked activation, so it cannot be ridden or stolen.
-   `ActorMount::PickMountBase` gives a flying mount `EncDragon01FireNoScript`
-   (`Skyrim.esm:0F8115`), a generic fire dragon whose record and template
-   (`EncDragon01Fire`, whose template flags leave out scripts) carry no script,
-   so no `DragonActorScript` runs on it; if it does not resolve, a horse stands
-   in. It picks every other spawn's base at random from the five
-   generic saddled vanilla horses, `EncHorseSaddledBrown`, `Black`, `BlackAndWhite`, `Grey`, and
-   `Palomino` (`Skyrim.esm:023AB2`, `068CFA`, `068D02`, `068D03`, `068D04`),
-   which exist in every modpack; one that does not resolve is left out. The
-   pick is local, so peers see different horses for the same rider, and a
-   respawned mount (remount, cell change, fast travel) may change color. The
-   allocation log names the base (`base=`).
+   at the checkpoint through `ActorSpawner`, registered like a remote actor
+   (survival, combat, magic, hostility, and collision isolation; activation
+   blocked, so it cannot be ridden or stolen). `ActorMount::PickMountBase` gives
+   a flying mount `EncDragon01FireNoScript` (`Skyrim.esm:0F8115`), a generic
+   fire dragon without scripts (falling back to a horse), and every other spawn
+   one of the five generic saddled vanilla horses at random
+   (`EncHorseSaddledBrown`, `Black`, `BlackAndWhite`, `Grey`, `Palomino`;
+   `Skyrim.esm:023AB2`, `068CFA`, `068D02`, `068D03`, `068D04`). The pick is
+   local and per spawn; the allocation log names it (`base=`).
 2. The mount takes each checkpoint as its target. Once ready,
-   `ActorRuntime::UpdateMount` reasserts its policy, drives its
-   [gait](#gait) or, for a dragon, its [flight](#dragon-flight), and
-   translates it with the actor translation code, including the
+   `ActorRuntime::UpdateMount` reasserts its policy, drives its [gait](#gait)
+   or [flight](#dragon-flight), and translates it, including the
    [ground offset](locomotion.md#ground-offset). A checkpoint whose
-   `flyingMount` differs from the spawned mount's kind retires the pair as a
-   dismount does, and the next one spawns the other kind.
-3. Once actor and mount are ready, `ActorMount::Seat` seats the actor instantly,
-   retrying every 0.5 s. From then on the mount carries it: it is never driven on
-   foot again. Seating clears the on-foot graph tracking
-   (`InvalidateAnimationDispatch`), since the on-foot update that would finish a
-   draw, sheathe, attack, or block in progress never runs on a rider.
-   `ActorRuntime::UpdateRider` keeps its policy, equipment and appearance are
-   still reconciled, the weapon follows the checkpoint
-   ([Weapon](#weapon)), and queued attacks are dropped. A dragon's rider gets
-   no [gait](#gait) and sits in `Special_DragonMountSitIdle` whatever its mount
-   does. Its seat needs the dragon to carry Dragonborn's
-   `DLC2DragonMountKeyword` (`Dragonborn.esm:01BD7D`): the rider's
-   `DragonMountInstant` idle sits under `DragonEvents`, which requires it
-   beside `ActorTypeDragon`, and without it the start found no rider idle and
-   failed on every attempt (`started=false`, seen in game). The source's dragon
-   has it from the `DLC2TameDragon` quest's alias. `ActorMount` hooks
-   `Character`'s `HasKeywordHelper` (vfunc 0x48), which the `HasKeyword`
-   condition calls, and reports the keyword only for the dragon being seated,
-   on the main thread, for the length of the start; adding it to the shared
-   base would also make local dragons of that base match the ride activation
-   perk (`DLC2TameDragonActivatePerk`).
-
-   The dragon must also carry `kIsAMount` (`Actor::BOOL_FLAGS`), which Skyrim
-   derives from the horse and dragon mount keywords only when the actor
-   initializes (ID 37653, SE 36894), so the remote dragon never had it.
-   Without it Skyrim treats the dragon as a rider of its own interaction: the
-   actor update's walk up the mount chain (ID 41381) took the dragon's mount to
-   be the dragon and recursed until the stack overflowed, and the graph
-   managers were linked both ways, so a job thread's graph update recursed
-   between rider and dragon forever (both seen in game).
-   `ActorMount::AssertFlyingMount` sets the flag before the seat and on every
-   mount update, since Skyrim recomputes it on initialization (`Marked remote
-   flying mount as a mount`).
-4. The seat is checked every 0.5 s, since the check looks up the rider's
-   interaction; a rider found off its mount is logged and seated again. A seat
-   also waits while either actor is getting on or off (`kGettingOnOffMount`).
+   `flyingMount` differs from the spawned kind retires the pair as a dismount
+   does.
+3. Once both are ready, `ActorMount::Seat` seats the actor instantly, retrying
+   every 0.5 s. From then on the mount carries it: it is never driven on foot
+   again, so seating clears the on-foot graph tracking
+   (`InvalidateAnimationDispatch`). `ActorRuntime::UpdateRider` keeps its
+   policy, equipment and appearance are still reconciled, the weapon follows
+   the checkpoint ([Weapon](#weapon)), and queued attacks are dropped. A
+   dragon's rider gets no [gait](#gait) and sits in
+   `Special_DragonMountSitIdle`.
+   - The rider's `DragonMountInstant` idle sits under `DragonEvents`, which
+     requires the dragon to carry `ActorTypeDragon` and Dragonborn's
+     `DLC2DragonMountKeyword` (`Dragonborn.esm:01BD7D`), which the source's
+     dragon gets from the `DLC2TameDragon` alias. `ActorMount` hooks
+     `Character`'s `HasKeywordHelper` (vfunc 0x48) and reports the keyword only
+     for the dragon being seated, on the main thread, during the start; adding
+     it to the base would let the ride activation perk
+     (`DLC2TameDragonActivatePerk`) match local dragons.
+   - The dragon must also carry `kIsAMount` (`Actor::BOOL_FLAGS`), which Skyrim
+     derives from the mount keywords only at initialization (ID 37653, SE
+     36894). Without it Skyrim treats the dragon as a rider of its own
+     interaction: the mount-chain walk (ID 41381) recurses until the stack
+     overflows, and the graph managers link both ways.
+     `ActorMount::AssertFlyingMount` sets it before the seat and on every mount
+     update (`Marked remote flying mount as a mount`).
+4. The seat is checked every 0.5 s; a rider found off its mount is logged and
+   seated again. A seat waits while either actor is getting on or off
+   (`kGettingOnOffMount`).
 5. When the checkpoint no longer rides, actor and mount are retired together and
-   the actor respawns on foot, never taken off the mount first.
+   the actor respawns on foot.
 6. A mount whose handle is lost retires its actor; both are rebuilt while the
    player rides.
 
-`ActorLifecycle` owns the mount beside the actor. Every retirement and removal
-removes the mount in the same pass, rider first, while the rider is still
-seated. When a riding player dies, the pair is retired the same way, and the
-actor respawns on foot and is killed where it stands.
+`ActorLifecycle` owns the mount beside the actor: every retirement and removal
+removes the mount in the same pass, rider first, while still seated. A riding
+player who dies is retired the same way and killed on foot where it stands.
 
-Transitions are instant: a rider appears seated, and a dismount respawns the
-actor on foot. Skyrim's paired `HorseEnter` and `HorseExit` clips are not
-played: they link both actors' graphs, so every removal, halt, and retry
-around them would need its own handling.
-Skyrim's dismount (ID 38705) is never used: even in mode 1, which sets the
-quick-mount flag, it starts the paired `pa_HorseExit` clip, a
-`BSSynchronizedClipGenerator` that links the graphs, and removing both actors
-in the pass that started it crashed in `NotifyAnimationGraph` with the mount
-and its clip on the stack.
+Transitions are instant. Skyrim's paired `HorseEnter` and `HorseExit` clips
+are not played, since they link both graphs, so every removal, halt, and retry
+around them would need its own handling. Skyrim's dismount (ID 38705) is never
+used: even in its quick mode it starts the paired `pa_HorseExit`
+(`BSSynchronizedClipGenerator`), and removing both actors in the pass that
+started it crashes in `NotifyAnimationGraph`.
 
 ### Weapon
 
 A rider draws and sheathes with the checkpoint's `weaponDrawn`, through the
-riding graph's own mounted draw and sheathe.
+riding graph's mounted draw and sheathe.
 `WeaponTransition::ApplyRiderWeaponState` sets the target and the registry's
-authoritative weapon state, and while the actor's `WEAPON_STATE` differs it
-calls `DrawWeaponMagicHands` every update until the matching transition
-animates, as on foot ([Remote actor](remote-actor.md)). A first draw waits for
-`IsReadyForWeaponDraw` (at most 1 s), and a drawn weapon stays drawn while new
-hand objects are reconciled
-([Appearance and equipment](appearance-and-equipment.md)).
-`Remote rider weapon state changed` logs each change with the actor's weapon
-state.
-
-Why: a rider update that leaves the weapon alone keeps the state the rider
-was seated with. A rider seated drawn stayed drawn through every sheathe, one
-seated sheathed never drew, and a rider seated mid-sheathe redrew its weapon on
-the horse (`BeginWeaponDraw`, `weaponDraw`, `WeapEquip_Out` with
-`expectedWeaponDrawn=false`). An on-foot transition left pending at the seat
-also keeps `WeaponTransition::IsPlaying` true for the whole ride, deferring each
-hand swap by its 2 s bound, so seating clears it.
+authoritative weapon state, and while `WEAPON_STATE` differs calls
+`DrawWeaponMagicHands` every update until the transition animates, as on foot.
+A first draw waits for `IsReadyForWeaponDraw` (at most 1 s), and a drawn weapon
+stays drawn while new hand objects are reconciled. Without this the rider would
+keep the state it was seated with. `Remote rider weapon state changed` logs
+each change.
 
 ### Gait
 
-The mount's gait comes from the checkpoint speed, which the source measures
-over the ground ([Locomotion](locomotion.md#source-capture)); `ActorMovement`
-keeps it as `groundSpeed`. Vanilla horse movement types are walk 125, run 450
-(`Horse_Default_MT`), and sprint 600 (`Horse_Sprint_MT`).
+The mount's gait comes from the checkpoint's ground speed
+([Locomotion](locomotion.md#source-capture)), kept as
+`ActorMovement::groundSpeed`. Vanilla horse movement types are walk 125, run
+450 (`Horse_Default_MT`), and sprint 600 (`Horse_Sprint_MT`).
 
-- The mount stops (`moveStop`) once the speed stays below 20 for 0.2 s; it
+- The mount stops (`moveStop`) once the speed stays below 20 for 0.2 s and
   starts at once. The gallop (`SprintStart`, `SprintStop`, `IsSprinting`)
-  starts only after the speed stays at 560 or more for 0.3 s, so a single
-  relocation sample cannot start it, and stops once it stays below 490 for
-  0.5 s. `SprintStop` is sent before `moveStop`.
-- `Speed` and `SpeedSampled` take the ground speed once per new checkpoint,
-  and `Direction` stays zero.
-- An edge records the request whether or not the graph accepts it. Every 0.25 s
-  the graph's `IsMoving` and its gallop (the state tags `iState` with
+  starts after the speed stays at 560 or more for 0.3 s and stops once below
+  490 for 0.5 s; `SprintStop` precedes `moveStop`. Ground speed and the holds
+  keep slope landings (726–808 in 3D at a ground speed of 460), single slow
+  samples, and the relocation onto a fresh mount from flapping the gait.
+- `Speed` and `SpeedSampled` take the ground speed once per new checkpoint;
+  `Direction` stays zero.
+- An edge records the request whether or not the graph accepts it. Every
+  0.25 s the graph's `IsMoving` and gallop (`iState` tagged
   `iState_HorseSprint`) are compared with the request, and a mismatch sends
   `SprintStop`, `moveStart`, `moveStop`, or `SprintStart`, in that priority
-  (`Corrected remote … graph gait`). In the vanilla `HorseBehavior.hkx`,
-  `IsMoving` is the output of `BSIsActiveModifier_Locomotion` inside
-  `NonCombat_Behavior`'s `LocomotionState`, yet a running remote mount always
-  reads it false, so while moving this check sends `moveStart` every 0.25 s,
-  which the graph rejects. Why is not known: the horse may run in another
-  branch, or a patched behavior may differ. In a debug build, the first two
-  corrections and every 240th log `Remote … graph probe` with the graph's
-  active states and variables.
-- The speed sampler takes the gait speed: `AnimationFirewall` hooks
-  `BSSpeedSamplerModifier::Update`, and for a graph whose actor the gait drives
-  (`ActorRegistry::GetGaitSpeed`, mount and rider only) it sets the modifier's
-  `goalSpeed` to the gait speed before the sampler writes `speedOut`
-  (`Corrected remote gait speed sampler goal`, with the value it replaced).
+  (`Corrected remote … graph gait`). A running remote mount always reads
+  `IsMoving` false, for an unknown reason, so while moving this sends a
+  rejected `moveStart` every 0.25 s. In a debug build the first two corrections
+  and every 240th log `Remote … graph probe`.
+- `AnimationFirewall` hooks `BSSpeedSamplerModifier::Update` and, for a graph
+  whose actor the gait drives (`ActorRegistry::GetGaitSpeed`, mount and rider
+  only), sets `goalSpeed` to the gait speed before `speedOut` is written
+  (`Corrected remote gait speed sampler goal`). The vanilla horse behaviors
+  sample `Speed` into `HorseSpeedSampled`, which the locomotion blends read,
+  and an unknown writer zeroes a moving mount's graph `Speed` several times a
+  second, which made the run blend shake. Rewriting `Speed` from the sync pass
+  does not prevent it, since the zeros reach the sampler before the next pass.
 
-Why the sampler: the vanilla horse behaviors bind the sampler's `goalSpeed` to
-`Speed` and its `speedOut` to `HorseSpeedSampled`, which the locomotion blends
-read, and something sets a running mount's or rider's graph `Speed` to 0 several
-times a second. Each sampled zero snaps the run blend toward the slow walk for
-a frame, which showed as a trot that shook and stuttered; the walk barely
-changes toward the slow walk, and the gallop is a state that does not blend on
-speed. Restoring `Speed` from the sync pass, even every pass, does not prevent
-it: on a replay every zero was gone one pass later, yet most had already
-reached `HorseSpeedSampled`, and they arrived 1 to 7 passes after the gait's
-own write. What writes the zero is not known. The vanilla horse behavior only reads
-`Speed`; the character has one `Speed` channel, whose value the plugin's
-override writes last (ID 38330); Skyrim's code names `Speed` only to read it;
-and no plugin code writes it apart from the gait. Skyrim's
-`GetGraphVariableFloat` reads the live value through the process's
-`BSAnimationGraphVariableCache`, so the zeros are not a stale copy.
+`HorseBehavior.hkx` (vanilla packfile): `moveStart` enters `LocomotionState`
+and `moveStop` leaves it; `ForwardLocomotionBlend_Horse` blends on
+`HorseSpeedSampled` (slow walk 5, walk 125, slow trot 214, trot 304, run 450);
+the sprint behavior is active while `IsSprinting` is set; a
+`BSSpeedSamplerModifier` writes `HorseSpeedSampled` from `Speed`; there is no
+`SpeedSampled`.
 
-Why ground speed and the holds: measured in 3D, a source horse jumping or
-dropping down a slope reached 726–808 while its ground speed was about 460, so
-the remote horse galloped for about 145 ms on each landing. A single slow
-sample inside a walk (12, then 23 92 ms later) sent `moveStop` and
-`moveStart` back to back. Each flap restarted the locomotion clips. The first
-checkpoint after a mount spawns carries the relocation onto it (speeds of
-1176 and 2442), which would start a gallop; `moveStop` then leaves
-locomotion without leaving the gallop state inside it, and every later
-`moveStart` resumes `SprintForward`, so the blend never runs and `SprintStart`
-looks rejected.
+`ActorSpeedChannel` polls the actor's own movement, zero for a mount moved by
+its transform, so a remote mount's channel reports the network speed; while no
+one rides, the hook returns for local actors without the lock.
 
-`HorseBehavior.hkx` (vanilla), read from its packfile: `moveStart` enters
-`LocomotionState` and `moveStop` leaves it; `ForwardLocomotionBlend_Horse` blends
-on `HorseSpeedSampled` in world units (slow walk 5, walk 125, slow trot 214, trot
-304, run 450); the sprint behavior is active while `IsSprinting` is set; a
-`BSSpeedSamplerModifier` writes `HorseSpeedSampled` from `Speed`, `iState`, and
-`Direction` through a global speed sampler Skyrim installs, otherwise copying
-`Speed`; there is no `SpeedSampled`, and `fMinSpeed` is 5.
+The rider's own `horsebehavior.hkx` (under `actors\character`) blends the same
+way. Its `Speed` and `IsSprinting` follow the mount's and its `Speed` channel
+reports it; its `Direction` channel reports zero; seating clears its jump
+state. Its graph rejects `moveStart` and `moveStop`, so it gets no locomotion
+events; it takes every native event, which reach it from its mount.
 
-Skyrim polls `Speed` through `ActorSpeedChannel` from the actor's own movement,
-which is zero for a mount moved by its transform, so `Speed` would fall back
-to zero after each write and the gait would play in place. A remote mount's channel reports
-the network speed; the registry counts mounts, so while no one rides, the hook
-returns for local actors without the lock.
-
-The rider has its own `horsebehavior.hkx` (under `actors\character`) with the
-same blend, driven by its own `Speed`, `Direction`, and `HorseSpeedSampled`. Its
-`Speed` and `IsSprinting` follow the mount's speed and its `Speed` channel
-reports it; its `Direction` channel reports zero, since its last on-foot value
-is stale; seating clears its jump state. The rider's graph rejects `moveStart`
-and `moveStop` (over 2000 times in one run), so it gets no locomotion events; it
-takes every native event, which reach it from its mount.
-
-For a mount, the firewall blocks the gait events Skyrim sends (`moveStart`,
-`moveStop`, `SprintStart`, `SprintStop`, `moveForward`, `moveBackward`,
-`BrakeStart`, `BrakeStop`, turns, and canned turns) and passes its other native
-events. The rider's registration is marked mounted while seated, which admits
-every native event on the rider, since the mount interaction drives its graph. A
-2 s gait sample per role logs `Speed`, `HorseSpeedSampled`, and the
-controller's pitch and its target.
+For a mount the firewall blocks Skyrim's gait events (`moveStart`, `moveStop`,
+`SprintStart`, `SprintStop`, `moveForward`, `moveBackward`, `BrakeStart`,
+`BrakeStop`, turns, canned turns) and passes its other native events. A seated
+rider's registration is marked mounted, which admits every native event on it.
+A 2 s gait sample per role logs `Speed`, `HorseSpeedSampled`, and the
+controller's pitch and target.
 
 ### Dragon flight
 
-A dragon is driven through its own `dragonbehavior.hkx`, the vanilla flight
-graph, so peers see their own dragon animations. `ActorFlight::Apply` takes the
-played checkpoint's fly state in place of the gait.
-
-On each fly state change it sends the event of the matching vanilla flight idle
-from `Skyrim.esm` through the network dispatch:
+A dragon is driven through its own vanilla `dragonbehavior.hkx`, so peers see
+their own dragon animations. `ActorFlight::Apply` takes the played checkpoint's
+fly state in place of the gait and, on each change, sends the matching vanilla
+flight idle's event from `Skyrim.esm` through the network dispatch:
 
 | New state | From | Event |
 | --- | --- | --- |
@@ -529,167 +409,132 @@ from `Skyrim.esm` through the network dispatch:
 | `landing` | any | `FlyStopDefault` |
 | `none`, `perching` | `cruising`, `hovering`, `action` | `FlyStopDefault` |
 
-A takeoff continues into flight by itself and a landing onto the ground, so
-`takeOff` to `cruising` and `landing` to `none` send nothing. A flight state
-followed directly by `none` is a landing the playout skipped, as after an 8 s
-hitch in a replay, and still lands. An event the graph rejects is sent again
-every 0.25 s until the graph takes it (`Remote flying mount graph took a
-retried flight event`), its state already matches the fly state, or the fly
-state changes: a takeoff refuses `FlyStopDefault` until it reaches flight, so
-a short hop's landing waits for its takeoff instead of the source's `none`
-1.5 s later. The first update
-treats the state before as `none`, so a dragon spawned for a player already in
-the air starts its flight. `Remote flying mount state changed` logs each change
-with the event and whether the graph accepted it.
+- A takeoff continues into flight and a landing onto the ground by
+  themselves, so `takeOff` to `cruising` and `landing` to `none` send nothing.
+  A flight state followed directly by `none` (a landing the playout skipped)
+  still lands. The first update treats the previous state as `none`, so a
+  dragon spawned mid-flight starts flying.
+- A rejected event is resent every 0.25 s until the graph takes it (`Remote
+  flying mount graph took a retried flight event`), its state already matches,
+  or the fly state changes; a takeoff refuses `FlyStopDefault` until airborne,
+  so a short hop's landing waits for its takeoff. `Remote flying mount state
+  changed` logs each change with its event and result.
+- Once a state has held 1.5 s (or 1.5 s after a retried event was taken) with
+  no event pending, every 0.25 s the graph's `iState` is compared with it
+  (`iState_DragonFlying`, `iState_DragonHovering`, anything else ground). A
+  mismatch sends `FlyStartCruise` or `HoverStop` toward flight, `FlyStartHover`
+  or `HoverStart` toward a hover, and `FlyStopDefault` toward the ground
+  (`Corrected remote flying mount graph`). `takeOff` and `landing` are never
+  corrected, since their clips last seconds. After a rejected correction the
+  next check waits 2 s, since landing keeps `iState_DragonFlying` through the
+  touchdown and rejects `FlyStopDefault`.
 
-Once a state has held for 1.5 s, or 1.5 s after a retried event was taken,
-and no event is pending, every 0.25 s the graph's `iState` is compared
-with it: the graph tags its flight states with `iState_DragonFlying`, its hover
-states with `iState_DragonHovering`, and counts anything else as on the
-ground. A mismatch sends `FlyStartCruise` or `HoverStop` toward flight,
-`FlyStartHover` or `HoverStart` toward a hover, and `FlyStopDefault` toward
-the ground (`Corrected remote flying mount graph`). `takeOff` and `landing` are
-never corrected, since their clips play for seconds and a correction would
-restart them. After a rejected correction the next check waits 2 s: the
-landing states keep `iState_DragonFlying` through the touchdown, seconds after
-the source reports `none`, and reject `FlyStopDefault` (seen in game).
-
-The graph reads its flight inputs from channels that poll the AI process,
-which never flies a remote dragon. `ActorFlight` publishes them every update
-(`ActorRegistry::SetFlightChannels`), and the
-[firewall's channel hooks](remote-actor.md#graph-channels) report them:
+The graph reads its flight inputs from channels that poll the AI process, which
+never flies a remote dragon, so `ActorFlight` publishes them every update
+(`ActorRegistry::SetFlightChannels`) for the
+[channel hooks](remote-actor.md#graph-channels):
 
 - `TargetSpeed`: the checkpoint speed, divided by the speed ratio of the
-  source's [wing stroke](#wing-strokes) while it cruises.
-- `TurnDelta`: the network heading rate (`targetHeadingRate`) in degrees per
-  second with its sign reversed, which banks the flight clips. A source
-  dragon's `TurnDelta` read about +75 to +85 in turns measured at -50 to -85
-  degrees per second of heading, and the reverse in the other direction.
-- `PitchDelta`: the rate of the network pitch, smoothed over 0.2 s, in degrees
-  per second, which bends the body up and down.
+  source's [wing stroke](#wing-strokes) while cruising.
+- `TurnDelta`: the network heading rate in degrees per second, sign reversed,
+  which banks the flight clips (a source dragon's `TurnDelta` mirrors its
+  heading rate).
+- `PitchDelta`: the network pitch rate smoothed over 0.2 s, in degrees per
+  second, which bends the body.
 
-Its `Speed` channel reports the checkpoint speed through the gait speed
-(`ActorRegistry::SetGaitSpeed`), as a flying actor's own movement would. Flight
-events the local AI sends a flying mount (`TakeOff`, `FlyStart`, `FlyStop`,
-`HoverStart`, and `HoverStop` prefixes, and `HoverToCruise`) are blocked, as
-the horse's gait events are. The dragon is network-placed like a horse; it
-translates as moving at 20 or more and is otherwise held standing. Its
-controller takes the checkpoint's pitch whatever its `kCanPitch` flag, since
-the 3D update builds every controller's body rotation from it
-([Terrain pitch](#terrain-pitch)), and while it flies its `data.angle.x`
-takes the same pitch, as a flying source's does. Skyrim (ID 39548) sets a
-flying actor's graph `MovementDirection` each update to its forward direction
-from `data.angle`, and the graph blends its climb (`MTAscend_Climb`, while
-flapping) and dive (`MTDescend_Dive`, while gliding) clips by that direction's
-height (`MoveDirZ`, `FlightPitchBlend`); with `data.angle.x` left at zero a
-remote dragon never climbs or dives. While it flies, `Remote flying mount
-sample` logs every 2 s the graph's flight inputs, the channel values sent, the
-wing stroke received, the wing flags, the controller's pitch, `data.angle.x`,
-`MoveDirZ`, and `FlightPitchBlend`.
+Its `Speed` channel reports the checkpoint speed (`ActorRegistry::SetGaitSpeed`).
+Flight events the local AI sends (`TakeOff`, `FlyStart`, `FlyStop`,
+`HoverStart`, `HoverStop` prefixes, `HoverToCruise`) are blocked. The dragon is
+network-placed like a horse, translating at 20 or more and otherwise held
+standing. Its controller takes the checkpoint's pitch whatever its `kCanPitch`
+flag ([Terrain pitch](#terrain-pitch)), and while flying `data.angle.x` takes
+it too: Skyrim (ID 39548) builds a flying actor's graph `MovementDirection`
+from `data.angle`, and the climb and dive clips blend by its height
+(`MoveDirZ`, `FlightPitchBlend`). While it flies, `Remote flying mount sample`
+logs the graph inputs, channel values, wing stroke and flags, controller pitch,
+`data.angle.x`, `MoveDirZ`, and `FlightPitchBlend` every 2 s.
 
 #### Wing strokes
 
-The graph picks its wing stroke itself (`EEM_Wing_State` in
-`dragonbehavior.hkx`): `Flap` while `Speed` is below `TargetSpeedDamped` times
-`TargetSpeedThresholdMin` (0.9), `Feather` while above
-`TargetSpeedThresholdMax` (1.1) times it, and `Glide` between.
-`TargetSpeedDamped` is `TargetSpeed` capped by a turn and pitch limit that
-never drops below `MinSpeed` (2500). Its modifiers raise `Speed` while it
-flaps (`MaxAcc` 1541) and lower it by drag, so a source dragon, whose
-`TargetSpeed` reads 2000, flaps whenever drag takes its `Speed` below 1800.
-A remote dragon fed the measured speed as both `Speed` and `TargetSpeed` reads
-a ratio of one and only glides, so the source's stroke is sent instead
-([Network](network.md#checkpoint-and-context)).
-
-The receiver keeps `Speed` at the checkpoint speed and sets `TargetSpeed` so
-that the ratio falls inside the received stroke's band, using its own graph's
-thresholds (read once per dragon): 0.9 times `TargetSpeedThresholdMin` to
-flap, the midpoint to glide, and `TargetSpeedThresholdMax` over 0.9 to
-feather. The margin covers the graph computing `TargetSpeedDamped` in its own
-update. Outside cruising, without a stroke, or without the thresholds,
+The graph picks its stroke itself (`EEM_Wing_State`): `Flap` while `Speed` is
+below `TargetSpeedDamped` × `TargetSpeedThresholdMin` (0.9), `Feather` above
+`TargetSpeedThresholdMax` (1.1) × it, `Glide` between. `TargetSpeedDamped` is
+`TargetSpeed` capped by a turn and pitch limit never below `MinSpeed` (2500).
+A remote dragon fed the measured speed as both `Speed` and `TargetSpeed` would
+read a ratio of one and only glide, so the source's stroke is sent
+([Network](network.md#checkpoint-and-context)). The receiver keeps `Speed` at
+the checkpoint speed and sets `TargetSpeed` so the ratio falls inside the
+stroke's band, from its own graph's thresholds (read once per dragon): 0.9 ×
+`TargetSpeedThresholdMin` to flap, the midpoint to glide,
+`TargetSpeedThresholdMax` / 0.9 to feather; the margin covers the graph's own
+damping. Outside cruising, without a stroke, or without the thresholds,
 `TargetSpeed` is the checkpoint speed.
 
 ### Terrain pitch
 
-A horse leans to its slope: Skyrim keeps the tilt in the controller's
-`pitchAngle` and `rollAngle`, and every frame the actor's 3D update (ID 37364)
-builds the body rotation from them and the heading; a seated rider is placed
-from its mount's 3D and tilts with it. The angles come from the ground only in
-the movement update, which network placement skips, so a remote mount would
-stay level.
+A horse leans to its slope: the actor's 3D update (ID 37364) builds the body
+rotation from the controller's `pitchAngle` and `rollAngle`, and a seated rider
+tilts with it. The angles come from the ground only in the movement update,
+which network placement skips, so a remote mount would stay level.
 
-The source samples its carrier's pitch per checkpoint; its horse is simulated
-normally, so the pitch follows its own ground. On a peer the mount update eases
-its controller's pitch toward the checkpoint's with a 0.1 s time constant,
-hiding the 50 ms steps. Only a controller with `kCanPitch` is pitched, as in
-Skyrim, where it comes from the race flag `kTiltFrontBack` (ID 78305). Roll is
-not synchronized: the vanilla horse does not roll, and the source's roll stayed
-zero on every slope.
+The source samples its carrier's pitch per checkpoint. On a peer the mount
+update eases its controller's pitch toward it with a 0.1 s time constant,
+hiding the 50 ms steps. Only a controller with `kCanPitch` (from the race flag
+`kTiltFrontBack`, ID 78305) is pitched, as in Skyrim. Roll is not synchronized:
+the vanilla horse does not roll.
 
-Traced in the 1.7.104 binary: the controller's orientation controller
-(`controller + 0x190`, vfunc 8) moves each angle toward its target by
-`pitchMult` every movement update. A horse has `bhkQuadOrientationController`
-(ID 80138): the pitch target is the slope between ground heights raycast below
-its front and rear feet (IDs 80142, 80143) with the controller's own filter
-info; without `kCanPitch` the pitch decays toward zero. The biped one (ID 79327)
-follows the support normal, clamped to 47°. Pathing (ID 38308) eases them toward
-the navmesh normal. All three run only inside `Actor::Move` (ID 37507), which
-is reached for a non-player actor only from the skipped movement update.
-Placement (ID 37314) sets them from the navmesh normal. `Actor::SetPosition` (ID 37309) and `SetHeading` (ID 37230) leave
-them alone. The move-finish sink (ID 37996) overwrites them from the body's
-rotation, but `kNoSim` suppresses it for a network-placed actor.
+Traced in the 1.7.104 binary: the orientation controller (`controller + 0x190`,
+vfunc 8) moves each angle toward its target by `pitchMult` every movement
+update. A horse's `bhkQuadOrientationController` (ID 80138) targets the slope
+between ground heights below its front and rear feet (IDs 80142, 80143); the
+biped one (ID 79327) follows the support normal, clamped to 47°; pathing
+(ID 38308) eases toward the navmesh normal. All run only inside `Actor::Move`
+(ID 37507), reached for a non-player actor only from the skipped movement
+update. `Actor::SetPosition` (ID 37309) and `SetHeading` (ID 37230) leave the
+angles alone, and `kNoSim` suppresses the move-finish sink (ID 37996) that
+would overwrite them.
 
 ### Rider placement
 
-Skyrim places a seated rider from its mount, and its movement update runs
-before the sync pass ([Remote actor](remote-actor.md#graph-speed)). If the
-placement is in that update, the rider renders where the mount was a frame
-earlier, trailing it by the mount's step (about 7.5 units per frame at a 450
-run and 60 fps). After the mount is moved, `ActorMount::CarryRider` therefore
-moves a seated rider by the mount's step and turns its offset and heading by the
-mount's turn; a placement later in the frame overwrites it. Where Skyrim places
-the rider is not traced.
-
-Whether the rider trailed is not measured: the previous frame's rendered 3D
-offset always matched the references' offset, which also holds if moving an
-actor refreshes its 3D at once.
+Skyrim places a seated rider from its mount in a movement update that runs
+before the sync pass ([Remote actor](remote-actor.md#graph-speed)), so the
+rider would trail the mount by one step. After the mount is moved,
+`ActorMount::CarryRider` moves a seated rider by the mount's step and turns its
+offset and heading by the mount's turn; a placement later in the frame
+overwrites it. Where Skyrim places the rider is not traced.
 
 ### Collision
 
-The rider is always left to Skyrim's movement update, which carries it, and its
-character body is out of every collision while on its mount; the mount is
+The rider is left to Skyrim's movement update, which carries it, with its
+character body out of every collision while seated; the mount is
 network-placed with its body out of collision
 ([Remote actor](remote-actor.md#world-isolation)).
 
 A seated rider's bone and weapon bodies are on `kBipedNoCC`, which the local
 player's proxy controller collides with, and hang at the mount's flanks, so the
-rider blocked the player even with its character body isolated. The
-pass-through hook therefore lets the player's movement update ignore every
-remote character and skeleton body its phantom (a caching shape phantom)
-overlaps, for that update only.
+pass-through hook lets the player's movement update ignore every remote
+character and skeleton body its phantom overlaps, for that update only.
 
-A seated rider's bones also overlap its mount's body, so while on its mount its
-skeleton bodies get the no-collision bit too. Skyrim rewrites the rider's filter
-around seating and a rebuilt 3D brings new bodies, so the rider update reasserts
-it every 0.5 s; it is cleared once the rider is off the mount or dead.
-`Remote actor skeleton collision disabled`, `reasserted`, and `restored` log each change
-with the body count.
+They also overlap the mount's body, so while seated the rider's skeleton bodies
+get the no-collision bit too, reasserted every 0.5 s (Skyrim rewrites the
+filter around seating, and a rebuilt 3D brings new bodies) and cleared once
+off the mount or dead. `Remote actor skeleton collision disabled`,
+`reasserted`, and `restored` log each change with the body count.
 
 ## Death
 
 When a player dies, peers see the actor die like a vanilla NPC: it collapses
-into a ragdoll where physics leaves it. Vanilla death ends in a load (the last
-save or the main menu), whose world exit (`PeerLeave` with `EXITED`) removes the body, so peers see it for
-the few seconds of the death camera.
+into a ragdoll. Vanilla death ends in a load, whose world exit (`PeerLeave` with
+`EXITED`) removes the body, so peers see it for the death camera's few
+seconds.
 
 ### Source
 
-`DeathSync::SampleLocalDeath` reads the player's `ACTOR_LIFE_STATE` once per
-checkpoint. `kDying` and `kDead` publish `dead`; every other state, including
-`kBleedout` and `kEssentialDown`, publishes alive. Checkpoints keep flowing while
-dead, until the load's world exit. `dead` is checkpoint state, not an action,
-so a peer that joins, respawns the actor, or re-enters the space during the death
-camera still sees a body.
+`DeathSync::SampleLocalDeath` reads `ACTOR_LIFE_STATE` per checkpoint: `kDying`
+and `kDead` publish `dead`; every other state, including `kBleedout` and
+`kEssentialDown`, publishes alive. Checkpoints keep flowing until the load's
+world exit. `dead` is checkpoint state, so a peer that joins, respawns the
+actor, or re-enters the space during the death camera still sees a body.
 
 ### Receiver
 
@@ -697,33 +542,29 @@ camera still sees a body.
 stage that drives the actor:
 
 1. A live actor whose played checkpoint is dead is killed once ready (3D,
-   controller, graph), so an actor spawned for a dead player stands for the few
-   passes of its initialization and then collapses. Queued attacks are dropped.
-2. A killed actor is left alone: movement, animation, furniture, equipment,
-   combat, and the stranded check are skipped. Only its handle is watched (a
-   lost handle respawns it) and its appearance presentation kept.
+   controller, graph); queued attacks are dropped.
+2. A killed actor is left alone: only its handle is watched (a lost handle
+   respawns it) and its appearance presentation kept.
 3. A killed actor whose checkpoint is alive again (console `resurrect`, a
    reviving mod) is retired and respawned standing.
 
 `ActorDeath::Kill` hands the actor to Skyrim:
 
-- Its furniture is released first, as on retirement, including the hold
-  published to the local player's activation hook.
+- Its furniture is released first, including the hold published to the local
+  activation hook.
 - `RemoteCollision` releases placement (`owner=death`).
 - `ActorRegistry::SetDead` marks the registration dead: the `KillImpl`,
   `KillDying`, `HandleHealthDamage`, and health `ModActorValue` guards let calls
-  through, the update hook stops reasserting the survival policy (which would
-  resurrect it), and the firewall admits every graph event.
+  through, the update hook stops reasserting the survival policy, and the
+  firewall admits every graph event.
 - `kEssential` and `kProtected` are cleared.
 - `Actor::KillImpl(nullptr, 0, false, true)` kills it with no attacker and no
   death event, so no local quest, script, crime, or statistic observes it, and
   ragdolls it immediately.
 
-The body offers no interaction: its blocked activation opens no container, it
-shows no activation prompt, and activating it opens no player menu
-([Remote actor](remote-actor.md#spawn)).
-
-The registration is per reference, so a respawned actor starts protected again.
+The body offers no interaction: no container, no activation prompt, no player
+menu ([Remote actor](remote-actor.md#spawn)). The registration is per
+reference, so a respawned actor starts protected again.
 
 ## Engine assumptions
 
@@ -732,215 +573,172 @@ Mounts, traced in the 1.7.104 binary:
 1. A rider and mount are linked by an `ExtraInteraction` on the rider holding a
    `MountInteraction`; `Actor::GetMount` and `IsOnMount` read it.
 2. Skyrim's mount entry (ID 38704) builds a `MountInteraction` only on its
-   animated branch; its quick branch (`PutActorOnMountQuick`) restarts the
-   rider's existing one. `ActorMount::Seat` allocates 0x38 bytes from Skyrim's
-   `MemoryManager` (`RE::malloc`), constructs the interaction with ID 40345
-   (rider, mount), and starts it quick with ID 41530, skipping the animation.
-   The interaction is reference counted at offset 8 and freed by the engine's
-   deleting destructor. Verified in game: the quick start seats a spawned actor
-   (`started=true seatedNow=true`), which stayed seated on the do-nothing
-   package for the whole ride. On SE the mount entry is ID 37759, which
-   allocates the same 0x38 bytes, constructs with ID 39266 (byte for byte the
-   same code as 40345), and starts with ID 40525 (rider, interaction, quick),
-   its only call of it, set up as 38704's call of 41530.
-3. Removing a seated pair together is safe: seated riding has no paired clip.
-   Besides the AI dismount procedure (ID 39670, mode 0), Skyrim dismounts with
-   mode 2 from the main loop (ID 36564), an actor update (ID 37347), and 3D load
-   (ID 40438), which drops a rider whose mount is gone, so a rider without a
-   mount is a case the engine handles.
+   animated branch; its quick branch (`PutActorOnMountQuick`) restarts an
+   existing one. `ActorMount::Seat` allocates 0x38 bytes with `RE::malloc`,
+   constructs the interaction with ID 40345 (rider, mount), and starts it quick
+   with ID 41530. It is reference counted at offset 8 and freed by the engine's
+   deleting destructor. On SE: mount entry 37759, constructor 39266 (same
+   code), start 40525.
+3. Removing a seated pair together is safe: seated riding has no paired clip,
+   and Skyrim itself drops a rider whose mount is gone (dismount mode 2 from
+   IDs 36564, 37347, 40438).
 4. A seated rider's controller stays in the world. After moving a ridden mount,
    its movement update (ID 37350) tries the rider's controller at
-   `actorMountPosition` (ID 78260) to set `kMountPointClear`, so the rider's body
-   can overlap the mount's or stand beside it. A proxy controller's rigid body
-   (vfunc 0x10, read from offset 0x5A0) is what other characters bump, and its
-   world collision is a separate phantom. The contact pass (ID 79130) records one
-   bumped body per controller (ID 78303), so the pass-through hook frees a mover
-   from only one of two overlapping bodies per update.
+   `actorMountPosition` (ID 78260) to set `kMountPointClear`. A proxy
+   controller's rigid body (vfunc 0x10, offset 0x5A0) is what other characters
+   bump; its world collision is a separate phantom. The contact pass
+   (ID 79130) records one bumped body per controller (ID 78303), so the
+   pass-through hook frees a mover from only one of two overlapping bodies per
+   update.
 
 Death:
 
 5. `KillImpl` with `a_sendEvent = false` still performs the full death: life
-   state, ragdoll, and stopped AI. Clearing `kEssential` is enough to kill an
-   actor spawned from a remote player's base.
+   state, ragdoll, stopped AI. Clearing `kEssential` is enough to kill an actor
+   from a remote player's base.
 6. A dead temporary reference keeps a valid handle while its cell stays loaded;
    if Skyrim cleans it up, the body is respawned and killed again.
 7. The player's life state passes `kDying`/`kDead` on a vanilla death before the
    load opens.
 
-Furniture exit, traced in the 1.7.104 binary:
+Furniture, traced in the 1.7.104 binary:
 
 8. ID 39865 is `bool(AIProcess*, Actor*)`. From IsSitting or IsSleeping it
-   processes a `TESActionData` (priority kTry, source the actor, action
-   `ActionActivate`, target the occupied furniture) and, if accepted, sets
-   WantToStand or WantToWake through ID 39912, keeping the furniture handle and
-   marker. From WantToStand or WantToWake it does nothing. Verified in game for
-   chairs and tables.
-9. `ChairFurnitureExitHandler` and `BedFurnitureExitHandler` return an actor in
-   a sit or sleep state to Normal and clear its occupancy (ID 39912 with no
-   furniture). In game this happened at the end of the exit clip, not its
-   start; for a table, about 0.2 s before `bAnimationDriven` cleared.
-
-Furniture entry, traced in the 1.7.104 binary:
-
+   processes a `TESActionData` (kTry, `ActionActivate`, target the occupied
+   furniture) and, if accepted, sets WantToStand or WantToWake through
+   ID 39912, keeping the furniture handle and marker; from those states it does
+   nothing.
+9. `ChairFurnitureExitHandler` and `BedFurnitureExitHandler` return an actor to
+   Normal and clear its occupancy (ID 39912 with no furniture) at the end of
+   the exit clip.
 10. With a weapon drawn, ID 39923 calls the actor's sheathe (vfunc 0xA6) and
-    returns true without choosing an entry point, so ID 37330 reports success
-    with marker -1. ID 39861 runs its entry step only from Normal: it sets
-    WantToSit or WantToSleep through ID 39912 and reserves the process's marker
-    (ID 20159), without checking that one was chosen. A later sit/sleep state
-    skips that step. In game, an actor whose entry point was chosen in
-    WantToSit sat offset from the seat; that the reset to Normal fixes it is
-    not verified.
-11. The SE 1.5.97 functions behave as their 1.7.104 counterparts: 19767
-    (20162), 36340 (37330), 38909 (39955), 38882 (39923), 36334 (37324),
-    36342 (37332, calling 38831 for 39861), and 38835 (39865). Each was
-    matched in the 1.5.97 disassembly by its instruction sequence, which
-    differs only in `Actor` field offsets, and by calling the SE counterparts
-    of the same functions.
-12. `AIProcess::ClearFurniture` (ID 39798, SE 38773) takes the actor as its
-    second argument. With it, it releases the process's marker on the occupied
-    reference for that actor (ID 20159, SE 19764) before clearing the occupancy
-    handle and marker; without it, the reservation stays. Every receiver call
-    passes the remote actor. Traced in both binaries; the release itself was
-    not observed in game.
+    returns true without an entry point, so ID 37330 reports success with
+    marker -1. ID 39861 runs its entry step only from Normal, setting WantToSit
+    or WantToSleep (ID 39912) and reserving the process's marker (ID 20159)
+    without checking one was chosen. That the reset to Normal fixes the offset
+    seat is not verified.
+11. The SE 1.5.97 counterparts, matched by instruction sequence and callees:
+    19767 (20162), 36340 (37330), 38909 (39955), 38882 (39923), 36334 (37324),
+    36342 (37332, calling 38831 for 39861), 38835 (39865).
+12. `AIProcess::ClearFurniture` (ID 39798, SE 38773) given the actor releases
+    the process's marker on the occupied reference for it (ID 20159, SE 19764)
+    before clearing the occupancy; without it the reservation stays. Every
+    receiver call passes the remote actor.
 
 Dragon flight:
 
-14. `dragonbehavior.hkx` (vanilla, read from its packfile strings) takes
-    `TakeOff`, `FlyStartCruise`, `FlyStartHover`, `HoverStart`, `HoverStop`,
-    and `FlyStopDefault`, the `ENAM` events of the `Skyrim.esm` idles
-    `FlyStartTakeOff` (`03B553`), `FlyStartCruise` (`03BDA6`), `FlyStartHover`
-    (`03BDA7`), `HoverStart` (`017183`), `HoverStop` (`03B559`), and
-    `FlyStopDefault` (`040B4A`). Which state each transition leaves from is not
-    read; the table above is inferred from the idle names.
-15. Its modifiers derive the wing state from `Speed` against
-    `TargetSpeedDamped` ([Wing strokes](#wing-strokes), expressions and
-    variable defaults read from the packfile), bank from `TurnDelta`, and bend from
-    `PitchDelta`, both scaled by `TimeStep` and `TurnDeltaScale`, so both are
-    taken as rates. Traced in the 1.7.104 binary: `ActorTargetSpeedChannel`
-    (vfunc 1, ID 38331) reads ID 37959 and `ActorPitchDeltaChannel`
-    (ID 38328) reads ID 37963 times 57.2958, both from the AI process; the
-    `TurnDelta` channel copies its value unscaled; the source samples match
-    degrees per second against Skyrim's heading. `PitchDelta` does not
-    follow the source's 2 s pitch rate in sign or size, so it may be an angle
-    to a target rather than a rate; the source and receiver samples log both
-    for comparison. `MovementDirection` is set by ID 39548, which the actor update
-    (ID 37350) calls for an actor with a process: with a high process and a
-    fly state other than `none` and `perching`, it stores the forward direction
-    of `data.angle` composed with the middle-high process's rotation
-    (`+0xB0`, ID 91804). That a remote dragon's update reaches it is assumed;
-    the remote sample's `moveDirZ` shows it.
-16. The graph's flight notifications (`FlightTakeOff`, `FlightCruising`,
+13. `dragonbehavior.hkx` takes `TakeOff`, `FlyStartCruise`, `FlyStartHover`,
+    `HoverStart`, `HoverStop`, and `FlyStopDefault`, the `ENAM` events of the
+    `Skyrim.esm` idles `FlyStartTakeOff` (`03B553`), `FlyStartCruise`
+    (`03BDA6`), `FlyStartHover` (`03BDA7`), `HoverStart` (`017183`),
+    `HoverStop` (`03B559`), and `FlyStopDefault` (`040B4A`). Which state each
+    transition leaves from is inferred from the idle names.
+14. Its modifiers derive the wing state as in [Wing strokes](#wing-strokes),
+    bank from `TurnDelta`, and bend from `PitchDelta`, both scaled by
+    `TimeStep` and `TurnDeltaScale`, so both are rates.
+    `ActorTargetSpeedChannel` (ID 38331) reads ID 37959 and
+    `ActorPitchDeltaChannel` (ID 38328) reads ID 37963 × 57.2958, both from the
+    AI process; the `TurnDelta` channel copies its value unscaled. `PitchDelta`
+    does not follow the source's 2 s pitch rate, so it may be an angle to a
+    target. ID 39548, called by the actor update (ID 37350) for a high process
+    with a fly state other than `none` and `perching`, stores the forward
+    direction of `data.angle` composed with the middle-high process's rotation
+    (`+0xB0`, ID 91804) as `MovementDirection`; that a remote dragon reaches it
+    is assumed.
+15. The graph's flight notifications (`FlightTakeOff`, `FlightCruising`,
     `FlightHovering`, `FlightLanding`, `FlightLanded`) reach Skyrim's
-    `Flight*Handler` animation handlers, which set the actor's fly state; a
-    network-placed dragon is assumed to need nothing else to stay airborne,
-    since the skipped movement update never applies gravity to it.
-17. The quick start (ID 41530) runs the interaction's start (vfunc 0x70,
-    ID 40351), which processes `ActionMount` for the rider at once and fails
-    (result 2) when the idle tree yields no idle, so the idle conditions are
-    evaluated inside the start. Under `DragonEvents` (`02017715`: target
-    `HasKeyword` `ActorTypeDragon` and `DLC2DragonMountKeyword`), the quick
+    `Flight*Handler`s, which set the fly state; a network-placed dragon needs
+    nothing else to stay airborne, since the skipped movement update never
+    applies gravity.
+16. The quick start (ID 41530) runs the interaction's start (vfunc 0x70,
+    ID 40351), which processes `ActionMount` at once and fails (result 2) when
+    the idle tree yields no idle. Under `DragonEvents` (`02017715`) the quick
     branch picks `DragonMountInstant` (`02017716`, event
-    `DragonMountEnterInstant`), as `EnterHorseInstant` under `HorseEvents`
-    (`ActorTypeHorse`) does for a horse. The `HasKeyword` condition
-    (ID 21644) calls vfunc 0x48, which `Character` takes from `Actor`
-    (ID 37183, SE 36204; base form and alias keywords, then the race's).
-Mount gait, traced in the 1.7.104 binary:
+    `DragonMountEnterInstant`). The `HasKeyword` condition (ID 21644) calls
+    vfunc 0x48, which `Character` takes from `Actor` (ID 37183, SE 36204).
 
-18. `BSSpeedSamplerModifier` overrides only vfuncs 0, 5 (`Update`, ID 63306),
-    and 0xC; `Update` reads `state`, `direction`, and `goalSpeed` at 0x50,
-    0x54, and 0x58 and writes `speedOut` at 0x5C. A `BShkbAnimationGraph`
-    builds the `hkbContext` it updates its behavior with from its
-    `characterInstance` at 0xC0 (IDs 63562, 63563) and keeps its `Actor` at
-    0x210. The same layout is assumed on SE 1.5.97, whose vtable comes from
-    CommonLib (ID 282071); not checked in the SE binary.
+Mount gait:
+
+17. `BSSpeedSamplerModifier` overrides only vfuncs 0, 5 (`Update`, ID 63306),
+    and 0xC; `Update` reads `state`, `direction`, and `goalSpeed` at 0x50, 0x54,
+    and 0x58 and writes `speedOut` at 0x5C. A `BShkbAnimationGraph` builds its
+    `hkbContext` from its `characterInstance` at 0xC0 (IDs 63562, 63563) and
+    keeps its `Actor` at 0x210. The same layout is assumed on SE (vtable from
+    CommonLib ID 282071).
 
 ## Acceptance criteria
 
 Furniture:
 
 1. Entering a resolvable reference makes the actor use the same reference with
-   its native entry idle, starting close to the source's entry. Leaving plays the
-   native exit and returns to the latest locomotion.
-2. Dropped snapshots and late join converge to the newest reference or none; a
-   player already in furniture appears in it without an entry idle on the first
-   update after its actor is ready.
-3. Furniture use pauses translation and cannot overlap an attack, jump, or weapon
-   transition. Unresolved, non-furniture, and cross-space references, missing
-   markers, and stuck transitions are bounded, logged, and retried.
+   its native entry idle, starting close to the source's entry; leaving plays
+   the native exit and returns to the latest locomotion.
+2. Dropped snapshots and late joins converge to the newest reference or none; a
+   player already in furniture appears in it without an entry idle.
+3. Furniture use pauses translation and cannot overlap an attack, jump, or
+   weapon transition. Unresolved, non-furniture, and cross-space references,
+   missing markers, and stuck transitions are bounded, logged, and retried.
 4. The local player can use furniture a remote actor holds without an "in use"
    message; the actor is hidden while its source stays or the player keeps the
-   last free marker, and returns seated once it is vacated. Two actors never
-   stack on one marker.
+   last free marker, and returns seated once vacated. Two actors never stack on
+   one marker.
 5. A remote actor still uses furniture after being hit.
-6. Peers whose load orders differ but that both load the furniture's plugin
-   see each other use it, including furniture a light plugin adds.
+6. Peers whose load orders differ but that load the furniture's plugin see each
+   other use it, including furniture a light plugin adds.
 
 Mounts:
 
-7. A mounting player appears seated on every peer, including for peers who join
-   or enter the space while it rides. The horse follows its path and walks,
-   runs, and gallops with its speed (`moving=true` without `sprinting=true`
-   after a spawn, few `Corrected remote mount graph gait` lines), and the rider's
+7. A mounting player appears seated on every peer, also for late joiners. The
+   horse follows its path and walks, runs, and gallops with its speed, with few
+   `Corrected remote mount graph gait` lines, and the rider's
    `horseSpeedSampled` is near the mount's.
 8. A dismount removes the horse and leaves the actor standing where the player
    got off. Death, leaving the world, disconnecting, or timing out removes both
-   without a crash
-   (`Recycling ... after the player dismounted: seated=true transition=false`).
+   without a crash.
 9. The horse cannot be ridden, looted, or harmed locally, and no local actor
    treats it as hostile. The local player walks through a rider and its horse,
-   on foot or riding (`Remote actor character body collision disabled`), and a
-   seated rider logs `Remote actor skeleton collision disabled` with a non-zero
-   count.
-10. A horse on a slope leans with it and levels out on flat ground, and its rider
-    leans with it (`pitch` near `targetPitch`).
-11. A rider draws and sheathes when the source does on horseback, also when it
-    was seated drawn, sheathed, or mid-transition, and a hand item changed on
-    horseback appears without a 2 s delay (`Remote rider weapon state changed`).
-12. A player riding a dragon appears seated on a dragon on every peer, also
-    when the peer joins mid-flight. The dragon takes off, flies, hovers, and
-    lands when the source's does, with few `Corrected remote flying mount
-    graph` lines and no rejected flight events, and it banks into turns and
-    flaps, glides, or feathers with its speed. Dismounting removes it like a
-    horse.
+   on foot or riding.
+10. A horse on a slope leans with it, and its rider with it.
+11. A rider draws and sheathes when the source does on horseback, whatever it
+    was seated with, and a hand item changed on horseback appears without a 2 s
+    delay.
+12. A player riding a dragon appears seated on a dragon on every peer, also when
+    joining mid-flight. The dragon takes off, flies, hovers, and lands when the
+    source's does, with few corrections and no rejected flight events, banks
+    into turns, and flaps, glides, or feathers with its speed. Dismounting
+    removes it like a horse.
 
 Death:
 
 13. A player killed by an enemy collapses into a ragdoll on every peer, and the
-    body disappears when its game loads. A peer entering the cell during the
+    body disappears when its game loads; a peer entering the cell during the
     death camera sees it collapse where the player died.
-14. The body cannot be looted, shows no activation prompt, and Activate on it
-    opens no player menu. The local player gains no kill, bounty, or quest
-    progress.
-15. A player revived with `resurrect` stands up again as a fresh actor. A player
-    in bleedout (essential) stays standing.
+14. The body cannot be looted, shows no activation prompt, and opens no player
+    menu. The local player gains no kill, bounty, or quest progress.
+15. A player revived with `resurrect` stands up as a fresh actor; one in
+    bleedout (essential) stays standing.
 
 ## Known limitations
 
-- The gallop is inferred from speed. A galloping source's measured speed swung
-  between about 345 and 615, which left the gallop range within about a second;
-  the 0.5 s stop hold is meant to bridge those dips, and whether it does is not
-  verified in game. Publishing the source mount's own sprint state (its
-  `IsSprinting` or actor state) would remove the guess.
-- Furniture: a native exit plays its full clip while the source may already
-  be walking away (3.3 s for a table, up to 8.3 s for a bed). The actor then
-  catches up by running along the network path, or snaps to the source if the
-  source is standing still by then.
-- Furniture: crafting menus, recipes, ingredients, output, skill progression,
-  sleep and wait UI, ownership and crime, arbitrary activators, doors,
-  containers, scripted furniture, and paired idles are not synchronized; there is no global reservation across clients; a peer without
-  the furniture's plugin shows the actor standing, with no substitute furniture
-  or seated idle.
+- The gallop is inferred from speed. A galloping source's measured speed swings
+  between about 345 and 615; the 0.5 s stop hold is meant to bridge the dips.
+  Publishing the source mount's sprint state would remove the guess.
+- Furniture: a native exit plays its full clip while the source may already be
+  walking away (up to 8.3 s for a bed); the actor then catches up along the
+  network path, or snaps if the source stands still by then.
+- Furniture: crafting, recipes, skill progression, sleep and wait UI, ownership
+  and crime, arbitrary activators, doors, containers, scripted furniture, and
+  paired idles are not synchronized; there is no global reservation across
+  clients; a peer without the furniture's plugin shows the actor standing.
 - Mounts: the source's mount appearance (a random vanilla horse stands in, and
   one vanilla dragon for every dragon), mount and dismount animations, combat
-  on horseback (attacks, bows, spells; a drawn weapon is shown), horse jumps, a
-  mount left standing after a dismount, and the mount's approach are not shown.
-- Dragons: the dragon's breath and other shouts, the rider's spells and shouts
-  in flight, flight kills, and perching on a tower or rock (shown as a landing)
-  are not shown; they are left for a later change. Roll is not synchronized:
-  the banking comes from the receiver's own graph through `TurnDelta`, so it may
-  differ from the source's. The wing stroke follows the source's at checkpoint
-  rate, not each wing beat's timing. A modded mount that is neither a horse nor
-  a dragon shows a horse.
+  on horseback (a drawn weapon is shown), horse jumps, a mount left standing
+  after a dismount, and the mount's approach are not shown.
+- Dragons: breath and other shouts, the rider's spells and shouts in flight,
+  flight kills, and perching (shown as a landing) are not shown. Banking comes
+  from the receiver's graph through `TurnDelta`, so it may differ from the
+  source's. The wing stroke follows the source's at checkpoint rate. A modded
+  mount that is neither a horse nor a dragon shows a horse.
 - Death: the killer, death animations including a kill move's paired death
-  (the actor always goes straight to ragdoll), where the body comes to rest
-  (each peer simulates its own), and bleedout are not shown.
+  (the actor always goes straight to ragdoll), where the body comes to rest,
+  and bleedout are not shown.

@@ -2,10 +2,8 @@
 
 ## Status
 
-The [vanilla intro](#vanilla-intro) hold's handling of Alternate
-Perspective's start has not run in game; its stages, the cuffs, and the
-`kNewGame` payload were read from the data files, SKSE, and the mod's
-scripts ([Engine assumptions](#engine-assumptions)).
+The [vanilla intro](#vanilla-intro) new-game wait's end on the race menu
+closing has not run in game with Alternate Perspective's start.
 
 ## Scope
 
@@ -14,10 +12,8 @@ fixed order of one synchronization pass, every peer's receive state, the local
 checkpoint publisher, the player's world presence, and the remote actor
 lifecycle: spawn, retirement, and respawn.
 
-It leaves engine mechanics of the actor to [Remote actor](remote-actor.md),
-each feature's rules to its own system, the transport to
-[Network](network.md), and the configuration to
-[Configuration](configuration.md).
+Actor engine mechanics belong to [Remote actor](remote-actor.md), each
+feature's rules to its own system, the transport to [Network](network.md).
 
 ## Components
 
@@ -29,8 +25,8 @@ each feature's rules to its own system, the transport to
 | `runtime/GameSession` | Whether a game is loaded, set by `PresenceSync` |
 | `runtime/VanillaIntro` | Whether the vanilla Helgen intro holds the connection ([Vanilla intro](#vanilla-intro)) |
 | `runtime/RemoteActorActivation` | The local player's activation of a remote actor or mount, on its worker thread ([UI overlay](ui-overlay.md#player-menu-in-the-world)) |
-| `runtime/PluginTime` | Plugin time per pass, averaged each second ([UI overlay](ui-overlay.md#plugin-time)) |
-| `runtime/KeyState` | Keyboard keys held as the input dispatch reports them, for [voice chat](voice-chat.md#activation)'s microphone key |
+| `runtime/PluginTime` | Plugin time per pass, averaged over 100 ms windows ([UI overlay](ui-overlay.md#plugin-time)) |
+| `runtime/KeyState` | Keys held as the input dispatch reports them, for [voice chat](voice-chat.md#activation) |
 | `runtime/PlayerGraphEventHook` | The local player's accepted graph input events, read once against the modded events, for [beast actions](combat-presentation.md#beast-actions), [idles](idle-presentation.md#capture), [pose windows](remote-actor.md#source-window), the [graph event survey](#graph-event-survey), and the [graph trace](#graph-trace) |
 | `sync/SyncCoordinator` | One frame entry, the stage order, the single network drain, and the peer map |
 | `sync/PeerState` | A peer's complete receive state, composed of feature-owned members |
@@ -46,44 +42,37 @@ each feature's rules to its own system, the transport to
 `sync/` holds features seen on the wire and their game-thread state; `actor/`
 holds Skyrim actor mechanisms. For example, `CombatSync` decides when a network
 attack may play, and `CombatIsolation` keeps the local world from fighting the
-actor. `AppearanceSync` owns a peer's appearance revision, and `ActorSpawner`
-allocates the actor from the base that appearance selects.
+actor.
 
 Dependencies run `runtime -> sync -> actor` for game-thread work,
-`sync -> network/protocol` for data, `sync -> audio` for voice, and `actor -> protocol` for value types only, plus
-`actor -> runtime/GameThread` for the thread guard. `network/` and `protocol/`
-include no Skyrim headers. `runtime` calls the installers in `actor`, which own
-their detours and event sinks. `main.cpp` stays a small SKSE entry point.
-
-`Actor` names project modules and `RemoteActor` the replicated actor instance
-(`actor/RemoteActor.h`); `RE::Actor` stays qualified. Some log messages and
-`GameThread::Require` operation names use other words ("actor",
-`UpdateControlledNPC`, `SpawnControlledNPC`), kept so logs of different
-builds stay comparable.
+`sync -> network/protocol` for data, `sync -> audio` for voice,
+`actor -> protocol` for value types only, and `actor -> runtime/GameThread` for
+the thread guard. `network/` and `protocol/` include no Skyrim headers.
+`runtime` calls the installers in `actor`, which own their detours and event
+sinks. `RemoteActor` (`actor/RemoteActor.h`) is the replicated actor instance;
+`RE::Actor` stays qualified. Some log messages and `GameThread::Require` names
+(`UpdateControlledNPC`, `SpawnControlledNPC`) keep older words so logs of
+different builds stay comparable.
 
 ## Threading
 
 - Skyrim engine reads and mutations run only on the thread of the main-loop
   hook. `GameThread::Bind` records the first thread that runs the hook, and
-  every pass after that must run on it. A hook that migrates threads stops the
-  pass. `RE::Main::threadID` is not used: a runtime comparison showed that it
-  did not identify the thread running the pass.
+  every pass after must run on it; a migrated hook stops the pass.
+  `RE::Main::threadID` does not identify the thread running the pass.
 - `GameThread::Require` guards each public remote-actor operation that
-  dereferences an engine object. A caller on another thread is refused and
+  dereferences an engine object; a caller on another thread is refused and
   logged once.
-- `PlayerCharacter::UpdateAnimation` and tasks queued through
-  `SKSE::TaskInterface::AddTask` ran on changing worker threads (seen in logs),
-  so neither is a safe place for actor or graph mutation. Writing
-  `Actor::actorState1` movement bits from the animation hook left invalid
-  engine state that crashed later in FaceGen, without a plugin frame on the
-  stack, so the plugin never writes engine-owned movement-state fields.
+- `PlayerCharacter::UpdateAnimation` and `SKSE::TaskInterface::AddTask` tasks
+  run on changing worker threads, so neither may mutate an actor or graph.
+  Writing `Actor::actorState1` movement bits from the animation hook crashed
+  later in FaceGen, so the plugin never writes engine-owned movement-state
+  fields.
 - Network callbacks only validate and queue plain values behind a lock. Hook
-  callbacks on worker threads only query `ActorRegistry`, which keeps its
-  locking operations small and never touches `PeerState` or a graph, or, for
-  the local player's graph input, queue a beast action or an idle event behind
-  `ShapeshiftSync`'s or `IdleSync`'s own lock. Voice frames go from the
-  network threads to the audio engine without the pass
-  ([Voice chat](voice-chat.md#threads)).
+  callbacks on worker threads only query `ActorRegistry`, or queue the local
+  player's beast actions and idle events behind `ShapeshiftSync`'s or
+  `IdleSync`'s own lock. Voice frames go from the network threads to the audio
+  engine without the pass ([Voice chat](voice-chat.md#threads)).
 
 ## Frame sequence
 
@@ -195,11 +184,10 @@ feature never reads another feature's state fields to infer them.
 
 ## Local publishing
 
-`CheckpointPublisher` owns the checkpoint cadence and sequence. It publishes
-every 0.05 s of accumulated frame time while connected, keeping the remainder so
-the average rate holds, and drops whole missed intervals instead of sending a
-burst. A pass without a parent cell publishes nothing. The sequence wraps
-before `INT64_MAX`. `Network::PublishLocalPlayerTransform` sends the sample's
+`CheckpointPublisher` publishes every 0.05 s of accumulated frame time while
+connected, keeping the remainder so the average rate holds and dropping whole
+missed intervals instead of bursting. A pass without a parent cell publishes
+nothing. The sequence wraps before `INT64_MAX`. `Network::PublishLocalPlayerTransform` sends the sample's
 context (cell, worldspace, graph epoch, furniture, shapeshift, idle) first whenever it differs
 from the last one sent since `Enter`, then the quantized checkpoint
 ([Network](network.md#checkpoint-and-context)).
@@ -208,34 +196,29 @@ One checkpoint is one coherent sample: `MountSync::SampleLocalMount`,
 `MovementSync::SampleLocalMovement` (from the mount while riding),
 `AnimationSync::SampleLocalAnimation`, `FurnitureSync::SampleLocalFurniture`,
 `CombatSync::SampleLocalHandPresentation`, `VoiceSync::SampleLocalVoice`,
-`DeathSync::SampleLocalDeath`,
-`ShapeshiftSync::SampleLocalVampireLord`, `IdleSync::SampleLocalIdle`, which
-ends the held idle on a state change sampled with it, with the graph epoch and
-the local form observed this pass, and `SkeletonSync::SampleLocalSkeleton`
-([Remote actor](remote-actor.md#skeleton-pose)). No stage publishes a partial
-checkpoint. The checkpoint always precedes the `Action` anchored to it, and a
-weapon or shout swap is published before the attack, presentation, or shout
-that uses it.
-`PoseWindow::Update` runs before `IdleSync::QueueLocalIdles`, since a window
-that opens ends the held idle, and before the checkpoint, whose pose it gates.
+`DeathSync::SampleLocalDeath`, `ShapeshiftSync::SampleLocalVampireLord`,
+`IdleSync::SampleLocalIdle`, and `SkeletonSync::SampleLocalSkeleton`
+([Remote actor](remote-actor.md#skeleton-pose)), with the graph epoch and local
+form observed this pass. No stage publishes a partial checkpoint. The
+checkpoint precedes the `Action` anchored to it, and a weapon or shout swap is
+published before the attack, presentation, or shout that uses it.
+`PoseWindow::Update` runs before `IdleSync::QueueLocalIdles`, since an opening
+window ends the held idle, and before the checkpoint, whose pose it gates.
 
-The local sampling state is held in structs that `SyncCoordinator` owns rather
-than in function statics, so it can be reset with `= {}` and its logic read
-apart from the engine: `CheckpointPublisher::State` (cadence, sequence, and
-`MovementSync::LocalState`, the previous position and the published space
-reference) and `AnimationSync::LocalState` (graph epoch, jump tracking, stop
-and arrival holds, and the last published state), which the per-pass
-observers also use. Nothing resets them yet; they live as long as the process.
+Local sampling state lives in structs `SyncCoordinator` owns, not function
+statics, so it can be reset with `= {}`: `CheckpointPublisher::State` (cadence,
+sequence, `MovementSync::LocalState`) and `AnimationSync::LocalState` (graph
+epoch, jump tracking, stop and arrival holds, last published state). They live
+as long as the process.
 
 Appearance, equipment, and effects publish on their own schedules and republish on every
 new connection generation ([Network](network.md#latest-wins-publishers)).
 
 ### Graph event survey
 
-A diagnostic that shows which graph events a modpack's animations use, as input
-for syncing animations outside the vanilla vocabulary. Nothing acts on it. It is
-compiled only when `NDEBUG` is not defined, like the
-[graph probe](locomotion.md#graph-probe).
+A debug-build diagnostic (without `NDEBUG`, like the
+[graph probe](locomotion.md#graph-probe)) showing which graph events a
+modpack's animations use. Nothing acts on it.
 
 - `GraphEventSurvey::ObserveLocalGraphEvent` records, on the hook's thread,
   each event name the player's graph accepts for the first time in the
@@ -248,10 +231,9 @@ compiled only when `NDEBUG` is not defined, like the
 
 ### Graph trace
 
-A diagnostic that shows how a modded graph behavior runs on the local player:
-which events enter and leave it, the states it passes through, and the
-variables it reads and sets. Nothing acts on it. It is compiled only when
-`NDEBUG` is not defined.
+A debug-build diagnostic showing how a modded graph behavior runs on the local
+player: the events entering and leaving it, its states, and the variables it
+reads and sets. Nothing acts on it.
 
 - An event at index 1217 or later and a variable at index 230 or later of a
   graph with the vanilla prefix is modded
@@ -280,90 +262,70 @@ variables it reads and sets. Nothing acts on it. It is compiled only when
   (`GameSession::SetInGame(true)`).
 - On each connection generation the player starts out of the world, so
   `Enter` is sent again once it is in the world.
-- `Exit` is sent once when a loading screen or the main menu opens
-  (menu sink), when a save starts loading (`kPreLoadGame`), or when a pass finds
-  the player out of the world. The main menu also ends the game session. The
-  menu sink reports the exit as soon as the menu opens, before the main loop
-  may stall on the load; since it and the SKSE message run outside the
-  main-loop pass, the published state is kept under a lock.
+- `Exit` is sent once when a loading screen or the main menu opens (menu sink,
+  before the main loop may stall on the load), when a save starts loading
+  (`kPreLoadGame`), or when a pass finds the player out of the world. The main
+  menu also ends the game session. The menu sink and SKSE message run outside
+  the pass, so the published state is kept under a lock.
 - Attacks captured while out of the world are discarded, so they cannot anchor
   to the first checkpoint after returning.
 
 ## Vanilla intro
 
 `VanillaIntro` tells the [connection](network.md#vanilla-intro-hold) and the
-overlay whether the vanilla prisoner intro is playing, from the state of the
-quest MQ101 (`Skyrim.esm` local form ID `0x0003372B`) and whether the player
-wears the prisoner cuffs `PrisonerCuffsPlayer` (`Skyrim.esm` local form ID
-`0x0010E039`), both looked up at `kDataLoaded`; without either form the
-intro never holds. `IsPlaying` reads an atomic, so the overlay may call it;
+overlay whether the vanilla prisoner intro is playing, from quest MQ101
+(`Skyrim.esm` `0x0003372B`) and the prisoner cuffs `PrisonerCuffsPlayer`
+(`Skyrim.esm` `0x0010E039`), looked up at `kDataLoaded`; without either form
+the intro never holds. `IsPlaying` reads an atomic, so the overlay may call it;
 `Update` sets it on the main loop.
 
-- It holds while MQ101 is running (`TESQuest::IsEnabled`) below stage 160
-  (`kPlayerControlStage`) and the player is the intro's prisoner. Stage 160
-  unbinds the player, enables movement, and shows the move help after
-  Alduin's knockdown (stage 140), the first point after the cart where the
-  player plays freely. CommonLib's `IsRunning` is not used: it is also true
-  for a stopped quest.
+- It holds while MQ101 is running (`TESQuest::IsEnabled`; CommonLib's
+  `IsRunning` is also true for a stopped quest) below stage 160
+  (`kPlayerControlStage`, the first free play after the cart) and the player is
+  the prisoner.
 - The player is the prisoner once `Actor::GetWornArmor` finds the cuffs worn
-  while MQ101 is below stage 160. The result is kept for the rest of the
-  check (`s_prisoner`), so the inventory is searched only until it is found
-  or the hold is off. MQ101 running alone is not enough: Alternate
-  Perspective keeps it running at stage 0 through its own start and the
-  rest of the game, and runs its Helgen visitor path through the same stages
-  with the player free; neither equips the cuffs, while the vanilla start and
-  that mod's cart branch do.
+  below stage 160, kept for the rest of the check (`s_prisoner`). MQ101 running
+  is not enough: Alternate Perspective keeps it at stage 0 through its own
+  start and runs its Helgen visitor path with the player free, neither
+  equipping the cuffs, while the vanilla start and that mod's cart branch do.
 - A stopped, completed, or never started MQ101 never holds, so an alternate
-  start, a console skip, or a mod that sets a later stage connects at once.
-- The quest is checked only while the hold can change: from `kNewGame`, or
-  from `kPostLoadGame` once a save's quest state and inventory are restored,
-  each pass until the hold is off. `Update` then returns at its first check
-  until the next game, so a game past the intro checks once per load, and a
-  cart ride begun later in the play-through is not held. Both events start
-  the check over (`s_restart`). Between `kPreLoadGame` and `kPostLoadGame`
-  nothing is checked, because the quest holds the previous game's or a
-  partly loaded state, and the hold keeps its last value.
-- At `kNewGame`, SKSE passes the quest the new game starts. When it is MQ101,
-  the hold starts at once (`s_awaitingStart`), because the start may only be
-  queued and the stage 10 fragment equips the cuffs some Papyrus time after
-  the player reaches the world. The wait ends when the player wears the
-  cuffs, MQ101 completes or reaches stage 160, at `kPreLoadGame`, when the
-  race menu (`RE::RaceSexMenu`) closes in the game without the cuffs
-  (`s_raceMenuSeen`), or after 5 s (`kStartWaitSeconds`) of clamped frame
-  time in the game without the cuffs and the race menu. The last two are
-  logged as a prisoner start that did not happen. While the race menu is
-  open the wait holds regardless of time, so a start that opens it connects
-  only once the player has made the character. The prisoner start opens its
-  race menu in the Helgen yard, long after stage 10 equipped the cuffs,
-  while Alternate Perspective's start opens it before any stage, so its
-  start connects when the race menu closes. Any other start quest starts no
-  wait, so an alternate start is not delayed. A mod start that keeps MQ101
-  as the start quest and opens no race menu connects after the 5 s; a menu
-  that pauses the game pauses that count too.
-- `IsPlaying` is false outside a game (`GameSession::IsInGame`), so the last
-  game's hold does not reach the main menu without a per-pass menu lookup.
-- Each check that ends with the hold off, and each change, is logged as
-  `Vanilla intro hold on` or `off`, with MQ101's running flag and stage,
-  whether the player is the prisoner, and whether the new-game wait is
-  active. `kNewGame` logs whether its quest is MQ101.
+  start, a console skip, or a later stage connects at once.
+- The quest is checked only while the hold can change: from `kNewGame`, or from
+  `kPostLoadGame`, each pass until the hold is off, then not until the next
+  game (`s_restart`), so a cart ride begun later is not held. Between
+  `kPreLoadGame` and `kPostLoadGame` the hold keeps its last value, since the
+  quest state is the previous game's or partly loaded.
+- At `kNewGame` SKSE passes the start quest. When it is MQ101 the hold starts
+  at once (`s_awaitingStart`), since stage 10 equips the cuffs some Papyrus
+  time after the player reaches the world. The wait ends when the cuffs are
+  worn, MQ101 completes or reaches stage 160, at `kPreLoadGame`, when the race
+  menu (`RE::RaceSexMenu`) closes without the cuffs (`s_raceMenuSeen`), or
+  after 5 s (`kStartWaitSeconds`) of clamped frame time without cuffs or race
+  menu; the last two log a prisoner start that did not happen. The open race
+  menu holds the wait regardless of time: the prisoner start opens it long
+  after stage 10, while Alternate Perspective's opens it before any stage, so
+  that start connects when it closes. Other start quests start no wait.
+- `IsPlaying` is false outside a game (`GameSession::IsInGame`).
+- Each check ending with the hold off, and each change, logs `Vanilla intro
+  hold on` or `off` with MQ101's running flag and stage, the prisoner flag, and
+  the wait; `kNewGame` logs whether its quest is MQ101.
 
 ## Receive state
 
 `SyncCoordinator` owns one `std::unordered_map<Multiplayer::PeerSlot, PeerState>`
-keyed by the server's slot for the peer. `PeerState` holds the peer's
-`CheckpointPlayout`, the sequence whose checkpoint the current actor last
-received, and the feature-owned `combat`, `shapeshift`, `idle`, `lifecycle`,
-`appearance`, `equipment`, `effects`, `furniture`, and `nameplate` members. Movement and animation keep their state
-on the `RemoteActor` instead. A `RemoteFrame` presents the played checkpoint,
+keyed by the peer's server slot. `PeerState` holds the peer's
+`CheckpointPlayout`, the sequence the current actor last received, and the
+feature-owned `combat`, `shapeshift`, `idle`, `lifecycle`, `appearance`,
+`equipment`, `effects`, `furniture`, and `nameplate` members; movement and
+animation keep theirs on the `RemoteActor`. A `RemoteFrame` presents the played checkpoint,
 its sequence, and the interpolated pose; features never see a checkpoint that
 has not played.
 
 `ApplyNetworkChanges` drains everything the network thread queued, once per
 pass:
 
-1. A lost or replaced connection removes every peer: slots belong to one
-   connection, so the server will never update or report them again.
-   Reconnecting rebuilds peers from the server's `PeerEnter` messages.
+1. A lost or replaced connection removes every peer, since slots belong to one
+   connection; reconnecting rebuilds them from `PeerEnter`.
 2. A `PeerLeave` for any reason but `DISCONNECTED` (the peer left the world,
    went out of range, or was excluded) removes the actor and resets the
    playout and combat state, but keeps appearance, equipment, and effects
@@ -381,9 +343,8 @@ pass:
 7. Inspections go to `PlayerDetails::Accept`
    ([UI overlay](ui-overlay.md#player-menu)).
 8. Trade events go to `TradeSync::QueueNetworkChanges`, which ends a trade
-   whose connection was lost or whose events were dropped, and keeps the
-   rest for `TradeSync::Sync` later in the pass, which needs the player
-   ([Trade](trade.md)).
+   whose connection was lost or whose events were dropped and keeps the rest
+   for `TradeSync::Sync` ([Trade](trade.md)).
 
 `PlayCheckpoints` then advances every peer's playout. Each checkpoint that
 reaches its playback time is shown, in order, to furniture, animation,
@@ -397,20 +358,18 @@ field are reconstructable; historical attacks and ended idles are not.
 ## Checkpoint playout
 
 Checkpoints leave the source every 0.05 s but arrive unevenly: the server
-batches them once per send interval (`send_rate_hz`, 20) and replaces one that a newer
-one overtook, sends far peers at `far_rate_hz`, and suppresses idle repeats
+batches them per send interval, replaces overtaken ones, sends far peers at
+`far_rate_hz`, and suppresses idle repeats
 ([Interest and delivery](interest-and-delivery.md#batching)), and the network
-adds jitter. Following the newest checkpoint as it arrives would make the
-actor alternate between catching up and waiting. `CheckpointPlayout` instead plays
-each peer's checkpoints back at their sampled spacing, a little behind the
-newest. In a simulation of a 60 fps source, a 20 Hz relay with idle
-suppression and jitter spikes, and receivers at 30 to 144 fps, this cut the
-per-pass speed deviation of a following actor from about 23% to 7%, and
-passes without movement from 3% to 0.3%, for about 50 ms more delay. The whole checkpoint waits, not only its transform, so movement state,
-jumps, stance, hands, furniture, death, and the actions anchored to a
-checkpoint stay with the position they were sampled at: actions dispatch only
-once their anchor checkpoint has played ([Combat
-presentation](combat-presentation.md#receiver-queue)).
+adds jitter. Following each newest checkpoint would make the actor alternate
+between catching up and waiting, so `CheckpointPlayout` plays each peer's
+checkpoints at their sampled spacing, a little behind the newest. In a
+simulation (60 fps source, 20 Hz relay with idle suppression and jitter spikes,
+receivers at 30–144 fps) this cut a following actor's per-pass speed deviation
+from about 23% to 7%, and passes without movement from 3% to 0.3%, for about
+50 ms more delay. The whole checkpoint waits, so movement state, jumps, stance,
+hands, furniture, death, and anchored actions stay with the position they were
+sampled at ([Combat presentation](combat-presentation.md#receiver-queue)).
 
 - **Sender time.** Each checkpoint carries the source's monotonic clock in
   milliseconds modulo 16384 (`time`, [Network](network.md#checkpoint-and-context)).
@@ -438,27 +397,23 @@ presentation](combat-presentation.md#receiver-queue)).
   Checkpoints played in the same pass each reach `OnCheckpointPlayed` in order.
   At most 16 wait; beyond that the oldest is dropped.
 - **Pose.** Between the played checkpoint and the next waiting one, position,
-  pitch, and look pitch interpolate linearly and heading along the shorter arc;
-  `RemotePose.speed` is the segment's distance over its duration and
-  `headingRate` its turn over its duration (0 once the segment is reached or
-  without one). `fraction` is the progress through the segment, 0 without
-  one, and `RemoteFrame.next` (`CheckpointPlayout::GetNext`) the checkpoint it
-  moves toward, for the [skeleton pose](remote-actor.md#skeleton-pose). `sampledSpeed` interpolates the checkpoints' `speed` fields,
-  and `direction` their `direction` along the shorter way around while both
-  move and differ by less than 1/8 turn; otherwise it holds the played
-  checkpoint's, so a larger change steps and is cross-blended
-  ([Locomotion](locomotion.md#direction)), and an idle checkpoint's direction is
-  never blended toward. A gap over
-  0.25 s is not one stretch of movement: the player stood still, since idle
-  repeats are not sent, or the connection stalled. The segment then starts
-  only the next checkpoint's distance over its speed before it, at least one
-  `interval` and at most the whole gap. Nothing interpolates across a
-  coordinate-space change, a mount change, or more than 4096 units; the pose
-  holds the played checkpoint until the next one plays. With nothing waiting,
-  the pose holds the played checkpoint too: there is no extrapolation. When
-  that lasts 0.02 s or more and began while the played checkpoint moved
-  at 50 or more, above an idle player's drift, the end of the wait is logged (`Checkpoint playout ran
-  dry`, with its duration and the estimates; the first 10, then every 100th).
+  pitch, and look pitch interpolate linearly and heading along the shorter arc.
+  `RemotePose.speed` and `headingRate` are the segment's distance and turn over
+  its duration (0 without a segment), `fraction` the progress through it, and
+  `RemoteFrame.next` (`CheckpointPlayout::GetNext`) the checkpoint it moves
+  toward, for the [skeleton pose](remote-actor.md#skeleton-pose).
+  `sampledSpeed` interpolates the checkpoints' `speed`, and `direction` their
+  `direction` along the shorter way while both move and differ by less than
+  1/8 turn; otherwise it holds the played one, so a larger change steps and is
+  cross-blended ([Locomotion](locomotion.md#direction)).
+- A gap over 0.25 s means the player stood still (idle repeats are not sent) or
+  the connection stalled, so the segment starts only the next checkpoint's
+  distance over its speed before it, at least one `interval`, at most the gap.
+  Nothing interpolates across a coordinate-space or mount change or more than
+  4096 units. With nothing waiting the pose holds the played checkpoint; there
+  is no extrapolation. A wait of 0.02 s or more that began while moving at 50
+  or more logs its end (`Checkpoint playout ran dry`, with duration and
+  estimates; the first 10, then every 100th).
 
 Every step is constant work per peer per pass with no allocation after a
 peer's first checkpoint.
@@ -473,13 +428,10 @@ exterior grid's coordinates and stay in sync across cell boundaries. An
 interior needs an exact cell match, because its coordinates are local to it.
 
 - **Publishing.** `MovementSync::SampleLocalSpace` builds the reference once
-  per space change; exterior cell crossings keep it. A space without a form
-  reference publishes neither and is logged as a warning. It also builds
-  the `location` reference once per change of the player's current location
-  (`PlayerCharacter` runtime data `currentLocation`); a location without a
-  form reference, a dynamic one, publishes none. Nothing in the sync reads
-  the location; it names the place in the
-  [player menu](ui-overlay.md#player-menu), and a change costs one context.
+  per space change; a space without a form reference publishes neither and
+  logs a warning. It also builds the `location` reference once per change of
+  `PlayerCharacter` `currentLocation` (none for a dynamic location), which only
+  names the place in the [player menu](ui-overlay.md#player-menu).
 - **Resolution.** `MovementSync::OnCheckpointPlayed` resolves a peer's
   reference with `FormLookup::ResolveFormID` on its first played checkpoint
   and on each change, into `PeerState::space`, which `RemoteFrame::cellID`
@@ -497,24 +449,22 @@ interior needs an exact cell match, because its coordinates are local to it.
 `ActorLifecycle` creates and retires the peer's `RemoteActor` and, while the
 player rides, its mount ([Native interactions](native-interactions.md#mounts)).
 
-- **Spawn.** An actor is created directly at the played checkpoint's position
-  and heading once the player is in the local space, the spawn location is
-  loaded (`ActorSpawner::IsSpawnLocationLoaded`: an exterior cell containing
-  the position, or the local player's interior), and
-  `AppearanceSync::GetSpawnBase` has a base for the played checkpoint's form. It is never created at the local
-  player first. A failed spawn is retried after 1 s. A spawn records the cell
-  and worldspace it was created in.
+- **Spawn.** An actor is created at the played checkpoint's position and
+  heading, never at the local player first, once the peer is in the local
+  space, the location is loaded (`ActorSpawner::IsSpawnLocationLoaded`: an
+  exterior cell containing it, or the local player's interior), and
+  `AppearanceSync::GetSpawnBase` has a base for the checkpoint's form. A failed
+  spawn retries after 1 s. A spawn records its cell and worldspace.
 - **Throttling.** `[Advanced] SpawnsPerSecond` (default 20, `0` unlimited)
   bounds actor and mount spawns. `RefillSpawnAllowance` adds the rate times the
   frame time once per pass, never saving up more than one pass's share, and a
   pass may always start one spawn. A held-back spawn accumulates its wait, and
   a due spawn starts only once it has waited as long as the longest spawn held
   back in the previous pass, so a fixed peer order cannot starve later peers.
-- **Retirement** removes the actor and its mount, clears queued attacks, queued
-  idles, and the applied sequence, and keeps the latest reconstructable state,
-  the held idle included, for a respawn.
-  Queued beast actions stay, since they may belong to the form the actor
-  respawns in, and age out after 3 s. Reasons, each logged as `Recycling
+- **Retirement** removes the actor and its mount, clears queued attacks, idles,
+  and the applied sequence, and keeps the reconstructable state, the held idle
+  included, for a respawn. Queued beast actions stay, since they may belong to
+  the form the actor respawns in, and age out after 3 s. Reasons, each logged as `Recycling
   remote player actor ...`: a new appearance revision, a new
   [beast form](appearance-and-equipment.md#shapeshifts), a coordinate-space
   change, fast travel, revival, dismount (including a change between a horse
@@ -523,57 +473,48 @@ player rides, its mount ([Native interactions](native-interactions.md#mounts)).
   displacement: an actor more than 4096 units (`kRelocationDistance`) from its
   checkpoint is retired, and so is one without 3D for 2 s whose target location
   is not loaded, since its own cell stayed unloaded and it cannot regain 3D.
-- **A lost handle** schedules a respawn after the retry delay.
-- **Removal** for a `PeerLeave` or a lost connection
-  removes the actor and mount without a respawn.
+- **A lost handle** schedules a respawn after the retry delay; a `PeerLeave` or
+  lost connection removes actor and mount without one.
 - **Removing a reference** releases its furniture occupancy and marker
-  reservations first (a reservation that outlives its actor makes Skyrim refuse
-  every entry point to the replacement), unregisters it, then disables and
-  deletes it.
+  reservations first (an orphaned reservation makes Skyrim refuse every entry
+  point to the replacement), unregisters it, then disables and deletes it.
 
 ### Saves
 
 Remote actors belong to the session, not the save. On `kSaveGame`, dispatched
 before the engine writes, every live actor's reference is excluded from the
-save, and the next pass after saving restores it. A removed reference is
-excluded permanently: deleting a reference does not retire the change form the
-save writer keeps for it, and that record carries the runtime actor base, which
-is never serialized. On load it would bind to whichever dynamic form received
-the same ID, which crashed the load.
+save; the next pass restores it. A removed reference is excluded permanently:
+deletion does not retire its change form, which carries the never-serialized
+runtime base and on load would bind to whichever dynamic form got the same ID,
+crashing the load.
 
 ## Timing
 
-Durations accumulate the frame delta clamped to 0.1 s (`FrameTime::Clamp`)
-and use `...Seconds` constants. Pass counters remain only where the logic
-means engine update passes (graph readiness across passes) or for log
-throttling (`ActorConstants::ShouldLogOccurrence`), with a comment saying so.
-Two clocks are exceptions. The checkpoint playout follows the sender's clock,
+Durations accumulate the frame delta clamped to 0.1 s (`FrameTime::Clamp`);
+pass counters remain only for engine update passes or log throttling
+(`ActorConstants::ShouldLogOccurrence`). Two clocks are exceptions. The checkpoint playout follows the sender's clock,
 so it runs on `steady_clock` and catches up after a local pause instead of
 replaying it. `CheckpointPublisher` accumulates the unclamped delta, because
 the elapsed time divides the distance travelled into the published speed.
 
 ## Engine assumptions
 
-- [Vanilla intro](#vanilla-intro): the stage meanings come from the 1.7.104
-  data files (`QF_MQ101_0003372B` Fragment_316 at stage 160:
-  `SetRestrained(false)`, `EnablePlayerControls` with movement, the move help;
-  Fragment_295 at stage 140: the knockdown idle; Fragment_4 at stage 10 and
-  Fragment_227 at stage 70 equip `PrisonerCuffsPlayer`, Fragment_74 at stage
-  240 removes it). Alternate Perspective's `QF_MQ101_0003372B_new` equips the
-  cuffs only in its cart branch (stage 4, then stage 10's Fragment_389);
-  its start (stage 0's Fragment_332) and visitor path (Fragment_334,
-  Fragment_346, Fragment_353) do not. Vanilla opens the race menu in the
-  prisoner start only from Fragment_13 in the Helgen yard (Fragment_27 and
-  Fragment_156 are stage 0 quickstarts); `APMQ101` opens it at its start.
-  That `GetWornArmor` sees a Papyrus `EquipItem` by the next pass is assumed. `skse64_1_7_104.dll`
-  dispatches `kNewGame` after the call to `TESQuest::EnsureQuestStarted`
-  (ID 25003) that it hooks returns, with that quest as `data`. The SE runtime's
-  SKSE is assumed to send the same; the pointer is only compared, never
-  dereferenced. That the player can reach the world before a queued MQ101
-  start runs is not observed; the new-game wait only guards against it.
-  `kPostLoadGame` is assumed to arrive before the loaded game's first pass
-  with the player in the world, so a save in the intro starts its session
-  with the hold already set.
+- [Vanilla intro](#vanilla-intro) stage meanings come from the 1.7.104 data
+  files: `QF_MQ101_0003372B` Fragment_316 (stage 160) restores control and
+  movement; Fragment_4 (stage 10) and Fragment_227 (stage 70) equip
+  `PrisonerCuffsPlayer`, Fragment_74 (stage 240) removes it; the prisoner start
+  opens the race menu only from Fragment_13 in the Helgen yard. Alternate
+  Perspective's `QF_MQ101_0003372B_new` equips the cuffs only in its cart branch
+  (stage 4, then Fragment_389), not in its start (Fragment_332) or visitor path,
+  and `APMQ101` opens the race menu at its start.
+- `GetWornArmor` sees a Papyrus `EquipItem` by the next pass.
+- SKSE dispatches `kNewGame` after `TESQuest::EnsureQuestStarted` (ID 25003)
+  returns, with that quest as `data` (read from `skse64_1_7_104.dll`; assumed
+  for SE; the pointer is only compared). The new-game wait guards against the
+  player reaching the world before a queued MQ101 start runs, which was never
+  observed.
+- `kPostLoadGame` arrives before the loaded game's first pass with the player
+  in the world, so a save in the intro starts with the hold set.
 
 ## Known limitations
 

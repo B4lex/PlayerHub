@@ -38,69 +38,63 @@ read once when SKSE loads the plugin, before any other plugin work.
 
 ### Schema
 
-Each setting is described once in `SettingsSchema.cpp`, through a visitor that
-reads the file, writes it, and draws the settings window. A new option is a field
-in `Config::PluginConfig` plus one line there. Every setting the settings window
-shows takes, after its key, the `Text::Id` of the label the window shows;
-reading and saving ignore it, so a label changes without renaming the key, and
-a setting without one does not compile. The outfit's slots and weapon types
-take theirs from `kArmorSlotLabels` and `kWeaponTypeLabels`. A section takes the
-`Text::Id` of its title, and comments and group comments are `Text::Id`s too:
-the settings window shows them in the game's language
-([Localization](ui-overlay.md#localization)), and the file gets their English
-text (`Text::GetEnglish`), so it is the same whatever the language. `Layout`
-takes no label, and its comment, which only the file shows, is plain English.
-`Choice` takes the values the file stores and, beside them, the `Text::Id`s
-the settings window shows for them. `Language` takes a string: a
-translation's code, or empty for the game's language. Reading the file checks
-only that a value is a code (`Text::IsLanguageCode`), since the translations
-load later; `Text::Select` warns of a code with no file
-([UI overlay](ui-overlay.md#localization)).
-`Config::SettingsVisitor::Form` takes the setting's item filter
-([Appearance and equipment](appearance-and-equipment.md#item-filter-and-catalog)).
-`Unsigned` takes the setting's maximum, above which a value in the file is
-invalid, a `Text::Id` naming zero where zero is not a count, which only the settings
-window shows (the file stores `0`), and a step for the settings window's
-slider. The file takes any value up to the maximum, off the step too, so a
-value written by hand loads as it is. `Percent` takes both limits, outside which a
-value in the file is invalid, and a step: a value that is not the minimum
-plus whole steps is invalid too. The file stores the number without a sign.
-`FinePercent` takes a maximum: a finite number from 0 to it, with any fraction
-(`ParseFloat`), is valid, and the file stores the shortest text that reads back
-as the same `float`. The settings window's slider moves in whole percents; a
-drag on the open chat stores a fraction, so it stays on its pixel.
-`Color` is an opaque `0xRRGGBB` value that the file stores as six hexadecimal
-digits (`FormatColor`, upper case); reading also takes lower case and a leading
-`#` (`ParseColor`). It takes swatches, the colors the settings window offers.
-`Layout` is a measure of a window that the player sets by dragging that window:
-an unsigned value within both limits, read and saved as any other, which the
-settings window does not show. `ShowNextIf` makes the next setting depend on a
-value described before it; reading and saving ignore it, and the settings
-window leaves the row out while the value is false.
-`Comment` names a group of the settings after it: a comment line above them
-in a new file, and a group heading in the settings window.
-`AudioDevice` is an audio device's system name, read and saved as a string
-(`SettingsVisitor::IsValidAudioDeviceName`: at most 255 bytes without a line
-break or `;`), and the settings window offers the devices it finds; it takes
-whether the device captures. `InputMeter` holds no value: the settings window
-alone draws the microphone's level against the threshold it takes.
-`Config::Describe` describes the sections in the order Connection,
-DefaultOutfit, UI, Controls, Gameplay, Voice, Advanced: the order of a new file's
-sections and of the settings window's sidebar
-([UI overlay](ui-overlay.md#settings-window)).
+Each setting is described once in `SettingsSchema.cpp` (`Config::Describe`),
+through a visitor that reads the file, writes it, and draws the settings
+window; a new option is a field in `Config::PluginConfig` plus one line there.
+Sections are described in the order Connection, DefaultOutfit, UI, Controls,
+Gameplay, Voice, Advanced, which orders a new file and the settings window's
+sidebar ([UI overlay](ui-overlay.md#settings-window)).
+
+- Every shown setting takes the `Text::Id` of its label after its key, ignored
+  by reading and saving, so a label changes without renaming the key; one
+  without a label does not compile. Outfit slots and weapon types take theirs
+  from `kArmorSlotLabels` and `kWeaponTypeLabels`. Section titles, comments,
+  and group comments are `Text::Id`s too: the window shows them in the game's
+  language ([Localization](ui-overlay.md#localization)) and the file gets
+  their English text (`Text::GetEnglish`).
+- `Choice` takes the values the file stores and the `Text::Id`s the window
+  shows for them.
+- `Language` takes a translation's code, or empty for the game's language.
+  Reading checks only that it is a code (`Text::IsLanguageCode`), since
+  translations load later; `Text::Select` warns of a code without a file.
+- `Config::SettingsVisitor::Form` takes the setting's item filter
+  ([Appearance and equipment](appearance-and-equipment.md#item-filter-and-catalog)).
+- `Unsigned` takes a maximum (a larger file value is invalid), an optional
+  `Text::Id` naming zero for the window (the file stores `0`), and a slider
+  step; the file takes any value up to the maximum, off the step too.
+- `Percent` takes both limits and a step; a file value outside the limits or
+  off the steps is invalid. Stored without a sign.
+- `FinePercent` takes a maximum: any finite number from 0 to it
+  (`ParseFloat`), stored as the shortest text that reads back as the same
+  `float`. The window's slider moves in whole percents; a drag on the open
+  chat stores a fraction, so the chat stays on its pixel.
+- `Color` is `0xRRGGBB`, stored as six upper-case hexadecimal digits
+  (`FormatColor`); reading also takes lower case and a leading `#`
+  (`ParseColor`). It takes the swatches the window offers.
+- `Layout` is a window measure the player sets by dragging that window: an
+  unsigned value within both limits, not shown in the window, with a plain
+  English comment for the file.
+- `ShowNextIf` makes the next setting's row depend on a value described before
+  it; reading and saving ignore it.
+- `Comment` names a group of the settings after it: a comment line in a new
+  file, a group heading in the window.
+- `AudioDevice` is a device's system name, read and saved as a string
+  (`SettingsVisitor::IsValidAudioDeviceName`: at most 255 bytes without a line
+  break or `;`); it takes whether the device captures, and the window offers
+  the devices it finds. `InputMeter` holds no value: the window draws the
+  microphone's level against the threshold it takes.
 
 ## Settings
 
 ### `[Connection]`
 
-Who the player is to peers and which server they join, in one group. They
-share one section so that the settings window's connection button and every
-setting it depends on are on one page
+Who the player is to peers and which server they join, in one section so the
+connection button and every setting it depends on share one page
 ([UI overlay](ui-overlay.md#connection-controls)).
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `DisplayName` | The player's name as peers see it, in the player label over the actor and in chat ([Appearance and equipment](appearance-and-equipment.md#display-name)): 3..15 ASCII letters, digits, and underscores, as the server accepts (`Multiplayer::IsValidDisplayName`, [Network](network.md#sessions)). A file value that breaks the rule loads as not set. Empty means not set, and no connection is opened without one ([Network](network.md#connection)). It is the display name of the player's session, so the server refuses one another player holds ([Network](network.md#sessions)), and it reaches the server only when connecting: the settings window locks it while a connection is wanted or open ([UI overlay](ui-overlay.md#connection-controls)) | empty |
+| `DisplayName` | The player's name as peers see it ([Appearance and equipment](appearance-and-equipment.md#display-name)): 3..15 ASCII letters, digits, and underscores (`Multiplayer::IsValidDisplayName`, [Network](network.md#sessions)); a file value breaking the rule loads as not set. Without one no connection opens. It is the session's display name, so the server refuses one another player holds; it reaches the server only when connecting, and the settings window locks it while a connection is wanted or open | empty |
 | `ConnectAutomatically` | Whether each game connects when it loads, which it does only with a `DisplayName` set; otherwise the settings window's connection button does | `true` |
 | `CustomServer` | Whether the client connects to `ServerAddress` instead of the [official server](#official-and-custom-server) | `false` |
 | `ServerAddress` | The custom server's address, `host` or `host:port` ([Server address](#server-address)); empty is valid and means none. Read only while `CustomServer` is `true`, and kept while it is `false` | empty |
@@ -114,36 +108,26 @@ enter one. Non-goal: keeping the official address secret; it is a plain string
 in the DLL and, as a WebSocket URL, the key of its lines in
 `PlayerHub.session` and `PlayerHub.players` ([Network](network.md#client)).
 
-`Config::GetServerAddress` is the `Config::ServerAddress` (host, port, and
-TLS) the client connects to: the build's default while `CustomServer` is
-`false`, `ServerAddress` with `ServerTls` while it is `true`, and none when
-`ServerAddress` is empty, in which case nothing connects
-([Network](network.md#connection)). `Config::HasServerAddress` answers the
-same without building one, for the checks that run every frame or revision.
-`Config::GetDefaultServerAddress` is the build's default. The default is
-never written to the file, so a later build with another official server moves
-every player who did not switch, and the settings window never draws it
-([UI overlay](ui-overlay.md#settings-window)). The log names it
-`the official server` and any other `a custom server`, never by its address
-([Network](network.md#client)).
+`Config::GetServerAddress` is the `Config::ServerAddress` (host, port, TLS)
+the client connects to: the build's default while `CustomServer` is `false`,
+`ServerAddress` with `ServerTls` while `true`, and none when `ServerAddress` is
+empty, so nothing connects ([Network](network.md#connection)).
+`Config::HasServerAddress` answers the same without building one, for per-frame
+checks; `Config::GetDefaultServerAddress` is the build's default. The default
+is never written to the file, so a later build with another official server
+moves every player who did not switch, and the settings window never draws it.
+The log calls it `the official server` and any other `a custom server`, never
+by address.
 
 The repository does not name the public server. The `server_address` and
-`server_tls` xmake options hold it, set with
-`xmake f --server_address=example.org:443 --server_tls=y` or in an IDE build
-profile's configure arguments, and kept in xmake's configuration cache. The
-PlayerHub target's `on_config` passes them as the
-`PLAYERHUB_DEFAULT_SERVER_ADDRESS` string define and the
-`PLAYERHUB_DEFAULT_SERVER_TLS` `true` or `false` define, which
-`SettingsSchema.cpp` holds as the default address. They are options rather
-than environment variables because an IDE's run configuration does not reach
-the build, and the configured values are visible in `xmake f --menu`. Release
-builds set them to the public server. The defaults are `127.0.0.1` without
-TLS, the local server's default address, so a build without them reaches a
-server run from `server/` on the same machine. A `server_address` that is not
-a [server address](#server-address) fails the configuration, and
-`SettingsSchema.cpp` checks it again with a `static_assert`, since the define
-is a C string literal. xmake tracks each file's flags, so a changed value
-recompiles the plugin. The value is still a plain string in the DLL.
+`server_tls` xmake options hold it (`xmake f --server_address=example.org:443
+--server_tls=y`, or an IDE profile's configure arguments), passed by the
+target's `on_config` as the `PLAYERHUB_DEFAULT_SERVER_ADDRESS` and
+`PLAYERHUB_DEFAULT_SERVER_TLS` defines. Options, not environment variables,
+because an IDE's run configuration does not reach the build. Release builds set
+them; the defaults, `127.0.0.1` without TLS, reach a server run from `server/`
+on the same machine. An invalid `server_address` fails the configuration and a
+`static_assert` in `SettingsSchema.cpp`.
 
 #### Server address
 
@@ -155,31 +139,26 @@ recompiles the plugin. The value is still a plain string in the DLL.
 - optionally `:` and a port of 1 to 5 digits within `1..65535`; without one
   the port is `14201`, the server's default `listen` port.
 
-A scheme, path, query, user, whitespace, or an IPv6 address is invalid; a
-literal would need brackets in the address and the URL. A host name that
-resolves to IPv6 addresses works.
-Whether to use TLS is the separate `ServerTls` or `server_tls`, since the
-address cannot tell a TLS server from a plain one, and a client that tried TLS
-first and fell back to plain could be downgraded by anyone on the path. TLS is
-off by default because a server run with its defaults serves plain WebSocket
-on port `14201`. The address is the WebSocket's host, the voice relay's host
-when the server names none ([Network](network.md#voice)), and part of the
-WebSocket URL that keys the server's lines in the client's files
-([Network](network.md#transport)).
+A scheme, path, query, user, whitespace, or an IPv6 literal (which would need
+brackets) is invalid; a host name resolving to IPv6 works. TLS is the separate
+`ServerTls` or `server_tls`, since the address cannot tell a TLS server from a
+plain one and a TLS-first fallback could be downgraded by anyone on the path;
+it is off by default because a default server serves plain WebSocket. The
+address is the WebSocket's host, the voice relay's host when the server names
+none ([Network](network.md#voice)), and part of the WebSocket URL that keys the
+server's lines in the client's files ([Network](network.md#transport)).
 
 ### `[DefaultOutfit]`
 
 What peers show in place of this player's race and items they cannot resolve
 ([Appearance and equipment](appearance-and-equipment.md#default-outfit)). Form
-values are `Plugin|FormID`, the defining plugin and its local hexadecimal ID, as
-in `Skyrim.esm|0x012E49`. A full load-order form ID is rejected, since it differs
-between modpacks. A malformed value is invalid and keeps the default. `Head`,
-`Circlet`, and `Backpack` may be empty, which sets no piece for that slot, so
-peers show nothing there; every other key must have a value, and an empty one is
-invalid. Only base-game forms are accepted: the five Special Edition
-masters and `ccFSVSSE001-Backpacks.esl`, without other Creation Club content,
-so a peer on Special Edition or on Anniversary Edition without the upgrade
-resolves every piece but the backpack.
+values are `Plugin|FormID` with the plugin's local hexadecimal ID, as in
+`Skyrim.esm|0x012E49`; a load-order form ID is rejected, since it differs
+between modpacks, and a malformed value keeps the default. `Head`, `Circlet`,
+and `Backpack` may be empty, setting no piece; other keys must have a value.
+Only base-game forms are accepted: the five Special Edition masters and
+`ccFSVSSE001-Backpacks.esl`, so a peer without the Anniversary upgrade resolves
+every piece but the backpack.
 
 | Key | Meaning |
 | --- | --- |
@@ -188,10 +167,10 @@ resolves every piece but the backpack.
 | `OneHandSword` … `Crossbow` | the weapon for that Creation Kit weapon type |
 | `Arrow`, `Bolt` | ammunition |
 
-Every biped slot is synchronized, but only the most visible have an outfit key:
+Every biped slot is synchronized, but only the most visible have a key:
 `Head`, `Body`, `Hands`, `Amulet`, `Feet`, `Shield`, `Circlet`, and `Backpack`
-for slot 47, which Anniversary Edition's `ccFSVSSE001-Backpacks.esl` and most
-mods use. A modded item covering none of these, such as a ring, is left off.
+(slot 47, used by `ccFSVSSE001-Backpacks.esl` and most mods). A modded item
+covering none of these, such as a ring, is left off.
 
 Defaults, from `Skyrim.esm` unless noted: `Race` `NordRace`.
 
@@ -241,11 +220,10 @@ Four groups: Display (`Language`, `Scale`, `AccentColor`, `BorderColor`,
 ### `[Controls]`
 
 Keyboard keys, each a DirectInput scan code stored by name
-(`Config::FormatKey`, `ParseKey`, case-insensitive). The settings window
-binds them by a key press ([UI overlay](ui-overlay.md#key-bindings)) and
-shows each key's label (`FormatKeyLabel`), what a US layout prints on it,
-rather than its stored name. A key named by a word, such as Space, Enter, or
-the arrows, has that word in the game's language.
+(`Config::FormatKey`, `ParseKey`, case-insensitive). The settings window binds
+them by a key press ([UI overlay](ui-overlay.md#key-bindings)) and shows each
+key's US-layout label (`FormatKeyLabel`), word keys such as Space in the game's
+language.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
@@ -266,30 +244,26 @@ the arrows, has that word in the game's language.
   `NumpadDivide`, or `NumpadEnter`. Enter and keypad Enter can be bound to
   any action; inside a focused window they still reach Dear ImGui.
 - Reserved keys have no name, so neither the file nor the window takes them:
-  Escape cancels and closes, Tab is the chat's, the
-  key left of `1` opens the console, Backspace and the modifiers (Shift,
-  Ctrl, Alt) edit text and form shortcuts, Backspace also clears a binding
-  in the window, and the Windows keys, the
-  context-menu key, and Print Screen belong to the system.
+  Escape (cancels and closes), Tab (the chat's), the console key left of `1`,
+  Backspace and the modifiers (text editing and shortcuts; Backspace also
+  clears a binding in the window), and the Windows, context-menu, and Print
+  Screen keys.
 - An empty value leaves `ManagePlayers`, `AcceptTrade`, `DeclineTrade`, or
-  `Microphone` unbound (scan code 0), and the file keeps it as `AcceptTrade =`; an
-  unbound action has no key and the prompt leaves it out. An empty
-  `OpenSettings` is `F4` and an empty `OpenChat` is `Enter`, since each key
-  is the only way to open its window (a whisper from the
-  [world player menu](ui-overlay.md#player-menu-in-the-world) aside). Backspace in the
-  window sets the same values.
-- Two settings may hold the same key in the file; the window does not let
-  the player bind one key twice. Unbound actions do not conflict.
+  `Microphone` unbound (scan code 0, stored as `AcceptTrade =`); the prompt
+  leaves an unbound key out. An empty `OpenSettings` is `F4` and an empty
+  `OpenChat` is `Enter`, since each is the only way to open its window.
+  Backspace in the window sets the same values.
+- Two settings may hold the same key in the file; the window does not let the
+  player bind one key twice. Unbound actions do not conflict.
 
 ### `[Gameplay]`
 
-How other players' actions show and how far they reach into the local
-world, in two groups: Effects (`ShowSpellEffects`, `ShowShoutEffects`) and
-Isolation (`IsolateSpellEffects`, `IsolateShoutEffects`, `DisableCollision`).
-Remote weapon attacks have no setting: they always hit nothing
-([Remote actor](remote-actor.md#combat-isolation)). Each applies to
-what this client shows of remote actors, not to what peers see of the local
-player. `GameplayPolicy` follows the section for the hooks that read it.
+How other players' actions show and how far they reach into the local world,
+in two groups: Effects (`ShowSpellEffects`, `ShowShoutEffects`) and Isolation
+(`IsolateSpellEffects`, `IsolateShoutEffects`, `DisableCollision`). Each
+applies to what this client shows of remote actors. Remote weapon attacks
+always hit nothing ([Remote actor](remote-actor.md#combat-isolation)).
+`GameplayPolicy` mirrors the section for the hooks that read it.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
@@ -323,19 +297,13 @@ groups, Microphone (`Mode`, the input meter, `ActivationLevel`,
 ### `[Advanced]`
 
 Settings most players leave alone, in two groups: Performance, then
-Diagnostics. Custom animations have no settings: the server's
-`interest.max_posed` bounds the poses each client is sent
-([Interest and delivery](interest-and-delivery.md#skeleton-poses)).
-
-The maximums are narrow so the settings window's sliders stay usable
-([UI overlay](ui-overlay.md#settings-window)): a server clamps `ViewRadius`
-to its enter radius, 8192 by default, so 15000 leaves room for a server with
-a larger one, and the default `SpawnsPerSecond` is 20. A file value above a
-maximum is invalid and loads as the default.
+Diagnostics. The maximums are narrow so the sliders stay usable: a server
+clamps `ViewRadius` to its enter radius (8192 by default), so 15000 leaves room
+for a larger one. A file value above a maximum loads as the default.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `ViewRadius` | Game units within which other players are shown, `0..15000`; the settings window's slider moves in steps of `100` (`AdvancedSettings::kViewRadiusStep`); sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection | `0`, the server's range, which the settings window shows by the schema's zero name |
+| `ViewRadius` | Game units within which other players are shown, `0..15000`, slider step `100`; sent in `Hello` and clamped by the server ([Interest and delivery](interest-and-delivery.md#subscriptions)); applies on the next connection | `0`, the server's range |
 | `SpawnsPerSecond` | Remote actor and mount spawns started per second at most, `0..100`; `0` is unlimited and shown by the schema's zero name ([Sync pipeline](sync-pipeline.md#actor-lifecycle)) | `20` |
 | `RemoteLights` | Lights on remote actors that light the scene at most, nearest to the camera first, `0..8` (`AdvancedSettings::kMaximumRemoteLights`); `0` leaves every one dark and has no zero name; the effects stay ([Remote actor](remote-actor.md#light-budget)) | `0` |
 | `StatusPanel` | Shows the [status panel](ui-overlay.md#status-panel), a debugging readout | `false` |
@@ -395,13 +363,11 @@ on its edges ([UI overlay](ui-overlay.md#size)) or one that moves it
   (`PluginFiles::ReplaceFile`), so a failed write never truncates it. A failed save is logged and reported in the window;
   the applied settings still last until restart.
 
-`Config::GetDirectory` is the directory of `PlayerHub.ini`, for the plugin's
-other files: the session tokens are kept there in `PlayerHub.session`, outside
-this file ([Network](network.md#session)), the friends, muted, and vanished players in
-`PlayerHub.players` ([Network](network.md#player-filters)), and the settings
-window's fonts and
-the menu frame's shape are read from `PlayerHub/fonts/` and `PlayerHub/frame/`
-under it ([UI overlay](ui-overlay.md#themed-faces)).
+`Config::GetDirectory` is the directory of `PlayerHub.ini`, which also holds
+`PlayerHub.session` ([Network](network.md#session)), `PlayerHub.players`
+([Network](network.md#player-filters)), and the `PlayerHub/fonts/`,
+`PlayerHub/frame/`, and `PlayerHub/locale/` assets
+([UI overlay](ui-overlay.md#themed-faces)).
 
 ## Acceptance criteria
 
@@ -411,13 +377,13 @@ under it ([UI overlay](ui-overlay.md#themed-faces)).
    not base-game items are logged and fall back to their defaults, or to no piece
    when the default is unusable too.
 3. The default file connects to the official server without naming it;
-   `[Connection] CustomServer = true` connects to `ServerAddress`, over TLS
-   with `ServerTls = true`, instead, and with an empty one nothing connects. `[Connection] DisplayName` sets
-   the name peers see; the default file has an empty `DisplayName`, and the
-   plugin stays disconnected until one is entered and Connect is pressed.
-   `[Advanced] SpawnsPerSecond` bounds spawns, so many players arriving at
-   once do not spawn in one frame.
-4. Applying changes takes effect without a restart, and the file keeps
+   `CustomServer = true` connects to `ServerAddress` (over TLS with
+   `ServerTls = true`) instead, and with an empty one nothing connects. The
+   default `DisplayName` is empty, and the plugin stays disconnected until one
+   is entered and Connect is pressed.
+4. `[Advanced] SpawnsPerSecond` bounds spawns, so many players arriving at once
+   do not spawn in one frame.
+5. Applying changes takes effect without a restart, and the file keeps
    hand-written comments.
 
 ## Known limitations

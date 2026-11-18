@@ -4,16 +4,13 @@
 
 This system owns the wire protocol, the client transport and connection
 management, and the server's connections, player [sessions](#sessions),
-validation, [roles](#roles), and per-player state. It
-validates untrusted fields at the boundary and queues plain values for the
-[sync pipeline](sync-pipeline.md#receive-state), which applies them on the game
-thread. Which peers a client receives and in what order is
-[Interest and delivery](interest-and-delivery.md). Recording and replay are in
-[Recording and replay](recording-and-replay.md).
+validation, [roles](#roles), and per-player state. It validates untrusted
+fields at the boundary and queues plain values for the
+[sync pipeline](sync-pipeline.md#receive-state). Which peers a client receives
+and in what order is [Interest and delivery](interest-and-delivery.md).
 
-Protocol and server versions ship together with each client release, so the
-protocol evolves directly, without compatibility shims. A version mismatch is
-refused at the handshake ([Transport](#transport)).
+Each client release ships with its server, so the protocol evolves without
+compatibility shims; a version mismatch is refused at the handshake.
 
 ## Components
 
@@ -48,48 +45,35 @@ refused at the handshake ([Transport](#transport)).
   ([Voice](#voice)).
 - The server refuses with 403 an upgrade whose `Origin` scheme is not `ws` or
   `wss` (`session.playerOrigin`), so a web page cannot make its visitors'
-  browsers join: a browser always sends the page's origin, which is never
-  `ws` or `wss`. IXWebSocket sends `Origin: ws://host:port` or
-  `wss://host:port`, and Go clients such as `cmd/loadgen` send none, so both
-  join. A bare reject of any `Origin` would refuse the plugin. The origin's
-  host is not compared with `Host`, since behind a proxy the plugin names the
-  public host and port.
+  browsers join (a browser sends the page's origin). IXWebSocket sends
+  `ws://host:port` or `wss://host:port` and Go clients none, so both join. The
+  origin's host is not compared with `Host`, since behind a proxy the plugin
+  names the public host.
 - The server address (`Config::GetServerAddress`: the official server, or
   `[Connection] ServerAddress` and `ServerTls` with `CustomServer` on,
   [Configuration](configuration.md#official-and-custom-server)) is a host,
   a port, and whether to use TLS. `ServerClient`'s `ToWebSocketUrl` makes it
   `wss://host:port/ws` or `ws://host:port/ws`, without the port when it is
-  the scheme's own (443 for `wss`, 80 for `ws`). That URL keys the server's lines in `PlayerHub.session` and
-  `PlayerHub.players`, so `example.org:443` over TLS keys its lines as
-  `wss://example.org/ws`, and `example.org` and `example.org:14201` are one
-  server. The server is always reached at `/ws`; a reverse proxy that
-  serves it under another path is not supported. TLS is terminated by a
-  reverse proxy in front of the server.
+  the scheme's own. That URL keys the server's lines in `PlayerHub.session` and
+  `PlayerHub.players`, so `example.org` and `example.org:14201` are one server.
+  The server is always reached at `/ws`; TLS is terminated by a reverse proxy
+  in front of it.
 - The client's TLS is IXWebSocket 12 on mbedtls, pinned to 3.6 in `xmake.lua`,
-  and verifies the server against the Windows certificate store. mbedtls 4
-  returns `MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET` from `mbedtls_ssl_read`
-  for every TLS 1.3 session ticket (Cloudflare sends two), which IXWebSocket's
-  `SocketMbedTLS::recv` treats as a failed read, so the handshake failed with
-  "Failed reading HTTP status line". mbedtls 3.6 ignores tickets unless the
-  client opts in. The `package.librarydeps.strict_compatibility` policy
-  rebuilds IXWebSocket when mbedtls changes, because IXWebSocket selects the
-  mbedtls API at compile time; a stale build linked against 3.6 failed with
-  "SSL setup failed".
-- IXWebSocket is built as the `ixwebsocket-patched` package in `xmake.lua`:
-  the xmake-repo recipe with `patches/ixwebsocket/happy-eyeballs.patch`,
-  which makes `SocketConnect::connect` race the resolved addresses as in
-  RFC 8305. The addresses alternate families, starting with the resolver's
-  first; a new attempt starts every 250 ms, or at once when one fails, while
-  the earlier ones stay open; the first to connect wins and the rest close.
-  Stock IXWebSocket tried the addresses one after another under the
-  handshake's single 10 s deadline, so a player whose system has IPv6
-  configured but whose network drops it spent the whole deadline on the AAAA
-  address and never reached IPv4. The deadline still covers resolving, every
-  attempt, TLS, and the upgrade.
+  verifying against the Windows certificate store. mbedtls 4 returns
+  `MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET` for every TLS 1.3 session
+  ticket, which IXWebSocket treats as a failed read. The
+  `package.librarydeps.strict_compatibility` policy rebuilds IXWebSocket when
+  mbedtls changes, since it selects the mbedtls API at compile time.
+- IXWebSocket is built as the `ixwebsocket-patched` package: the xmake-repo
+  recipe with `patches/ixwebsocket/happy-eyeballs.patch`, which makes
+  `SocketConnect::connect` race the resolved addresses as in RFC 8305
+  (alternating families from the resolver's first, a new attempt every 250 ms
+  or at once when one fails, the first to connect wins), so a network that
+  drops configured IPv6 still reaches IPv4 within the handshake's 10 s
+  deadline, which covers resolving, every attempt, TLS, and the upgrade.
 - The nanopb runtime is built from the `lib/nanopb` submodule at tag `0.4.9`,
-  the generator version `proto/generate.sh` pins: the xmake `nanopb` package
-  depends on `protoc`, whose install test fails under wine
-  (`STATUS_DLL_NOT_FOUND`).
+  the generator version `proto/generate.sh` pins, since the xmake `nanopb`
+  package needs `protoc`, whose install fails under wine.
 - The first client message must be
   `Hello{protocol_version, view_radius, session_token, display_name, vanished}`
   within `limits.hello_timeout_seconds` (5). A version other than
@@ -105,9 +89,8 @@ refused at the handshake ([Transport](#transport)).
   `liveness.ping_interval_seconds` (5) and closes a connection whose pong does
   not arrive within `liveness.timeout_seconds` (10). IXWebSocket answers pings
   on its own thread, so a paused game stays connected. The client sends no
-  WebSocket pings: its ping interval is -1, not 0, because IXWebSocket polls an
-  open socket with the interval as its timeout, and 0 spun its thread with an
-  allocation per poll on Windows.
+  WebSocket pings; its ping interval is -1, since IXWebSocket polls with the
+  interval as timeout and 0 spins its thread.
 - Boundary limits: 48 KiB per message (the largest valid `ClientMessage`, an
   `Appearance` with every tint and overlay path at full length, is about 44 KB); `limits.messages_per_second` (120, burst 240) per connection,
   over which the connection is closed with 4003, counting every message; a recipient whose unsent
@@ -189,64 +172,48 @@ context.
 | `shapeshift` | `NONE`, `WEREWOLF`, `VAMPIRE_LORD`, or `WEREBEAR`: the vanilla beast form the player is in ([Appearance and equipment](appearance-and-equipment.md#shapeshifts)) |
 | `idle` | the idle event that entered the idle the player is held in ([Idle presentation](idle-presentation.md#state-and-actions)), empty for none; a held idle name ([Actions](#actions)), only without `furniture` and with `shapeshift` `NONE` |
 
-The held idle is a context field rather than a checkpoint field: it changes
-only when an idle starts or ends, so it costs the 20 Hz checkpoints nothing,
-and the server stores it with the context and sends it in `PeerEnter`, so a
-late joiner gets it with the peer. Each change sends a context and forces the
-next checkpoint out, which idle suppression would otherwise hold back
-([Interest and delivery](interest-and-delivery.md#rate-classes-and-idle-suppression)).
-A checkpoint field would add bytes to every relayed entry or a flag and a
-string to the hand-written entry encoding, for a value that rarely changes.
+- The held idle is a context field: it changes only when an idle starts or
+  ends, so it costs the 20 Hz checkpoints nothing, and `PeerEnter` carries it
+  to late joiners. Each change forces the next checkpoint out past idle
+  suppression
+  ([Interest and delivery](interest-and-delivery.md#rate-classes-and-idle-suppression)).
+- Exterior cell IDs stay off the wire: nothing compares them, and each cell
+  crossing would resend the context and relay a `PeerContext`.
+- `protocol/Quantization.h` and `server/internal/wire/quantize.go` hold the
+  same rules: positions round to quarter units (`kPositionScale`,
+  `wire.PositionScale`, 4) and speed to whole units, heading is normalized to
+  [0, 2π), pitch and look pitch are clamped, and direction wraps (1.0 is 0).
+  Whole units changed a 50 ms walking segment's length by about 12%, which the
+  exactly followed path showed as speed changes; quarter units cost about 4%
+  more per relayed entry. The server reads positions in world units only
+  through `wire.Position` and `wire.Units`.
+- `time` is wall time, not accumulated frame time, so a paused or hitching
+  source does not stretch it; receivers play checkpoints at its spacing
+  ([Sync pipeline](sync-pipeline.md#checkpoint-playout)) and recover the wraps
+  from arrival times. The server does not interpret it. Virtual players and
+  `cmd/loadgen` bots stamp their own.
+- Flag bits are ordered by how often they are set, so the movement state with
+  `grounded` and `weaponDrawn` stays a one-byte varint on foot. The fly state
+  and wing stroke ride in the flags rather than the context, since they must
+  play in step with the checkpoints around them.
+- The server accepts a `Context` or `Checkpoint` only in the world, and a
+  checkpoint only after a context since the last `Enter` (`no context`); a
+  context identical to the stored one is dropped.
 
-`protocol/Quantization.h` and `server/internal/wire/quantize.go` hold the same
-rules: positions round to quarter units (`kPositionScale`,
-`wire.PositionScale`, 4) and speed to whole units, heading is normalized to
-[0, 2π) first, pitch and look pitch are clamped, and direction wraps (1.0 is 0). Whole-unit
-positions changed the length of a 50 ms walking segment by about 12% (about 4%
-running), and the receiver follows the interpolated path exactly, so it showed
-as a change in speed at every checkpoint; quarter units cut that to a quarter.
-A zigzag varint coordinate below 8192 in magnitude costs one byte more, others
-the same (31.6 against 30.3 bytes per relayed entry with 100 bots within
-±6000 units), and eighth units would add a byte above 131072. The server reads
-positions in world units only through `wire.Position` and `wire.Units` (interest,
-Nearby chat, trade range, the admin state, the bots). `time` is wall
-time, not accumulated frame time, so a paused or hitching source does not
-stretch it; receivers play checkpoints back at its spacing
-([Sync pipeline](sync-pipeline.md#checkpoint-playout)). Sixteen seconds of range
-keep it within two bytes; receivers recover the wraps from arrival times. The
-server does not interpret it, and idle suppression ignores it with the
-sequence ([Interest and delivery](interest-and-delivery.md#rate-classes-and-idle-suppression)).
-The flag bits are ordered by how often they are set: a varint below 128 is one
-byte, so the movement state with `grounded` and `weaponDrawn` costs one byte
-on foot, where `grounded` at bit 15 cost three on almost every entry. The fly
-state and the wing stroke ride in the flags rather than the context: they
-change with the flight's takeoffs, hovers, landings, and wing beats, which must
-play in step with the checkpoints around them, and cost up to three bytes more
-than a horse rider's flags only while a dragon is ridden.
-Virtual players and `cmd/loadgen` bots stamp their own
-([Recording and replay](recording-and-replay.md#virtual-player)). The server
-accepts a `Context` or `Checkpoint` only in the world, and a checkpoint only
-after a context since the last `Enter` (`no context`). A context identical to
-the stored one is dropped. Exterior cell IDs stay off the wire: nothing compares
-them, and each exterior cell crossing would resend the context, force the next
-checkpoint, and relay a `PeerContext` to every subscriber. The meaning of each field is in its owning system:
-movement in [Locomotion](locomotion.md), stance and hands in
+Each field's meaning is in its owning system: movement in
+[Locomotion](locomotion.md), stance and hands in
 [Combat presentation](combat-presentation.md), furniture, mounts, and death in
 [Native interactions](native-interactions.md), swimming in
 [Remote actor](remote-actor.md#swimming).
 
 ### Skeleton pose encoding
 
-A client sends `skeleton` only inside a pose window, while its player plays an
-animation from a mod, a stagger, a kill move, or a knockdown
+A client sends `skeleton` only inside a pose window
 ([Remote actor](remote-actor.md#source-window)). A window is the run of
 checkpoints that carry one; no message opens or closes it, so a late joiner
 sees an open window at once. The server relays the pose only to recipients
-that rank the sender among their `interest.max_posed` nearest posed peers
-within the near distance, and the checkpoint without it to the others
-([Interest and delivery](interest-and-delivery.md#skeleton-poses)), which
-therefore see no window. The limit is the server's alone; a client has no
-setting for it and shows every pose it receives.
+that rank the sender among their nearest posed peers
+([Interest and delivery](interest-and-delivery.md#skeleton-poses)).
 `protocol/SkeletonPose.h` and `server/internal/validate` hold the same layout
 of a whole pose:
 
@@ -265,13 +232,12 @@ of a whole pose:
 
 `b` is 9 for bones 0–22 (COM through the hands), 8 for the twist bones
 (23–30), `Weapon`, and `Shield`, and 7 for the fingers (31–60)
-(`Network::GetSkeletonComponentBits`, `validate.SkeletonComponentBits`). An
-error in the trunk and limbs moves every bone below them, so they keep the
-finest steps. On 941 recorded poses (climbs and paragliding), these steps
-added at most 0.45° per bone in the trunk and limbs, 0.9° in the 8-bit bones,
-and 1.4° in fingers to 10 bits for every bone, which took 267 bytes a pose.
-Fingers are 30 of the 63 bones and move in these animations too (median 1°
-per checkpoint), so they keep coarser steps rather than being dropped.
+(`Network::GetSkeletonComponentBits`, `validate.SkeletonComponentBits`),
+since an error in the trunk and limbs moves every bone below them. On 941
+recorded poses these steps added at most 0.45° per bone in the trunk and limbs,
+0.9° in the 8-bit bones, and 1.4° in fingers, against 267 bytes a pose at 10
+bits throughout. Fingers move in these animations too, so they keep coarser
+steps rather than being dropped.
 
 The length must be exactly the header plus the packed rotations of the
 present bones; a full pose is 211 bytes, and no pose exceeds 219
@@ -286,10 +252,7 @@ previous pose, its reference: layout `3` (`kSkeletonLayoutHumanChange`,
 `Network::EncodeSkeletonPoseChange` and `wire.SkeletonPose.AppendChange`, and
 read by `Network::ResolveSkeletonPose` and `wire.ResolveSkeletonPose`. A
 change rebuilds exactly the quantized pose its sender had, so no error
-accumulates. In the recorded windows nearly every bone turned on every
-checkpoint, but by a few quantization steps, and about half the finger
-rotations not at all: over a recorded window of 43 checkpoints, a change
-averaged 87 bytes against 211 for the whole pose.
+accumulates; on a recorded window a change averaged 87 bytes against 211.
 
 1. the layout byte `3`, then the mask of missing bones as in layout 2;
 2. bit-packed as in layout 2: a 2-bit order `k`, then the three translation
@@ -334,9 +297,8 @@ acknowledgements:
   that fails to decode drops every reference, since it may have carried
   poses.
 
-Poses still travel on every checkpoint of a window. Poses at 10 Hz
-interpolated with Catmull-Rom splines were off by 9° at the 95th percentile in
-the trunk and limbs, so the rate stays.
+Poses travel on every checkpoint of a window: at 10 Hz, Catmull-Rom
+interpolation was off by 9° at the 95th percentile in the trunk and limbs.
 
 ## Actions
 
@@ -396,11 +358,9 @@ match. Plugin names are 1..260 bytes and `form_id` is `0..0xFFFFFF`. Dynamic
 (`FF`) forms cannot be referenced and are omitted.
 
 `FormLookup::GetDefiningFile` takes the plugin from the FormID's compile index
-(or light index under `FE`), the same index the receiver's `LookupFormID`
-rebuilds. `TESForm::GetFile(0)` is not used: a placed reference that a later
-plugin overrides can list only the overriding file (Skyrim.esm's Arcane
-Enchanter `000DDFB3` lists `Update.esm`), which would name a missing form on
-every receiver.
+(or light index under `FE`), the index the receiver's `LookupFormID` rebuilds.
+`TESForm::GetFile(0)` is not used: an overridden placed reference can list
+only the overriding file (Skyrim.esm's `000DDFB3` lists `Update.esm`).
 
 ### `Appearance`
 
@@ -508,29 +468,24 @@ When each is sent and in what order is
 ### Sessions
 
 Goal: every connection belongs to a player the server can recognize again. A
-session is that identity on one server: a public ID that later interactions
-between players can refer to whatever the player is called, a secret only the
-player's client holds, and a display name no other session has. Non-goals:
-accounts, passwords, recovering a lost session, permissions, and protecting
-the admin API. Bans are in [Kicks and bans](#kicks-and-bans), and the role a
-session may hold in [Roles](#roles).
+session is that identity on one server: a public ID players can refer to
+whatever the player is called, a secret only the player's client holds, and a
+display name no other session has. Non-goals: accounts, passwords, recovering a
+lost session, permissions.
 
 | Part | |
 | --- | --- |
-| `session_id` | `uint64` from 1, the row ID of an `AUTOINCREMENT` column, so it is never reused, also after the session is gone. Sent to its own client in `Welcome`, and to every client on roster entries and chat speakers, which is how a client mutes or vanishes a player whatever slot or name it connects with. The hub keeps it on the player (`world.Player.Session`) |
-| Token | 32 bytes from `crypto/rand`. The store keeps only its SHA-256, so a copy of the database resumes nobody. It is returned once, in the `Welcome` of the connection it was issued for |
-| Display name | 3..15 (`validate.MinimumDisplayNameBytes`, `validate.MaximumDisplayNameBytes`) ASCII letters, digits, and underscores (`validate.DisplayName`; the client's `Multiplayer::IsValidDisplayName` in `src/protocol/Session.h` is the same rule). Without spaces, a name typed before a whisper's message is told from the message. `Hello.display_name` and `Welcome.display_name` are nanopb buffers of 16 bytes. Unique among sessions by `validate.DisplayNameKey`, its lower case; a session may respell its own |
+| `session_id` | `uint64` from 1, an `AUTOINCREMENT` row ID, never reused. Sent in `Welcome`, on roster entries, and on chat speakers, so a client mutes or vanishes a player whatever slot or name it connects with. The hub keeps it as `world.Player.Session` |
+| Token | 32 bytes from `crypto/rand`; the store keeps only its SHA-256, so a copy of the database resumes nobody. Returned once, in the `Welcome` of the connection it was issued for |
+| Display name | 3..15 (`validate.MinimumDisplayNameBytes`, `validate.MaximumDisplayNameBytes`) ASCII letters, digits, and underscores (`validate.DisplayName`, `Multiplayer::IsValidDisplayName`); nanopb buffers of 16 bytes. Unique by `validate.DisplayNameKey`, its lower case; a session may respell its own |
 | Last use | Set by every hello, when a connection closes, and hourly for connected sessions (`session.Server.Maintain`) |
 
-- `auth.Store` keeps sessions in SQLite (`modernc.org/sqlite`, pure Go) at
-  `sessions.database` (`sessions.db`; empty keeps them in memory, for
-  tests), with a write-ahead log and `user_version` 4. A version 1
-  database, whose columns are named `nickname` and `nickname_key`, has them
-  renamed when opened and keeps its sessions; versions 1 and 2 get the
-  `bans` table, and versions 1 to 3 the `roles` table and
-  `sessions.role_id`. Its one connection serializes transactions, which the
-  display name checks rely on. Store calls run on a connection's goroutine,
-  never on the hub's.
+- `auth.Store` keeps sessions in SQLite (`modernc.org/sqlite`) at
+  `sessions.database` (`sessions.db`; empty keeps them in memory), with a
+  write-ahead log and `user_version` 4; older databases are migrated in place
+  when opened. Its one connection serializes transactions, which the display
+  name checks rely on. Store calls run on a connection's goroutine, never the
+  hub's.
 - A session lives `sessions.lifetime_days` (30) after its last use, so one that
   keeps connecting never expires and none expires while connected. A banned
   session never expires ([Kicks and bans](#kicks-and-bans)). Expired
@@ -539,60 +494,46 @@ session may hold in [Roles](#roles).
 - The hello's `session_token` is empty or 32 bytes, else the connection is
   closed with 1008 `invalid session token`; a `display_name` that is not one is
   closed with 4005 `invalid display name`.
-- A token of a live session resumes it. A display name other than the session's
-  renames it first; one another session holds closes the connection with 4004
-  `display name taken` and leaves the session as it was. The hello is the only
-  message that sets a display name, so a session's name is fixed for as long
-  as a connection lasts and changes only by connecting again.
-- No token, or one that matches no live session (unknown or expired), issues a
-  new session under the display name, or closes with 4004 when it is held. The
-  client asks for a session by connecting; there is no separate request.
+- A token of a live session resumes it, renaming it first to a different
+  display name; one another session holds closes with 4004 `display name taken`
+  and leaves the session as it was. Only the hello sets a display name, so it
+  is fixed for a connection.
+- No token, or one matching no live session, issues a new session under the
+  display name, or closes with 4004 when it is held.
 - A session issued for a connection that closes before the client sent anything
-  after its hello is deleted (`Store.Abandon`). The welcome may not have reached
-  the client, which then holds no token and would find its own display name
-  taken until the session expired. A session whose token came back in a later
-  hello is kept: its client holds the token.
+  after its hello is deleted (`Store.Abandon`), since the welcome may not have
+  reached the client, which would then find its own name taken.
 - A session is connected once. When it connects again, `Hub.ConnectClient`
-  disconnects the earlier connection's player first, so peers get its
-  `PeerLeave` with `DISCONNECTED`, and the earlier socket is closed with 4006
-  `session connected elsewhere`. A reconnect after a network loss therefore
-  never waits for the liveness timeout of its dead connection. The takeover is
-  decided on the hub goroutine, so two connections racing for one session end
-  with one of them connected in the hub and open.
+  disconnects the earlier connection's player (peers get `PeerLeave` with
+  `DISCONNECTED`) and closes its socket with 4006 `session connected
+  elsewhere`, so a reconnect never waits for its dead connection's timeout.
+  The takeover is decided on the hub goroutine, so racing connections end with
+  one connected.
 - A store failure closes the hello's connection with 1011
   `session store unavailable`.
 - A new session is issued only when its address may take one
   ([Admission](#admission)); the check runs after the display name is found
   free, so a taken name does not spend the allowance.
 - The admin API's `POST /api/sessions` `{displayName, token?}` runs the same
-  resume-or-issue on `admin_listen`, without the allowance, for
-  `cmd/loadgen` ([Load testing](recording-and-replay.md#load-testing)).
-  `token` is base64 JSON, empty or 32 bytes, and `displayName` passes
-  `validate.DisplayName`, else 422; a held display name answers 409, and a
-  banned session 403. It
-  answers `{sessionId, displayName, token}`, 201 with a new token or 200 with
-  the resumed one. A session issued there that never connects is not deleted
-  by `Store.Abandon`; it expires.
+  resume-or-issue without the allowance, for `cmd/loadgen`
+  ([Load testing](recording-and-replay.md#load-testing)). `token` is base64,
+  empty or 32 bytes, and `displayName` passes `validate.DisplayName`, else 422;
+  a held name answers 409, a banned session 403. It answers `{sessionId,
+  displayName, token}`, 201 for a new session or 200 for a resumed one. Such a
+  session is not abandoned; it expires.
 - The admin API lists, renames, and deletes sessions
   ([Recording and replay](recording-and-replay.md#admin-api)).
   `session.Server.RenameSession` refuses a connected session
-  (`session.ErrConnected`), whose name is fixed for the connection, and
-  otherwise `Store.Rename` applies the same uniqueness rule as a hello, after
-  deleting expired sessions; an expired or unknown session is
-  `auth.ErrNoSession`. The player's next hello renames the session to the
-  name it carries, as for any resumed session; an admin rename does not hold
-  against it (the user's choice). `session.Server.DeleteSession` deletes the
-  session and its bans in one transaction (`Store.Delete`) and closes its
-  connection with 4011 `kicked`, so the game stays disconnected until the
-  player presses Connect; its token then matches nothing and issues a new
-  session with a new `session_id`, which ends friends, mutes, and vanishes
-  other clients keep for the old one. The server logs `session renamed` and
-  `session deleted` with the session.
-- A client is named by its session everywhere: `Appearance.name` on the stored
-  and relayed copy, `PlayerIdentity.name` in chat, the roster, and trade invitations, the admin state, and a recording's
-  header. Replays and in-server bots have no session and keep their recorded
-  names, which are not compared with anyone's; a replay may show a connected
-  player's display name.
+  (`session.ErrConnected`); otherwise `Store.Rename` applies the hello's
+  uniqueness rule (`auth.ErrNoSession` for an expired or unknown one). The
+  player's next hello renames it back to the name it carries.
+  `session.Server.DeleteSession` deletes the session and its bans
+  (`Store.Delete`) and closes its connection with 4011 `kicked`; its token then
+  issues a new session with a new `session_id`, which ends friends, mutes, and
+  vanishes other clients keep. Logs: `session renamed`, `session deleted`.
+- A client is named by its session everywhere: `Appearance.name`,
+  `PlayerIdentity.name`, the admin state, and a recording's header. Replays and
+  in-server bots keep their recorded names, compared with no one's.
 
 ### Admission
 
@@ -604,50 +545,31 @@ in-server bots do not pass through it and do not count.
 - `limits.max_pending_hellos` (64) caps connections between the upgrade and
   the end of their hello, which bounds the hellos queued on the store's one
   connection. Over it, the upgrade answers HTTP 503 before a WebSocket exists.
-- `limits.max_pending_hellos_per_address` (8; 0 is no cap) caps the same per
-  address, counted like the session allowance below (IPv6 per /64), so one
-  host holding sockets that never send a hello cannot fill the shared cap and
-  refuse everyone else, including reconnecting players. It is checked first;
-  over it, the upgrade answers HTTP 429. Eight leaves room for players behind
-  one NAT joining together, since a hello normally ends within a round trip.
-  Spreading the flood over many addresses is left to the proxy in front,
-  which can rate-limit `/ws` per address before a connection reaches the
-  server.
-- `limits.max_players` (100; 0 is no cap) caps connected sessions. A hello
-  without a token on a full server is closed with 4007 `server full` before
-  the store is touched. Otherwise the session is admitted after it
-  authenticates, unless the server is full and the session is not connected
-  already: a session replacing its own connection is always admitted, so a
-  reconnect never waits for its dead connection's timeout. A new session
-  issued in the race between that check and admission is deleted again. The
-  cap also bounds the roster every client receives.
-- `limits.max_players_per_address` (3; 0 is no cap) caps the sessions
-  connected from one address, counted like the session allowance below (IPv6
-  per /64), so one host cannot hold more than a few of the `max_players`
-  places with the sessions its allowance issued. It is checked with
-  `max_players` and the same way, after it, and closes with 4009
-  `too many players from address`: a hello without a token is refused before
-  the store is touched, so a refused hello never spends the allowance, and a
-  session already connected from that address is always admitted. A session
-  connected from another address is not; it would add a player here.
-  Three admits a few players sharing a home connection; a larger group on one
-  address is refused, and players behind carrier-grade NAT share the cap with
-  strangers. It does not stop a flood spread over many addresses.
-  `cmd/loadgen` connects every bot from one address and needs the cap off.
-- `limits.new_sessions_per_address_per_month` (10; 0 is no limit) is a token
-  bucket per address with that burst, refilled at that many per 30 days. The
-  buckets live in memory, so a server restart refills every allowance.
-  Resuming a session never spends it, and neither does a session issued
-  through the admin API ([Sessions](#sessions)). An IPv6 address counts with
-  its /64, which one subscriber usually holds whole. `Server.Maintain` prunes
-  full buckets hourly.
+- `limits.max_pending_hellos_per_address` (8; 0 no cap) caps the same per
+  address (IPv6 per /64, as everywhere here), checked first with HTTP 429, so
+  one host holding silent sockets cannot fill the shared cap. Eight leaves room
+  for players behind one NAT joining together. A flood over many addresses is
+  left to the proxy in front.
+- `limits.max_players` (100; 0 no cap) caps connected sessions, which also
+  bounds the roster. A hello without a token on a full server closes with 4007
+  `server full` before the store is touched; otherwise the session is admitted
+  after authenticating unless the server is full and it is not already
+  connected (a session replacing its own connection is always admitted). A new
+  session issued in the race is deleted again.
+- `limits.max_players_per_address` (3; 0 no cap) caps sessions connected from
+  one address, checked the same way after `max_players`, closing with 4009
+  `too many players from address`; a session already connected from that
+  address is admitted, one connected elsewhere is not. Players behind
+  carrier-grade NAT share it with strangers; `cmd/loadgen` needs it off.
+- `limits.new_sessions_per_address_per_month` (10; 0 no limit) is an in-memory
+  token bucket per address, refilled at that many per 30 days, so a restart
+  refills it. Resuming and the admin API never spend it. `Server.Maintain`
+  prunes full buckets hourly.
 - The address is the TCP peer's, unless the peer is in `trusted_proxies`
-  (addresses or CIDR prefixes, empty by default). Then it is the rightmost
-  `X-Forwarded-For` hop not in `trusted_proxies`: each proxy appends the
-  address it received from, so earlier hops may be forged by the client. A
-  hop that does not parse stops the walk at the last trusted address. Behind
-  a proxy without `trusted_proxies`, every player shares the proxy's
-  allowance.
+  (addresses or CIDR prefixes, empty by default); then it is the rightmost
+  `X-Forwarded-For` hop not in `trusted_proxies`, since earlier hops may be
+  forged. An unparsable hop stops the walk at the last trusted address. Behind
+  an untrusted proxy every player shares the proxy's allowance.
 - Upgrades refused for either hello cap are logged as a throttled summary
   (`refused connections`, with the cap as its reason), since a flood would
   repeat them.
@@ -655,14 +577,11 @@ in-server bots do not pass through it and do not count.
 ### Kicks and bans
 
 Goal: an admin can remove a connected player from the server, and keep one
-out. Both act from the admin API
-([Recording and replay](recording-and-replay.md#admin-api)); replays and
-in-server bots have no connection and cannot be kicked or banned. Non-goals:
-timed bans and a reason the player sees (the user's choices: a ban lasts
-until lifted, and no admin text reaches clients, which show a fixed notice
-for a kick and a fixed connection controls sentence for a ban,
-[UI overlay](ui-overlay.md#notices)), banning a player who is not
-connected, and stopping a player who changes both session and address.
+out, from the admin API
+([Recording and replay](recording-and-replay.md#admin-api)). Non-goals: timed
+bans, a reason the player sees (clients show a fixed message,
+[UI overlay](ui-overlay.md#notices)), banning a player who is not connected,
+and stopping a player who changes both session and address.
 
 - `session.Server.Kick` closes the player's connection with 4011 `kicked`.
   The plugin takes it as a refusal, so the game stays disconnected until the
@@ -687,9 +606,8 @@ connected, and stopping a player who changes both session and address.
   `display_name` it was banned under, `address` as a prefix or NULL, and
   `created_at`. A banned session never expires and `Store.Abandon` keeps it,
   so its token keeps matching the ban and its display name stays held.
-  `Store.Lift` deletes a ban and restarts its session's lifetime from then.
-  Deleting a session deletes its bans with it ([Sessions](#sessions)), so it
-  also lifts an address ban the session held.
+  `Store.Lift` deletes a ban and restarts its session's lifetime. Deleting a
+  session deletes its bans, address bans included.
 - The server logs `player kicked` and `player banned` with the session and
   display name, and the ban's ID and address.
 
@@ -711,23 +629,18 @@ connected, and stopping a player who changes both session and address.
   ignores exclusions, hiding, and the visible cap, which govern presentation
   only. Recipients are found by a scan of connected clients, which the rate
   limit keeps cheap; the interest grid does not bound an interior.
-- `WHISPER` names its recipient by slot, which the client takes from the
-  [roster](#roster). A slot is one connection, so a whisper never reaches
-  whoever holds the recipient's display name after it left, and names with
-  spaces need no parsing on the server. A slot that is not a connected client
-  is `unknown recipient` (`UNKNOWN_RECIPIENT`), which includes replays and bots, since they receive
-  nothing. The whisper goes to the sender and the recipient (once when they
-  are the same).
+- `WHISPER` names its recipient by slot from the [roster](#roster), so a
+  whisper never reaches whoever holds the name after the recipient left. A slot
+  that is not a connected client, replays and bots included, is `unknown
+  recipient` (`UNKNOWN_RECIPIENT`). It goes to sender and recipient (once when
+  the same).
 - 5 accepted messages per player in any 5 s over all channels
   (`rate limited`, `RATE_LIMITED`); rejected messages do not count, and a disconnect forgets
   the history.
-- Every `ChatSend` is answered with a `ChatResult` naming the rejection, or
-  `NONE`; the hub maps its error (`hub.chatRejection`), and the client
-  chooses the sentence it shows from the value, so server wording never
-  reaches the player.
+- Every `ChatSend` is answered with a `ChatResult` naming the rejection
+  (`hub.chatRejection`) or `NONE`; the client picks its own text from the value.
 - Every channel includes the sender, so everyone sees one order and the
-  sender's own line confirms delivery. A speaker is the player's
-  `PlayerIdentity`: slot, display name, and session ID.
+  sender's line confirms delivery. A speaker is the player's `PlayerIdentity`.
 - The client rejects a `ChatMessage` without a sender, with an unknown channel,
   or with a recipient present exactly when the channel is not `WHISPER`, and
   validates speakers like roster entries, and text like `ChatSend`
@@ -741,10 +654,9 @@ connected, and stopping a player who changes both session and address.
 
 ### Roster
 
-Every client knows who is connected, so it can complete a name, list the
-players in chat ([UI overlay](ui-overlay.md#player-list)), and address a
-whisper by slot. Proximity does not limit it: a whisper reaches any connected
-player.
+Every client knows who is connected, so it can complete a name, list players
+([UI overlay](ui-overlay.md#player-list)), and address a whisper by slot.
+Proximity does not limit it.
 
 - The roster lists the clients that have a session, by slot, session display
   name, session ID, and [role](#roles). Replays and in-server bots are not
@@ -758,9 +670,8 @@ player.
   join under another slot. A role changes while connected: the entry is sent
   again in `joined` ([Roles](#roles)).
 - Roster messages are ordered with the rest of a client's outbox
-  (`Outbox.AppendGlobal`) and marshalled once per event. A join or a leave
-  writes to every outbox; the full list is 5 to 11 bytes plus the name per
-  client, sent once per connection.
+  (`Outbox.AppendGlobal`) and marshalled once per event; the full list, 5 to 11
+  bytes plus the name per client, is sent once per connection.
 - The client rejects a `Roster` whose entry has no slot, no session ID, no
   name, or an invalid name (`ReadPlayerIdentity`, the rule for every
   `PlayerIdentity`), or with more than `kMaximumRosterEntries` (4096)
@@ -768,18 +679,17 @@ player.
 
 ### Roles
 
-Goal: a server's admin marks players, such as its moderators or supporters,
-so everyone recognizes them in game. A role is a name and a color; a session
-holds at most one, and the game shows it as a badge by the player's name
-([UI overlay](ui-overlay.md#roles)). Roles are made and given in the admin
-panel ([Admin API](recording-and-replay.md#admin-api)). Non-goals:
-permissions (a role changes nothing its holder can do, in game or on the
-server), several roles on one player, an order among roles, a role a player
-picks, and roles for replays and in-server bots, which have no session.
+Goal: a server's admin marks players, such as moderators or supporters, so
+everyone recognizes them in game. A role is a name and a color; a session holds
+at most one, shown as a badge by the player's name
+([UI overlay](ui-overlay.md#roles)), and made and given in the admin panel
+([Admin API](recording-and-replay.md#admin-api)). Non-goals: permissions,
+several roles per player, an order among roles, roles players pick, roles for
+replays and bots.
 
 | Part | |
 | --- | --- |
-| `Role.id` | `uint32` from 1, the row ID of an `AUTOINCREMENT` column, so the ID of a deleted role, which clients may still hold on chat lines, never names another role |
+| `Role.id` | `uint32` from 1, an `AUTOINCREMENT` row ID, so a deleted role's ID, which clients may still hold on chat lines, never names another role |
 | `Role.name` | 1..24 characters (`validate.MaximumRoleNameRunes`) of valid UTF-8 without control characters or a space at either end (`validate.RoleName`). Unique among roles by `validate.RoleNameKey`, its lower case; a role may respell its own. A nanopb buffer of 97 bytes |
 | `Role.color` | `0xRRGGBB` |
 | Holder | `sessions.role_id`, `NULL` without a role |
@@ -788,10 +698,9 @@ picks, and roles for replays and in-server bots, which have no session.
   (`ErrTooManyRoles`, `ErrRoleNameTaken`, `ErrNoRole`). `Store.Roles` lists
   them by ID with the number of live sessions holding each. `Store.SetRole`
   gives a live session a role in place of its own, or with 0 none;
-  `Store.DeleteRole` leaves the role's holders without one in the same
-  transaction (the user's choice over refusing the delete).
-- A role does not keep its session: the session expires as any other, and the
-  role goes with it (the user's choice). A deleted session's role goes too.
+  `Store.DeleteRole` leaves its holders without one in the same transaction.
+- A role does not keep its session alive; an expired or deleted session's role
+  goes with it.
 - `Store.Authenticate` returns the session's role. The hub keeps it on the
   player (`world.Player.Role`) and sends it as `PlayerIdentity.role` wherever
   it names the player: roster entries, chat speakers, and trade invitations.
@@ -825,17 +734,14 @@ view radius, while Nearby reaches a whole interior.
   players placed in the same space, in a worldspace within
   `chat.nearby_radius`, and in an interior all of it. The rule is mutual, and
   like Nearby chat it ignores exclusions, hiding, vanish, and the cap.
-- `Hub.updateNearbyPlayers` runs after each interest pass and scans the
-  listed clients due, each a second after its previous scan
-  (`nearbyPlayersInterval`), so a crowd's scans spread over the passes and a
-  change shows in the list up to about 1.2 s late, plus its half-second copy.
-  With 500 `cmd/loadgen` bots in each other's reach, scanning every viewer on
-  every interest pass instead cost 23% of the relayed entries and 20 ms of
-  p99 latency. A
-  scan finds candidates in `nearbyGrid`, a second `interest.Grid` whose cells
-  are `chat.nearby_radius` wide, where an interior's players all share one
-  cell (`nearbyView`). It checks each candidate against the slots it sent
-  before and walks them again only when one may have left.
+- `Hub.updateNearbyPlayers` runs after each interest pass and scans the listed
+  clients due, each a second after its previous scan
+  (`nearbyPlayersInterval`), so a crowd's scans spread out and a change shows
+  up to about 1.2 s late; scanning every viewer every pass cost 500 bots 23% of
+  relayed entries. A scan finds candidates in `nearbyGrid`, an `interest.Grid`
+  with `chat.nearby_radius` cells where an interior shares one cell
+  (`nearbyView`), and walks the previously sent slots only when one may have
+  left.
 - A change is sent as one `NearbyPlayers` with the joined and left slots,
   through `Outbox.AppendGlobal` and so in order with the roster. An unplaced
   client's set empties at its next scan. A disconnect is not sent: the
@@ -893,10 +799,8 @@ appearance and context, so it answers for the others.
   dropped as `rate limited` without a reply. A reply is small and goes only
   to the asker, so the limit guards the hub's work rather than anyone's
   bandwidth.
-- Neither is recorded; vanish and hiding do not change the reply, since the
-  name is already on the roster and the level shows on the label of any
-  character in range. The place is shared with every connected player
-  as well, by the same reasoning as the roster: the menu is the only reader.
+- Neither is recorded. Vanish and hiding do not change the reply, since the
+  name is on the roster anyway; the menu is the only reader.
 
 ### Trade
 
@@ -961,11 +865,11 @@ Server messages:
 
 ### Voice
 
-A connection on a server with `voice.enabled` (the default) has a voice
-endpoint: a random nonzero 32-bit ID and a random AES-256-GCM key, both for
-that connection alone ([Voice chat](voice-chat.md)). Voice frames travel as UDP
-datagrams to and from `voice.listen` (`0.0.0.0:14201` by default, the TCP
-listen's port number), never over the WebSocket. Which clients receive a speaker's frames is in
+A connection on a server with `voice.enabled` (default) has a voice endpoint: a
+random nonzero 32-bit ID and a random AES-256-GCM key for that connection alone
+([Voice chat](voice-chat.md)). Frames travel as UDP datagrams to and from
+`voice.listen` (`0.0.0.0:14201` by default), never over the WebSocket; who
+receives them is in
 [Interest and delivery](interest-and-delivery.md#voice-listeners).
 
 `Welcome.voice` is a `VoiceAccess`:
@@ -1063,12 +967,9 @@ Datagrams (`server/internal/voice/datagram.go`, `network/VoiceTransport`):
   `left` removes one, and a welcome and a disconnect empty them.
   `Network::CopyNearbyPlayers` appends them; chat orders its name list and
   colors its player list by them.
-- `Network::DescribeServer` gives `the official server` for the official
-  server's WebSocket URL and `a custom server` for any other. Every log line
-  that names a server goes through it, so a log never carries a server
-  address and players can share it: a failed or abandoned connection,
-  vanishes over the limit, saving a session, and muting or vanishing a
-  player.
+- `Network::DescribeServer` gives `the official server` or `a custom server`.
+  Every log line naming a server goes through it, so players can share logs
+  without server addresses.
 - A `Welcome` with voice access starts `VoiceTransport` for it
   ([Voice chat](voice-chat.md#relay-link)); one without it, and every lost
   connection, stops it. Received frames go straight to the voice sink on the
@@ -1096,12 +997,11 @@ Datagrams (`server/internal/voice/datagram.go`, `network/VoiceTransport`):
 ### Session
 
 - `SessionStore` keeps one token per server in `PlayerHub.session`, next to
-  `PlayerHub.ini` (`Config::GetDirectory`): a line of 64 hexadecimal digits, a
-  space, and the WebSocket URL the connection is opened to; lines starting with
-  `;` are comments. It is a file of its own because players share their ini and
-  modpacks, and a token is all it takes to connect as its owner; one per server
-  lets a player switch servers and back. The file is read once, on first use,
-  and written through `PlayerHub.session.tmp`. Tokens are never logged.
+  `PlayerHub.ini`: a line of 64 hexadecimal digits, a space, and the WebSocket
+  URL; `;` starts a comment. It is a file of its own because players share
+  their ini and modpacks, and a token is all it takes to connect as its owner.
+  Read once on first use, written through `PlayerHub.session.tmp`. Tokens are
+  never logged.
 - When the socket opens, the transport thread sends the hello with the token
   kept for the attempt's URL, or none, and `[Connection] DisplayName`.
 - A `Welcome` with a token saves it, also when the connection is already being
@@ -1109,21 +1009,16 @@ Datagrams (`server/internal/voice/datagram.go`, `network/VoiceTransport`):
   logged as an error: the token lasts until the game exits.
 - The welcome's session ID and display name are only logged; the roster
   carries the local player's session ID too.
-- The client sends no `Appearance.name`: the hello carries the display name,
-  which holds for the connection ([Connection](#connection)).
 
 ### Player filters
 
 - `PlayerFilterStore` keeps the local player's friends and the players it
-  muted or vanished in `PlayerHub.players`, next to `PlayerHub.session`: a
-  line per player and server, any of `f`, `m`, and `v` in that order, the
-  session ID, the WebSocket URL, and the name when last seen
-  ([UI overlay](ui-overlay.md#friends)), separated by tabs, which neither a display
-  name nor a URL holds; lines starting with `;` are comments, and a line
-  without a session, a server, a name, or a known flag is skipped with a
-  warning. It is read once, on first use, and written through
-  `PlayerHub.players.tmp` on every change; a failed write lasts until the
-  game exits. A player with none of the three has no line.
+  muted or vanished in `PlayerHub.players`: a tab-separated line per player and
+  server with any of `f`, `m`, and `v` in that order, the session ID, the
+  WebSocket URL, and the name when last seen ([UI overlay](ui-overlay.md#friends));
+  `;` starts a comment, and a malformed line is skipped with a warning. Read
+  once on first use, written through `PlayerHub.players.tmp` on every change.
+  A player with no flag has no line.
 - The hello carries the sessions vanished on the attempt's URL, at most 1024
   with a warning for the rest. `Network::PublishVanish` sends a change only
   when the current socket's hello went to the server the change belongs to,
@@ -1140,10 +1035,9 @@ Datagrams (`server/internal/voice/datagram.go`, `network/VoiceTransport`):
 ### Latest-wins publishers
 
 Every welcome advances the connection generation. Appearance, equipment, and
-effects republish their last state on each new generation, because the server forgets
-a connection's state when it drops; `PresenceSync` sends `Enter` again, and
-the next checkpoint sends its context. Remote players are then rebuilt from
-the server's `PeerEnter` messages.
+effects republish on each new generation, since the server forgets a dropped
+connection's state; `PresenceSync` sends `Enter` again, and the next checkpoint
+its context. Remote players are rebuilt from `PeerEnter`.
 
 ### Connection
 
@@ -1170,17 +1064,14 @@ client.
   monitor reads the display name when the configuration revision changes, and
   one that becomes empty disables the choice, so entering one again waits for
   Connect. The server requires one too, in the hello.
-- Applying a server address or switching `CustomServer` or `ServerTls` never touches the
-  connection: a welcomed one stays with its server, and each later attempt,
-  after Connect or a loss, reads `Config::GetServerAddress` when it begins.
-  Goal: changing the server setting does not drop players from the server
-  they are playing on; Disconnect and Connect switch servers. A missing
-  address while no connection is welcomed disables the choice and
-  closes the client, so entering one waits for Connect.
-- A connection keeps the display name its hello carried. The settings window
+- Applying a server address or switching `CustomServer` or `ServerTls` never
+  touches the connection, so changing the setting does not drop players from
+  the server they are on; each later attempt reads `Config::GetServerAddress`
+  when it begins. A missing address while no connection is welcomed disables
+  the choice and closes the client.
+- A connection keeps the display name its hello carried; the settings window
   locks the field while a connection is wanted or open
-  ([UI overlay](ui-overlay.md#connection-controls)), so the configured display
-  name does not change under one, and the monitor does not compare them.
+  ([UI overlay](ui-overlay.md#connection-controls)).
 - Opening skips the reconnect delay and resets the attempt count. Closing
   (`BeginClose`) marks the client disconnected at once, forgetting every remote
   player, and stops the socket on a worker, which joins the socket's thread. It
@@ -1196,16 +1087,13 @@ client.
   `Wire::GetProtocolVersion`, and into `kClientOutdated` otherwise, also when
   the reason does not parse, since an outdated client is the usual cause:
   each release ships its server update. Both versions are logged.
-- A close with status 4001 or 4004 through 4011 is a refusal:
-  retrying at once cannot help, so the monitor disables the player's choice and closes the client,
-  which leaves `kDisconnected`. `Network::GetConnectionRefusal` returns its
-  `Refusal{reason}` for the settings window's [connection
-  controls](ui-overlay.md#connection-controls) until the player presses
-  Connect or a game starts or ends. Nothing retries by itself, also not an
-  applied display name or server address: the player changes what the refusal names
-  and presses Connect. 4006 is a refusal because retrying would close the
-  connection that replaced this one, and two games holding one token would
-  take the session from each other without end.
+- A close with status 4001 or 4004 through 4011 is a refusal: retrying cannot
+  help, so the monitor disables the choice and closes the client.
+  `Network::GetConnectionRefusal` returns its `Refusal{reason}` for the
+  [connection controls](ui-overlay.md#connection-controls) until Connect or a
+  game start or end; nothing retries by itself. 4006 is a refusal because two
+  games holding one token would otherwise take the session from each other
+  without end.
 
 The monitor's timers accumulate the clamped frame delta, which is zero in the
 main menu and while paused, so they hold while opening and closing still follow
@@ -1213,16 +1101,13 @@ the game.
 
 ### Vanilla intro hold
 
-Goal: a player whose new game starts with the vanilla prisoner intro (the
-cart ride, the execution, and Alduin's arrival) is not put on a server
-during it, where they cannot move and other players would only watch the
-scripted scene. Multiplayer starts once the player gets control back after
-Alduin's knockdown. Non-goals: holding the connection in other scenes or
-cutscenes; for a start a mod puts in place of the cart, including one that
-keeps MQ101 running or lets the player watch Helgen's attack as a visitor;
-and for a cart ride a player begins later in the play-through, as
-Alternate Perspective allows, because the player has already been playing
-online. With a skipped intro the game connects at once.
+Goal: a player whose new game starts with the vanilla prisoner intro (cart
+ride, execution, Alduin's arrival) is not put on a server while unable to move;
+multiplayer starts once the player gets control back after Alduin's knockdown.
+Non-goals: holding the connection in other scenes; a mod's replacement start,
+including one that keeps MQ101 running or visits Helgen's attack; a cart ride
+begun later in the play-through (Alternate Perspective), since the player has
+already been online.
 
 - While `VanillaIntro::IsPlaying` holds ([Sync pipeline](sync-pipeline.md#vanilla-intro)),
   no connection is wanted (`IsConnectionWanted`), the monitor closes any open
@@ -1235,11 +1120,10 @@ online. With a skipped intro the game connects at once.
   any game start.
 - Loading a save from the prisoner intro before the knockdown holds the
   connection again, and closes one that is open.
-- During the hold the settings window cannot connect, and hovering its
-  disabled button says why ([UI overlay](ui-overlay.md#connection-controls));
-  the [display name hint](ui-overlay.md#display-name-hint) stays hidden. The
-  status panel, chat, and the rest of the overlay behave as while
-  disconnected.
+- During the hold the settings window cannot connect, its disabled button
+  telling why ([UI overlay](ui-overlay.md#connection-controls)), the
+  [display name hint](ui-overlay.md#display-name-hint) stays hidden, and the
+  rest of the overlay behaves as while disconnected.
 
 ### Loss and recovery
 
@@ -1360,14 +1244,14 @@ window, and are empty after a long gap. The status panel shows them.
 - Display names compare by lower case only, so look-alikes such as `l` and
   `I` or `0` and `O` are different display names.
 - Non-goal: display names in other scripts, with spaces, or with punctuation
-  besides `_`. The narrow rule keeps names typeable in a whisper, renderable by
+  besides `_`. The narrow rule keeps names typeable after `@`, renderable by
   every font, and comparable without Unicode case folding.
 - The token is sent in the hello as it is, so a server address without TLS exposes it
   to the network; with `ServerTls` or `server_tls` it travels under TLS.
-- The official URL is kept out of the settings window and the log only: it
-  is a plain string in the DLL, the key of its lines in `PlayerHub.session`
-  and `PlayerHub.players`, and IXWebSocket's reason for a failed connection
-  is logged as the library gives it, which may name the host.
+- The official URL is kept out of the settings window and the log only: it is
+  a plain string in the DLL and the key of its lines in the client's files,
+  and IXWebSocket's reason for a failed connection, logged as given, may name
+  the host.
 - Admin exclusions and hiding are still keyed by slot
   ([Interest and delivery](interest-and-delivery.md#admin-controls)); only a
   player's own vanish follows the session.

@@ -2,13 +2,8 @@
 
 ## Status
 
-The measurements below were taken on one Linux machine running Skyrim AE
-1.7.104 under Proton, with 200 bots replayed from one recording
-([Recording and replay](recording-and-replay.md#load-testing)). Native Windows
-was not measured: Win32 and socket calls cost more under Wine, so the overlay's
-frame setup and the checkpoint send are likely cheaper there. Hardware,
-graphics mods, and the frame limit of those captures were not recorded, so the
-frame times compare runs with each other, not with other machines.
+The [measurements](#measurements) ran under Proton, not on native Windows,
+where socket calls cost less, so the checkpoint send is likely cheaper there.
 
 ## Scope
 
@@ -52,6 +47,12 @@ Work elsewhere does not count toward plugin time:
   players cost a frame.
 
 ## Measurements
+
+Taken on one Linux machine running Skyrim AE 1.7.104 under Proton, with 200
+bots replayed from one recording
+([Recording and replay](recording-and-replay.md#load-testing)). Hardware,
+graphics mods, and the frame limit were not recorded, so frame times compare
+runs with each other, not with other machines.
 
 ### Growth with remote actors
 
@@ -109,9 +110,12 @@ actor on every pass.
 
 About 70–90 µs of plugin time at 82 fps:
 
-- The overlay, 44 µs: `Overlay new frame` (ImGui backends and `NewFrame`)
-  18 µs, `Overlay windows` 18 µs, `Overlay render` 6 µs. It builds an ImGui
-  frame every frame, whether or not anything is shown.
+- The overlay, 45 µs while something is on screen: `Overlay new frame`
+  (DX11 backend, fonts, input, and `NewFrame`) 19 µs, `Overlay windows`
+  19 µs, `Overlay render` 6 µs. With nothing on screen the render is skipped
+  and windows draw nothing, so the overlay takes 26–35 µs, of which
+  `Overlay new frame` is still 17–21 µs. The ImGui frame is built every frame,
+  whether or not anything is shown.
 - The main loop, 25–45 µs. Most of it is the checkpoint send: about 20
   checkpoints a second, each written to the socket on the main thread through
   IXWebSocket's `sendBinary`, 60–80 µs per write under Wine against 4 µs to
@@ -155,7 +159,7 @@ Does not measurably affect it:
 - Registry lookups in engine hooks: there is no lock contention in a normal
   build (0.1–0.3 µs per hook call).
 - Receiving and decoding: it runs on the connection thread.
-- Allocations: about 13 per pass on the main loop at 200 actors.
+- Allocations ([Allocations](#allocations)).
 - Stance selector reads, nameplate sight checks, and the remote light budget:
   each under 0.1 ms per pass at 200 actors.
 
@@ -195,6 +199,8 @@ Does not measurably affect it:
 - **Connection thread.** The client sends no WebSocket pings, so IXWebSocket's
   thread sleeps until data arrives or a send wakes it
   ([Network](network.md#transport)).
+- **Empty overlay frames.** The overlay skips the render when the frame draws
+  nothing ([UI overlay](ui-overlay.md#rendering)).
 - **Load-time work off the main loop.** The item catalog and the localization
   catalogs are built on worker threads at startup.
 
@@ -255,9 +261,9 @@ Does not measurably affect it:
   pass regardless of distance or visibility. Throttling far or hidden actors is
   the lever for more than 64 visible players; it was not done because the
   default cap keeps plugin time under 1 ms.
-- The overlay builds and renders an ImGui frame even when nothing is shown
-  (about 44 µs). Skipping it needs every window to report whether it would
-  draw.
+- The overlay builds an ImGui frame even when nothing is shown; only the
+  render is skipped. Skipping the frame needs every window to report whether
+  it would draw.
 - The checkpoint send writes to the socket on the main loop (about 15 µs per
   frame under Wine). Sending from a thread of its own removed it in a test
   build and is deferred until a release can cover its reconnect and exit

@@ -4,15 +4,14 @@
 
 This system decides which peers each client receives and delivers them in an
 order the client can rely on. It owns the hub goroutine that applies every
-accepted message, subscriptions between recipients and peers, the per-pair
-record of presentation revisions, and the per-recipient outbox that batches
-checkpoints. Wire messages and validation are in [Network](network.md); how a
-client applies them is in [Sync pipeline](sync-pipeline.md#receive-state).
-Nearby chat compares the same spaces and horizontal distance but is routed
-without subscriptions ([Network](network.md#chat)), and the hub tells each
-client which players it reaches without them
-([Network](network.md#nearby-players)). Voice follows the subscriptions
-within a radius ([Voice listeners](#voice-listeners)).
+accepted message, subscriptions, the per-pair record of presentation revisions,
+and the per-recipient outbox that batches checkpoints. Wire messages and
+validation are in [Network](network.md); how a client applies them is in
+[Sync pipeline](sync-pipeline.md#receive-state). Nearby chat uses the same
+spaces and horizontal distance without subscriptions
+([Network](network.md#chat), [nearby players](network.md#nearby-players)).
+Voice follows the subscriptions within a radius
+([Voice listeners](#voice-listeners)).
 
 ## Components
 
@@ -23,29 +22,27 @@ within a radius ([Voice listeners](#voice-listeners)).
 | `interest.Hidden`, `interest.Pairs` | The admin exclusion rules |
 | `hub.Hub` | All world state; subscriptions; turns accepted messages into outbox traffic. Methods run on one goroutine and take an injectable clock |
 | `hub.Loop` | Runs a hub: submitted work in order, a tick per send phase, and the interest pass at `interest.update_hz` |
-| `delivery.Outbox` | One recipient's pending traffic: latest-wins checkpoints, ordered messages, latest-wins presentation, a bounded voice queue; rate classes, the budget's choice of checkpoints, and the per-peer pose references posed entries are encoded against |
+| `delivery.Outbox` | One recipient's pending traffic: latest-wins checkpoints, ordered messages, latest-wins presentation; rate classes, the budget's choice of checkpoints, per-peer pose references |
 | `voice.Relay`, `voice.Endpoint` | Forwards a speaker's frames to the listeners the hub sets ([Voice listeners](#voice-listeners)) |
 | `delivery.Budget` | The uplink shared by every recipient |
 | `delivery.Batch` | One drain of an outbox, written as WebSocket messages |
 | `session` writer | Waits for its outbox, drains it, and writes |
 
-Connections, replays, and in-server bots all enter through the same hub
-methods (`Connect`, `Handle`, `Disconnect`), so replayed players follow every
-rule here.
+Connections, replays, and in-server bots enter through the same hub methods
+(`Connect`, `Handle`, `Disconnect`), so replayed players follow every rule here.
 
 ## Subscriptions
 
 - A player is placed once it is in the world and has a context and a
   checkpoint ([Network](network.md#checkpoint-and-context)). Only placed
-  players are compared: a placed recipient (the viewer) against placed peers
-  (targets). A viewer that is not placed receives nobody.
-- A recipient is a connection with an outbox; replays and bots receive
-  nothing but are seen like any peer.
+  viewers and placed targets are compared; an unplaced viewer receives nobody.
+- A recipient is a connection with an outbox; replays and bots receive nothing
+  but are seen like any peer.
 - The rules for a pair, in order:
   1. Different coordinate spaces never see each other. A worldspace compares
-     by its form reference and an interior by its cell's, with plugin names
-     compared without case (`interest.Space`, which a member recomputes only
-     when its context changes; [Network](network.md#form-references)).
+     by its form reference and an interior by its cell's, plugin names without
+     case (`interest.Space`, recomputed when the context changes;
+     [Network](network.md#form-references)).
   2. Exclusions: a player hidden by an admin is seen by nobody (it still sees
      others), an excluded directed pair never sees, and a viewer never sees a
      session it vanished (`interest.Vanished`, from `View.Vanished`, matched
@@ -57,24 +54,21 @@ rule here.
      beyond `interest.leave_radius` (9830), but not before
      `interest.min_dwell_seconds` (1) in view, so it does not flap at the edge.
      A client may ask for a smaller radius in `Hello.view_radius`
-     (`[Advanced] ViewRadius` in [Configuration](configuration.md)): it is
-     clamped to `interest.minimum_view_radius` (1024) and the server's enter
-     radius, and its leave radius keeps the server's ratio.
+     (`[Advanced] ViewRadius`), clamped to `interest.minimum_view_radius`
+     (1024) and the server's enter radius; its leave radius keeps the server's
+     ratio.
   4. The cap: a viewer receives at most `interest.max_visible` (64) peers,
      nearest first. A peer in view keeps its place unless a candidate is
      `interest.cap_hysteresis` (1024) nearer, and one within its minimum time
      in view is never evicted (evictions leave with `OUT_OF_RANGE`). The
      periodic pass ranks; an event that would overfill a view waits for it.
-- Rules 1 and 2 are hard: they take effect at once, whatever the time in view.
-  Distance is applied by the periodic pass, at `interest.update_hz` (5), which
-  reevaluates each placed viewer's subscriptions and the players in the 3×3
-  grid cells around it. The grid's cell is the leave radius, so every pair
-  within it is found.
-- Events evaluate the affected pairs at once instead of waiting for the pass:
-  a player becoming placed (as viewer and as target), hiding or showing a
-  player, adding or lifting an exclusion, and a `Vanish`, which evaluates the
-  viewer against the session's connected player, if any. A lifted vanish
-  that finds the view full waits for the pass, as any newcomer does.
+- Rules 1 and 2 take effect at once, whatever the time in view. Distance is
+  applied by the periodic pass at `interest.update_hz` (5), which reevaluates
+  each placed viewer against the players in the 3×3 grid cells around it; the
+  cell size is the leave radius, so every pair within it is found.
+- Events evaluate the affected pairs at once: a player becoming placed, hiding
+  or showing a player, adding or lifting an exclusion, and a `Vanish`. A lifted
+  vanish that finds the view full waits for the pass, as any newcomer does.
 - A checkpoint moves the player's view (`Space`, `X`, `Y`) in place; its slot,
   session, radius, and vanished sessions are set on connect and by the hello.
 - A context that changes the space unplaces the player until its next
@@ -85,8 +79,8 @@ rule here.
 - A player's `Exit` ends every subscription to it with `EXITED` and every
   subscription it has with `VIEWER_UNPLACED`.
 - A peer's disconnect sends `PeerLeave(DISCONNECTED)` to every recipient that
-  receives it or holds its appearance, equipment, or effects, and the recipients forget
-  their record of it. Its exclusions are dropped too.
+  receives it or holds its presentation, which forgets its record of it, and
+  drops its exclusions.
 
 ## Ordering
 
@@ -105,8 +99,8 @@ rule here.
 4. An action is preceded by the checkpoint it is anchored to: when the
    recipient's newest queued sequence for the peer is below the action's
    `checkpoint_sequence`, the peer's current checkpoint is queued in front of
-   it. The client holds an attack or idle until its played checkpoint reaches `checkpointSequence`
-   ([Combat presentation](combat-presentation.md#action-stream)).
+   it. The client holds an attack or idle until its played checkpoint reaches
+   it ([Combat presentation](combat-presentation.md#action-stream)).
 5. `PeerLeave` resets the peer's action stream on the client, so the next
    action after a new `PeerEnter` starts a new boundary.
 6. Appearance, equipment, and effects are latest-wins per (recipient, peer): a newer one
@@ -119,79 +113,66 @@ rule here.
 ## Records per pair
 
 For each recipient the hub records the appearance, equipment, and effects
-revision of each peer it has sent, whether or not the peer is subscribed now.
-`PeerEnter` and the `PeerEffects` after it include them only when newer, which matches the client, which keeps
-presentation until `PeerLeave(DISCONNECTED)`. The record is dropped on that
-leave and when the recipient disconnects.
+revision it has sent of each peer, subscribed now or not. `PeerEnter` and the
+`PeerEffects` after it include them only when newer, matching the client, which
+keeps presentation until `PeerLeave(DISCONNECTED)`. The record is dropped on
+that leave and when the recipient disconnects.
 
 ## Rate classes and idle suppression
 
 - A peer farther than `interest.near_distance` (4096) is written to the viewer
   at most `interest.far_rate_hz` (10) times a second; nearer peers get every
   checkpoint. The periodic pass sets each pair's class
-  (`Outbox.SetClass`). A far peer's newer checkpoint waits in the outbox
-  until due and is never lost; the writer's timer fires one send interval
-  after the due time, so the recipient's phase usually carries it without a
-  separate write. An
-  ordered message about the peer still takes its pending checkpoint along at
-  once.
-- A checkpoint equal to the last one handed to subscribers, except for its
-  sequence and time, is not distributed, so an idle player costs nothing on the wire.
-  The skeleton pose is compared byte for byte, so a player standing in a pose
-  window streams its breathing ([Network](network.md#skeleton-pose-encoding)).
-  Positions compare rounded to whole units (`sameSample`), so an idle
-  player's sub-unit drift does not count as a change at quarter-unit
-  precision.
-  The stored checkpoint still advances, so `PeerEnter` and action anchors carry
-  the newest. The checkpoint after a context change is always distributed,
-  since clients apply a context with the next checkpoint they receive.
+  (`Outbox.SetClass`). A far peer's newer checkpoint waits in the outbox until
+  due and is never lost; the writer's timer fires one send interval after the
+  due time, so the recipient's phase usually carries it. An ordered message
+  about the peer still takes its pending checkpoint along at once.
+- A checkpoint equal to the last one distributed except for sequence and time
+  is not distributed, so an idle player costs nothing on the wire. Positions
+  compare rounded to whole units (`sameSample`), so sub-unit drift does not
+  count; the skeleton pose compares byte for byte, so a player standing in a
+  pose window streams its breathing. The stored checkpoint still advances, so
+  `PeerEnter` and action anchors carry the newest. The checkpoint after a
+  context change is always distributed, since clients apply a context with
+  the next checkpoint.
 
 ## Skeleton poses
 
 A posed peer, one whose stored checkpoint carries a
-[skeleton pose](network.md#skeleton-pose-encoding), costs about four times
-the bytes of a plain one with its pose sent as a
-[change](network.md#pose-changes), and eight times with a whole pose. So each
-recipient is sent the poses of at most its `interest.max_posed` (32) nearest
-posed subscribed peers within `interest.near_distance` (4096), and every
-other subscriber gets the same checkpoint without the pose, which its client
-reproduces from the graph as outside a window
-([Remote actor](remote-actor.md#receiver)). A recipient's pose traffic is then
-bounded by the limit, however many players pose around it. The limit is one
-server setting for every recipient, not a client choice. Beyond the near distance a peer is
-written at the far rate, and poses interpolated over 0.1 s were off by 9–10°
-in the trunk and limbs at the 95th percentile on recorded climbs and
-paragliding ([Network](network.md#skeleton-pose-encoding)), so far peers
-show the vanilla reproduction instead.
+[skeleton pose](network.md#skeleton-pose-encoding), costs about four times the
+bytes of a plain one with the pose sent as a [change](network.md#pose-changes),
+eight with a whole pose. So each recipient is sent the poses of at most its
+`interest.max_posed` (32) nearest posed subscribed peers within
+`interest.near_distance` (4096); other subscribers get the checkpoint without
+the pose, which their client reproduces from the graph
+([Remote actor](remote-actor.md#receiver)). Far peers are written at the far
+rate, where poses interpolated over 0.1 s were off by 9–10° in the trunk and
+limbs at the 95th percentile on recorded climbs and paragliding, so they show
+the vanilla reproduction instead.
 
 - `world.Player` holds each posed checkpoint as two `wire.Entry` values,
   `Entry` with the pose and `PlainEntry` without (`wire.WithoutSkeleton`); a
   plain checkpoint has one, shared by both. `distribute`, the checkpoint in
   front of an action, and `PeerEnter` pick by the pair's `subscription.pose`.
-  `PeerEnter` always carries the checkpoint without the pose, since a new
-  subscription is sent poses from its first ranking on.
-- A posed `wire.Entry` keeps its fields encoded and its pose read
-  (`wire.SkeletonPose`, shared by every recipient and never changed), and is
-  encoded per recipient when the outbox drains it: the pose as a change from
-  the one this recipient was last written of the peer, held per peer in
-  `Outbox.poses`. `Drain` encodes the ordered items in order, dropping a
-  peer's reference at the `PeerEnter` or `PeerLeave` that the outbox's
-  `Enter` and `Leave` queue, and then the latest-wins entries, which the
-  writer sends after them; a latest-wins entry sets the reference only when it
-  is written, so one the budget holds back is encoded again from the
-  reference then current. A replaced entry was never written, so it is never
-  a reference. The encodings live in the `delivery.Batch`'s scratch buffer
-  until it is written. The per-recipient work is bounded by `max_posed`.
+  `PeerEnter` always carries the checkpoint without the pose; poses follow from
+  the subscription's first ranking.
+- A posed `wire.Entry` keeps its fields encoded and its decoded pose
+  (`wire.SkeletonPose`, shared and immutable), and is encoded per recipient
+  when the outbox drains it, as a change from the pose last written to that
+  recipient (`Outbox.poses`). `Drain` encodes ordered items in order, dropping
+  a peer's reference at its `PeerEnter` or `PeerLeave`, then the latest-wins
+  entries. A latest-wins entry sets the reference only when written, so one the
+  budget holds back is re-encoded from the reference then current, and a
+  replaced entry is never a reference. Encodings live in the
+  `delivery.Batch`'s scratch buffer until written.
 - `Hub.assignPoses` ranks a recipient's posed subscribed peers by horizontal
-  distance, a peer already sent poses at 0.8 of its distance
-  (`poseSlotHysteresis`), leaves out those whose ranked distance exceeds the
-  near distance, and sets `pose` for the nearest `max_posed`. The scaling
-  keeps peers at about the same distance from trading places, and a peer
-  sent poses keeps them up to 5120 units, so one at the edge does not flap. It runs at the end of
-  each periodic pass for the recipient, at once for every subscriber of a peer
-  whose checkpoint starts or stops carrying a pose, so a window opens and a
-  freed place is taken without waiting for the pass, when an event subscribes
-  the recipient to a posed peer. `0` sends no poses.
+  distance, scaling a peer already sent poses by `poseSlotHysteresis` (0.8) so
+  peers at similar distances do not trade places and one at the edge keeps
+  poses up to 5120 units, drops those beyond the near distance, and sets
+  `pose` for the nearest `max_posed`. It runs at the end of each periodic pass,
+  at once for every subscriber of a peer whose checkpoint starts or stops
+  carrying a pose, and when an event subscribes the recipient to a posed peer.
+  `0` sends no poses.
 - A pair whose `pose` changes switches with the next distributed checkpoint;
   one already waiting in the outbox keeps its encoding.
 
@@ -228,28 +209,25 @@ what limits the rate, or every player's latency rises.
   (`sendPhaseSeconds`; 10 at 20 Hz, one at 200 Hz and above), and the loop
   ticks once per phase. Every tick sets each changed sender's entry in its
   subscribers' outboxes, replacing an unsent older one.
-- Each recipient is given the phase with the fewest recipients when it
-  connects and keeps it. A tick signals, once, only the touched outboxes of
-  its phase; the others wait for their own tick. All writers waking on the
-  same tick made the server's egress leave in one burst per interval, which
-  queued in the router's upload buffer and delayed every player's traffic,
-  pings included, even below the link's rate.
-- The writer drains the outbox and writes: consecutive entries in the ordered
-  stream as one `PeerStates`, every ordered message as its own WebSocket
-  message, and the remaining latest-wins entries as one final `PeerStates`. A
-  batch is the entries' bytes placed one after another behind one header, so
-  each entry without a pose is encoded once however many recipients receive
-  it.
+- Each recipient gets the phase with the fewest recipients when it connects and
+  keeps it. A tick signals only the touched outboxes of its phase. Waking every
+  writer on one tick would send egress in one burst per interval, which queues
+  in the router's upload buffer and delays every player's traffic, pings
+  included, even below the link's rate ([Measurements](#measurements)).
+- The writer drains the outbox and writes consecutive ordered entries as one
+  `PeerStates`, every other ordered message as its own WebSocket message, and
+  the remaining latest-wins entries as one final `PeerStates`. A batch is the
+  entries' bytes behind one header, so an entry without a pose is encoded once
+  for all recipients.
 - Ordered messages wake the writer at once and take every pending
   checkpoint along; otherwise checkpoints wait for the recipient's phase, so
   batching adds at most one send interval of delay. The ticker drops missed
   ticks instead of bursting after a stall; a dropped tick shifts the phases
   that follow but skips none.
-- At 20 Hz the send interval matches the source's publishing rate, so with
-  frame timing some batches carry no checkpoint of a sender and the next carries only
-  the newer of two. Clients absorb that spacing with the [checkpoint
-  playout](sync-pipeline.md#checkpoint-playout); 40 Hz halves the batching
-  delay at twice the batch count.
+- At 20 Hz the send interval matches the source's publishing rate, so some
+  batches carry no checkpoint of a sender and the next only the newer of two;
+  the [checkpoint playout](sync-pipeline.md#checkpoint-playout) absorbs this.
+  40 Hz halves the batching delay at twice the batch count.
 - A write that takes longer than `liveness.timeout_seconds` closes the
   connection. While a slow client writes, its outbox keeps only the newest
   checkpoint per peer; ordered messages accumulate until
@@ -258,19 +236,17 @@ what limits the rate, or every player's latency rises.
 ## Voice listeners
 
 A speaker's voice reaches the clients that receive it as a peer within
-`voice.radius` (3072, horizontal like interest): `Hub.updateVoiceTargets`
-walks the speaker's subscribers that have a voice endpoint and gives the
-speaker's `voice.Endpoint` the ones within the radius (`SetTargets`), only
-when the set changes. A listener therefore always has the speaker's
-character to place the voice at, and space, exclusions, hiding, vanishing,
-and the visible cap apply to voice as to presentation; like them, a vanish is
-one-way. A speaker that is not placed has no listeners.
+`voice.radius` (3072, horizontal): `Hub.updateVoiceTargets` gives the speaker's
+`voice.Endpoint` its subscribers with a voice endpoint within the radius
+(`SetTargets`) when the set changes. A listener therefore always has the
+speaker's character to place the voice at, and space, exclusions, hiding,
+vanishing (one-way), and the visible cap apply to voice too. An unplaced
+speaker has no listeners.
 
-- The interest pass recomputes every speaker, since distances change without
-  subscriptions changing. A subscription that starts or ends, an exit, a
-  context that unplaces, and a disconnect mark the speaker
-  (`Hub.markVoice`), and the next tick recomputes it, so a vanished or
-  departed listener stops hearing within a send phase.
+- The interest pass recomputes every speaker. A subscription that starts or
+  ends, an exit, an unplacing context, and a disconnect mark the speaker
+  (`Hub.markVoice`) for the next tick, so a vanished or departed listener stops
+  hearing within a send phase.
 - The relay reads each speaker's listeners as an atomically swapped slice and
   forwards on the UDP reader goroutine that read the frame (one per CPU), never
   on the hub's.
@@ -284,9 +260,7 @@ one-way. A speaker that is not placed has no listeners.
 `PUT /api/players/{id}/hidden {hidden}` hides or shows a player;
 `POST /api/exclusions` and `DELETE /api/exclusions` with `{viewerId, targetId}`
 add or lift a directed exclusion. Both apply at once and last until the
-player disconnects: they are keyed by slot, not by the player's session
-([Network](network.md#sessions)). The
-admin state lists each player's `visible` peers, `hidden`, `bytesPerSecond`
+player disconnects, keyed by slot, not session. The admin state lists each player's `visible` peers, `hidden`, `bytesPerSecond`
 written to it, and `replacedPerSecond` (checkpoints replaced before they were
 written, a sign of a slow link), and every exclusion.
 
@@ -345,9 +319,8 @@ simulated FIFO uplink sized for each load:
 | 10 phases | 29× mean | 1.9 / 13.6 ms | 3.7 / 19.2 ms | 20 / 49 ms | 11% |
 
 Egress was 1.7 MB/s in both. A probe connection answering `Ping` stayed near
-0.1 ms throughout, so the server's own reply path adds nothing; the
-improvement is in the bytes queued ahead of other traffic on a real uplink,
-which was not measured through the tunnel.
+0.1 ms throughout, so the server's reply path adds nothing; the gain is in the
+bytes queued ahead of other traffic on a real uplink, which was not measured.
 
 ## Engine assumptions
 
@@ -366,9 +339,9 @@ which was not measured through the tunnel.
    disconnected.
 4. A peer walking out of range despawns and respawns when it returns, without
    flapping at the edge; an excluded or hidden peer disappears at once.
-5. A client receives skeleton poses only of as many posed peers as it shows,
-   the nearest ones within the near distance, and a peer that starts posing among them is shown posed
-   from its first posed checkpoint.
+5. A client receives skeleton poses only of its nearest `max_posed` posed peers
+   within the near distance, and one that starts posing among them is shown
+   posed from its first posed checkpoint.
 6. Poses sent as changes show the same as whole ones, also after the peer
    leaves range and returns, after either player reconnects, and while the
    budget holds checkpoints back.
@@ -377,11 +350,8 @@ which was not measured through the tunnel.
 
 - The budget counts WebSocket payload plus an estimated 60 bytes of headers
   per message; TLS adds about 22 bytes more per record.
-- The cap's default is provisional until the client's frame cost with many
-  remote actors is measured in game.
-- Idle suppression compares the pose too, so a posed peer standing still
-  sends its plain checkpoint, unchanged but for sequence and time, to the
-  recipients not sent its pose on every checkpoint
+- Idle suppression compares the pose, so a posed peer standing still sends its
+  unchanged plain checkpoint to recipients not sent its pose
   ([Skeleton poses](#skeleton-poses)).
 - Exclusions and hiding are keyed by slot and last only for a connection;
   product rules such as block lists, parties, or instances would key them by
