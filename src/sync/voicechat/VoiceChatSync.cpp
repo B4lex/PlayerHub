@@ -100,7 +100,7 @@ namespace VoiceChatSync
         const auto state = Network::VoiceTransport::GetState();
         // Squared, so the slider reads close to loudness as heard: twice as loud takes about 10 dB.
         const auto inputVolume = static_cast<float>(voice.inputVolume) / 100.0F;
-        const Audio::Settings settings{ .active = voice.enabled && state == State::kConnected && GameSession::IsInGame(),
+        const Audio::Settings settings{ .active = state == State::kConnected && GameSession::IsInGame(),
             .inputDevice = voice.inputDevice,
             .outputDevice = voice.outputDevice,
             .inputGain = kBaseInputGain * inputVolume * inputVolume,

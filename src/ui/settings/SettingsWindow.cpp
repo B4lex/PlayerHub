@@ -72,7 +72,6 @@ namespace UI
         constexpr std::string_view kAdvancedSection = "Advanced";
         constexpr std::string_view kDefaultsSections[]{ kUISection, kControlsSection, kGameplaySection, kVoiceSection,
             kAdvancedSection };
-        constexpr std::string_view kVoiceEnabledKey = "Enabled";
         constexpr std::string_view kInputMeterKey = "InputMeter";
         constexpr std::string_view kIndicatorHorizontalKey = "IndicatorPositionHorizontal";
         constexpr std::string_view kIndicatorVerticalKey = "IndicatorPositionVertical";
@@ -289,7 +288,6 @@ namespace UI
             {
                 EndSection();
                 hideNext = false;
-                hideRest = false;
                 sections.push_back(SectionEntry{ .name = a_name, .title = a_title });
                 if (openSection.empty())
                 {
@@ -325,15 +323,17 @@ namespace UI
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ padding.x, 0.0F });
                 ImGui::BeginChild("##Content", ImVec2{ 0.0F, -footerHeight }, ImGuiChildFlags_AlwaysUseWindowPadding);
                 ImGui::PopStyleVar();
+                if (a_name == kVoiceSection)
+                {
+                    DrawRelayWarning();
+                }
             }
 
             void ShowNextIf(bool a_shown) override { hideNext = !a_shown; }
 
-            void ShowRestIf(bool a_shown) override { hideRest = !a_shown; }
-
             void Comment(Text::Id a_comment) override
             {
-                if (!sectionOpen || hideRest)
+                if (!sectionOpen)
                 {
                     return;
                 }
@@ -358,10 +358,6 @@ namespace UI
                 }
                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + controlWidth - Controls::GetToggleWidth());
                 Controls::Toggle("##value", a_value);
-                if (openSection == kVoiceSection && a_key == kVoiceEnabledKey && a_value)
-                {
-                    DrawRelayWarning();
-                }
                 EndRow();
             }
 
@@ -941,11 +937,13 @@ namespace UI
                 DrawText(Text::Get(Text::Id::kVoiceRelayUnreachable));
                 ImGui::PopStyleColor();
                 ImGui::PopTextWrapPos();
+                ImGui::Dummy(ImVec2{ 0.0F, ImGui::GetStyle().ItemSpacing.y });
+                sectionEmpty = false;
             }
 
             bool BeginRow(std::string_view a_key, Text::Id a_label, Text::Id a_comment, bool a_labeled = true)
             {
-                const bool hidden = std::exchange(hideNext, false) || hideRest;
+                const bool hidden = std::exchange(hideNext, false);
                 if (!sectionOpen)
                 {
                     return false;
@@ -1074,7 +1072,6 @@ namespace UI
             bool focusConnectionField{ false };
             bool connectRequested{ false };
             bool hideNext{ false };
-            bool hideRest{ false };
             bool captureRejected{ false };
         };
 

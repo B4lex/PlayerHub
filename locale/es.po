@@ -1473,18 +1473,6 @@ msgctxt "VoiceComment"
 msgid "Talk to the players near you"
 msgstr "Habla con los jugadores cercanos"
 
-msgctxt "VoiceEnabled"
-msgid "Voice chat"
-msgstr "Chat de voz"
-
-msgctxt "VoiceEnabledComment"
-msgid ""
-"Hear the players near you and let them hear you. Off keeps your microphone "
-"and speakers closed."
-msgstr ""
-"Escucha a los jugadores cercanos y deja que te oigan. Desactivado mantiene "
-"cerrados tu micrófono y tus altavoces."
-
 msgctxt "VoiceGroupMicrophone"
 msgid "Microphone"
 msgstr "Micrófono"

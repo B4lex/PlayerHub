@@ -75,8 +75,7 @@ sidebar ([UI overlay](ui-overlay.md#settings-window)).
   unsigned value within both limits, not shown in the window, with a plain
   English comment for the file.
 - `ShowNextIf` makes the next setting's row depend on a value described before
-  it, and `ShowRestIf` the rows and group headings after it up to the next
-  section; reading and saving ignore both.
+  it; reading and saving ignore it.
 - `Comment` names a group of the settings after it: a comment line in a new
   file, a group heading in the window.
 - `AudioDevice` is a device's system name, read and saved as a string
@@ -278,16 +277,14 @@ always hit nothing ([Remote actor](remote-actor.md#combat-isolation)).
 
 ### `[Voice]`
 
-[Voice chat](voice-chat.md) with the players nearby: `Enabled`, then three
-groups, Microphone (`Mode`, the input meter, `ActivationLevel`,
+[Voice chat](voice-chat.md) with the players nearby, in three
+groups: Microphone (`Mode`, the input meter, `ActivationLevel`,
 `InputDevice`, `InputVolume`, `NoiseSuppression`), Other players
 (`OutputDevice`, `OutputVolume`), and Indicator (`Indicator`,
-`IndicatorPositionHorizontal`, `IndicatorPositionVertical`). The settings
-window shows the groups only while `Enabled` is on.
+`IndicatorPositionHorizontal`, `IndicatorPositionVertical`).
 
 | Key | Meaning | Default |
 | --- | --- | --- |
-| `Enabled` | Hears and is heard on a server that carries voice; off keeps the microphone and speakers closed | `true` |
 | `Mode` | `PushToTalk`, heard while `[Controls] Microphone` is held, or `VoiceActivation`, heard while speaking ([Voice chat](voice-chat.md#activation)) | `PushToTalk` |
 | `ActivationLevel` | The input level at which voice activation opens, `0..100` on the meter's scale, 0 at -60 dBFS and 100 at full scale; the settings window shows it only with `VoiceActivation` | `35` |
 | `InputDevice`, `OutputDevice` | The capture and playback devices by their system names, as the settings window lists them; empty is the system's default device. A name no device has logs a warning and uses the default | empty |

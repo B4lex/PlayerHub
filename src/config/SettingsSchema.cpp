@@ -341,9 +341,6 @@ namespace Config
         void DescribeVoice(VoiceSettings& a_settings, SettingsVisitor& a_visitor)
         {
             a_visitor.Section("Voice", Id::kSectionVoice, Id::kVoiceComment);
-            a_visitor.Bool("Enabled", Id::kVoiceEnabled, a_settings.enabled, Id::kVoiceEnabledComment);
-            a_visitor.ShowRestIf(a_settings.enabled);
-
             a_visitor.Comment(Id::kVoiceGroupMicrophone);
             a_visitor.Choice("Mode", Id::kVoiceMode, a_settings.mode, Id::kVoiceModeComment, VoiceSettings::kModeNames,
                 kVoiceModeLabels);

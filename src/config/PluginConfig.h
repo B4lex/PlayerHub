@@ -150,7 +150,6 @@ namespace Config
         static constexpr std::size_t kMaximumDeviceNameBytes = 255;
         static constexpr float kMaximumIndicatorPosition = 100.0F;
 
-        bool enabled{ true };
         std::uint32_t mode{ kPushToTalk };
         std::uint32_t activationLevel{ 25 };
         bool noiseSuppression{ true };

@@ -74,7 +74,7 @@ may use it waits in `retired` and is destroyed by the next `SetSpeakers` or
   probability is at least 0.5, and for 400 ms after. The level is taken before
   `[Voice] InputVolume`, so the volume does not move the gate. The frame before
   the onset is sent first, so a word's start is not cut.
-- The player is heard only with voice enabled, a connected
+- The player is heard only with a connected
   [relay link](#relay-link), and the player placed in the world
   (`VoiceChatSync::UpdateLocal`). `Maintain` runs while paused, so players talk
   with a menu open.
@@ -169,8 +169,8 @@ Frames of anyone else are dropped on arrival and their buffers freed.
 
 ## Devices
 
-- `Audio::Configure` takes the settings and whether voice is active (enabled,
-  in a game, relay link connected). The worker opens both devices only while
+- `Audio::Configure` takes the settings and whether voice is active (in a
+  game, relay link connected). The worker opens both devices only while
   active, so the system's microphone indicator shows only then. A changed
   device name reopens that device; gains and gating change without reopening.
 - `[Voice] InputDevice` and `OutputDevice` hold system device names; empty is

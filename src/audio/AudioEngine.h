@@ -12,7 +12,7 @@ namespace Audio
 {
     struct Settings
     {
-        // Whether the devices are open: voice enabled with a connection that carries it.
+        // Whether the devices are open: in a game with a connection that carries voice.
         bool active{ false };
         // Device names as the system lists them; empty for the system's default device.
         std::string inputDevice;
