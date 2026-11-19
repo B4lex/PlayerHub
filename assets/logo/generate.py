@@ -10,8 +10,9 @@ rasterizes them at any size: U+E000 is the white letters and U+E001 the orange
 bar with the black scratches cut out of it, U+E002 the Discord symbol scaled to
 the same height, U+E00E the Ko-fi cup and U+E00F its heart, also at that height,
 the ICONS at U+E003, U+E004, and U+E008 to U+E00D, each scaled so
-its SVG height is the em, and U+E005 the cursor's dark outline, U+E006 its light band,
-and U+E007 its ring's opaque centre, from ../cursor/cursor.svg. Run it with
+its SVG height is the em, and the CURSORS from ../cursor/, one glyph per fill:
+U+E005 to U+E007 the normal cursor's dark outline, light band, and its ring's
+opaque centre, then the move, resize, and text cursors from U+E010. Run it with
 `uv run --script`.
 
 An icon SVG holds paths filled or stroked (round caps and joins) in black or
@@ -19,6 +20,7 @@ white, painted in order: black adds to the glyph and white cuts it away, so the
 SVG looks like the glyph in a browser.
 """
 
+import math
 import pathlib
 import xml.etree.ElementTree as ElementTree
 
@@ -27,6 +29,7 @@ from fontTools.fontBuilder import FontBuilder
 from fontTools.pens.cu2quPen import Cu2QuPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
+from fontTools.misc.transform import Transform
 from fontTools.svgLib.path import parse_path
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -44,8 +47,20 @@ ICONS = {
     0xE00C: "speaker.svg",
     0xE00D: "location.svg",
 }
-CURSOR_SOURCE = HERE.parent / "cursor" / "cursor.svg"
-CURSOR = {0xE005: "outline", 0xE006: "band", 0xE007: "centre"}
+CURSOR_DIRECTORY = HERE.parent / "cursor"
+# The normal cursor's SVG height is the em; the others share its scale. Each SVG's
+# origin is the hot spot, and the glyphs put it at their top left. The resize glyphs
+# are resize.svg turned clockwise on screen by the given degrees.
+CURSOR_HEIGHT_SOURCE = "cursor.svg"
+CURSORS = (
+    ("cursor.svg", 0, "", {0xE005: "outline", 0xE006: "band", 0xE007: "centre"}),
+    ("move.svg", 0, "move", {0xE010: "outline", 0xE011: "band", 0xE012: "centre"}),
+    ("resize.svg", 0, "resize_ew", {0xE013: "outline", 0xE014: "band", 0xE015: "centre"}),
+    ("resize.svg", 90, "resize_ns", {0xE016: "outline", 0xE017: "band", 0xE018: "centre"}),
+    ("resize.svg", -45, "resize_nesw", {0xE019: "outline", 0xE01A: "band", 0xE01B: "centre"}),
+    ("resize.svg", 45, "resize_nwse", {0xE01C: "outline", 0xE01D: "band", 0xE01E: "centre"}),
+    ("text.svg", 0, "text", {0xE01F: "outline", 0xE020: "band"}),
+)
 OUTPUT = HERE.parent / "fonts" / "PlayerHub.ttf"
 
 LETTERS = "white"
@@ -111,9 +126,9 @@ def read_icon(source):
     return width, height, glyph
 
 
-def read_cursor(source):
+def read_cursor(source, layers):
     root = ElementTree.parse(source).getroot()
-    width, height = (float(root.get(name)) for name in ("width", "height"))
+    left, top, width, height = (float(value) for value in root.get("viewBox").split())
     paths = {}
     for element in root.iter("{http://www.w3.org/2000/svg}path"):
         if element.get("transform") or element.get("fill-rule") != "evenodd":
@@ -123,9 +138,9 @@ def read_cursor(source):
         # Even-odd regions become contours that TrueType's nonzero rule fills the same.
         path.simplify(fix_winding=True)
         paths[element.get("id")] = path
-    if set(paths) != set(CURSOR.values()):
-        raise SystemExit(f"{source.name}: expected paths {sorted(CURSOR.values())}, found {sorted(paths)}")
-    return width, height, paths
+    if set(paths) != set(layers):
+        raise SystemExit(f"{source.name}: expected paths {sorted(layers)}, found {sorted(paths)}")
+    return left + width, height, paths
 
 
 def flip(path, height, scale=SCALE, scale_x=None):
@@ -187,15 +202,21 @@ def main():
         advances[name] = round(icon_width * icon_scale)
         characters[character] = name
 
-    # The cursor's height is the em and its tip the glyphs' top left, so a font size
-    # in pixels is the cursor's height and the text position its tip.
-    cursor_width, cursor_height, cursor = read_cursor(CURSOR_SOURCE)
+    # A font size in pixels is the normal cursor's height and the text position a
+    # cursor's hot spot.
+    cursor_height = read_cursor(CURSOR_DIRECTORY / CURSOR_HEIGHT_SOURCE, CURSORS[0][3].values())[1]
     cursor_scale = em / cursor_height
     cursor_scale_x = cursor_scale * CURSOR_PLACEMENT[0] / CURSOR_PLACEMENT[1]
-    for character, name in CURSOR.items():
-        glyphs[name] = to_glyph(flip(cursor[name], cursor_height, cursor_scale, cursor_scale_x))
-        advances[name] = round(cursor_width * cursor_scale_x)
-        characters[character] = name
+    for file, degrees, prefix, layers in CURSORS:
+        cursor_right, _, cursor = read_cursor(CURSOR_DIRECTORY / file, layers.values())
+        turn = Transform().rotate(math.radians(degrees))
+        for character, layer in layers.items():
+            name = f"{prefix}_{layer}" if prefix else layer
+            turned = pathops.Path()
+            cursor[layer].draw(TransformPen(turned.getPen(), turn))
+            glyphs[name] = to_glyph(flip(turned, em / cursor_scale, cursor_scale, cursor_scale_x))
+            advances[name] = max(0, round(cursor_right * cursor_scale_x))
+            characters[character] = name
 
     # The em is the logo's height, so a font size in pixels is its height.
     builder = FontBuilder(em, isTTF=True)

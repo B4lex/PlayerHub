@@ -33,7 +33,7 @@ src/ui/
   Fonts.h/.cpp                # system fonts with fallbacks, shipped themed faces and logo
   Theme.h/.cpp                # look of the interactive windows: accent, rounded borders
   MenuFrame.h/.cpp            # Skyrim's menu frame around a window, from its shipped shape
-  Cursor.h/.cpp               # the overlay's own cursors in the frame's style, drawn at the mouse
+  Cursor.h/.cpp               # the overlay's own cursors, logo font glyphs drawn at the mouse
   Window.h                    # interface every window implements
   WindowManager.h/.cpp        # registered windows, draw order, input focus
   InputCapture.h/.cpp         # input dispatch hook: focus keys, routing to ImGui
@@ -89,7 +89,7 @@ assets/fonts/                 # Sovngarde Light and Bold with their license, the
 assets/logo/                  # the logo's, Discord's, and Ko-fi's SVGs and the script that makes their font
 assets/icons/                 # SVGs of the icons in the logo font
 assets/frame/                 # the menu frame's shape, deployed beside the DLL
-assets/cursor/                # the font cursor's SVG, built into the logo font
+assets/cursor/                # the cursors' SVGs, built into the logo font
 ```
 
 Every screen is an independent `UI::Window`. `Overlay::Install` registers each
@@ -141,8 +141,8 @@ after the setting applies.
   the whole overlay with the text, cursor and menu frame included, rather than
   only the glyphs, which would need every layout redone. The cursor's speed
   ([Input focus](#input-focus)) stays on the display's scale alone.
-- The [cursor](#cursor) is drawn as lines, or as glyphs rasterized at its
-  size, rather than a scaled bitmap, so a fractional scale does not blur it.
+- The [cursor](#cursor) is drawn as glyphs rasterized at its size rather
+  than a scaled bitmap, so a fractional scale does not blur it.
 - The trade window draws at a smaller font size where the display cannot hold
   its layout at the scale ([Window](#window)).
 - A resizable window keeps its size across font size changes through
@@ -283,18 +283,19 @@ any size with the other glyphs and they stay sharp at every scale:
 | U+E000, U+E001 | The logo's letters and its underline bar |
 | U+E002 | The Discord symbol of the [community links](#community-links) |
 | U+E003, U+E004 | The muted and vanished marks of the [player list](#player-list) |
-| U+E005 to U+E007 | The [font cursor](#font-cursor) |
+| U+E005 to U+E007 | The normal [cursor](#cursor) |
 | U+E008 | The [voice chat](#voice-chat) microphone |
 | U+E009, U+E00A | The close and reset icons of `Controls::IconButton` |
 | U+E00B | The person on the player list's button |
 | U+E00C | The [voice chat](#voice-chat) speaker |
 | U+E00D | The location pin of the [player menu](#player-menu) |
 | U+E00E, U+E00F | The Ko-fi cup and its heart, of the [community links](#community-links) |
+| U+E010 to U+E020 | The move, resize, and text [cursors](#cursor) |
 
 - `assets/logo/generate.py`, run with `uv run --script`, builds the font with
   skia-pathops and fixed timestamps from `assets/logo/logo.svg`,
   `assets/logo/discord.svg`, `assets/logo/kofi.svg` (one path per glyph),
-  `assets/cursor/cursor.svg`, and the icon SVGs
+  the [cursor SVGs](#cursor-art), and the icon SVGs
   that `ICONS` maps to code points in `assets/icons/`. The logo's em spans its
   height, so the font size in pixels is the logo's height; each icon is scaled
   so its height is the em and advances by its own width. An icon SVG holds
@@ -504,50 +505,50 @@ is not part of the plugin.
 
 ### Cursor
 
-The overlay draws its own cursors in place of Dear ImGui's software cursor.
-The normal one is the [font cursor](#font-cursor); the others are in the
-style of the [menu frame](#menu-frame), which `UI::Cursor` builds in code.
+The overlay draws its own cursors in place of Dear ImGui's software cursor,
+as glyphs of the [logo font](#logo).
 
 - `Cursor::Draw` runs after the windows and before `ImGui::Render`, while
   `InputCapture::ShowsCursor` holds, and draws the shape for
   `ImGui::GetMouseCursor` at `io.MousePos` on the foreground draw list, so it
   is above every window. `io.MouseDrawCursor` stays off.
-- Shapes: the pointer for `Arrow`, and also for `Hand`, `NotAllowed`, `Wait`,
-  and `Progress`; an I-beam for `TextInput`; a resize shape for each `Resize`
-  direction and a move shape for `ResizeAll`. `None` draws nothing.
-- The pointer is the [font cursor](#font-cursor) while `Fonts::GetLogo` has
-  its font, and the plugin's drawn pointer without it.
-- A drawn shape is layers of strands, open or closed polylines, each with a
-  backing and a border, so the strands of a layer join cleanly and a later
-  layer's border cuts the lines it crosses. Lengths are in `kUnitFonts`, so
-  the shapes follow the overlay's scale.
+- Shapes: the normal cursor for `Arrow`, and also for `Hand`, `NotAllowed`,
+  `Wait`, and `Progress`; an I-beam for `TextInput`; a resize shape for each
+  `Resize` direction and a move shape for `ResizeAll`. `None` draws nothing.
+- Each shape is one glyph per fill, drawn in order at the mouse position in
+  `kOutline`, `kBand`, and `kCentre`, the centre opaque and in its own glyph
+  so nothing shows through it. The text cursor has no centre. The glyphs
+  place the hot spot at the text position, and `kHeightFonts` sets the normal
+  cursor's height in font sizes, smaller than the game shows it
+  ([Engine assumptions](#engine-assumptions)); the other shapes share its
+  scale.
+- Without `PlayerHub.ttf` (`Fonts::GetLogo`), `Cursor::Draw` draws Dear
+  ImGui's own cursor shapes with `ImGui::RenderMouseCursor`, scaled with the
+  font size.
 - Dear ImGui keeps a tooltip out of a box from the mouse sized by
   `ImGuiStyle::MouseCursorScale`, which is meant for its own cursor.
   `Cursor::PlaceTooltips` sets the scale each frame before `ImGui::NewFrame`
   so the box is the normal cursor's extent plus `kTooltipGapFonts`, so a
   tooltip never covers the cursor. `ScaleAllSizes` would otherwise truncate
   the scale to a whole number.
-- The line color is `Theme::GetFrameColor`, so the drawn cursors follow
-  `[UI] BorderColor`. The backing is opaque, unlike the frame's, so they stay
-  visible at any background opacity.
 
-#### Font cursor
+#### Cursor art
 
-- `assets/cursor/cursor.svg` is the plugin's own art, in the style of the
-  game's menu cursor. It holds one even-odd path per fill: `outline`, `band`,
-  and `centre`. The file is the source; nothing in the repository regenerates
-  it.
+- `assets/cursor/cursor.svg`, the normal cursor, is the plugin's own art in
+  the style of the game's menu cursor: an arrowhead with a ring at its back.
+  `move.svg`, `resize.svg`, and `text.svg` are in the same style, with the
+  same outline and band widths and the same ring at the hot spot. Each holds
+  one even-odd path per fill: `outline`, `band`, and, except the text cursor,
+  `centre`. Each SVG's origin is its hot spot. The files are the source;
+  nothing in the repository regenerates them.
 - `assets/logo/generate.py` ([Logo](#logo)) resolves the even-odd paths into
-  nonzero contours, scales the shape so its height is the font's em, stretched
-  by `CURSOR_PLACEMENT`, the scale `Interface/cursormenu.swf` places the
-  game's cursor at (`mc_Cursor`'s matrix), and adds the three fills as
-  U+E005 to U+E007. The tip is at the glyphs' top left, so the font size in
-  pixels is the cursor's height and the text position its tip.
-- `Cursor::Draw` draws the three glyphs at `io.MousePos` in `kVanillaOutline`,
-  `kVanillaBand`, and `kVanillaCentre`, the centre opaque and in its own
-  glyph so nothing shows through it. `kVanillaHeightFonts` sets the height in
-  font sizes, smaller than the game shows it
-  ([Engine assumptions](#engine-assumptions)).
+  nonzero contours and adds the fills as the glyphs `CURSORS` lists. All
+  cursors share one scale, at which the normal cursor's height is the font's
+  em, stretched by `CURSOR_PLACEMENT`, the scale `Interface/cursormenu.swf`
+  places the game's cursor at (`mc_Cursor`'s matrix). The four resize glyphs
+  are `resize.svg` turned to each direction. The hot spot is at the glyphs'
+  top left, so the font size in pixels is the normal cursor's height and the
+  text position the hot spot.
 
 ## Input focus
 
@@ -2783,11 +2784,12 @@ IDs matched against 1.5.97 where given.
     saved; `Vanilla` turns them back. The log has one
     `UI overlay: menu frame` line; with `PlayerHub/frame/` removed, the log
     warns and both windows have a plain rounded line. Over either window the
-    cursor is the [font cursor](#font-cursor), sharp at any resolution and
+    cursor is the normal [cursor](#cursor), sharp at any resolution and
     scale, clicking at its tip, with tooltips beside it, uncovered; without
-    `PlayerHub.ttf` it is the drawn pointer. It becomes a resize cursor on the
+    `PlayerHub.ttf` it is Dear ImGui's own. It becomes a resize cursor on the
     chat's edges and knots, the move cursor while the chat is dragged, and an
-    I-beam over a text field. No other cursor shows.
+    I-beam over a text field, each the same size, style, and ring as the
+    normal one. No other cursor shows.
 11. A click on another player's name in a line turns the chip to a whisper
     to that player, which only that player receives, labeled as sent to it
     for the sender and as from the sender for the recipient; the next line

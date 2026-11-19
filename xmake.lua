@@ -30,14 +30,12 @@ option("tracy_memory")
     set_description("With tracy: record every plugin allocation")
 option_end()
 
--- Costs two clock reads per stage and per hook call, so release builds leave it off.
 option("time_breakdown")
     set_default(false)
     set_showmenu(true)
     set_description("Show where plugin time goes, with hook timings, under the status panel")
 option_end()
 
--- Release builds set both to the public server, which the repository does not name.
 option("server_address")
     set_default("127.0.0.1")
     set_showmenu(true)
@@ -86,8 +84,6 @@ package("ixwebsocket-patched")
         "a4b1d6b3769289f6e775d757fc25ff7805862276d7e4e2adf22fc321a25d4de3")
 package_end()
 
--- RNNoise is not in xmake-repo. Its 0.2 release archive carries the model weights, which the
--- repository's sources download separately, so the package builds from the archive.
 package("rnnoise")
     set_homepage("https://gitlab.xiph.org/xiph/rnnoise")
     set_description("Recurrent neural network for audio noise reduction")
@@ -114,9 +110,6 @@ package("rnnoise")
     end)
 package_end()
 
--- The xmake-repo libopus recipe leaves out Opus 1.5's neural decoder features: OSCE (LACE and
--- NoLACE) and, with it, deep PLC. Their weights ship in the xiph.org release archive; GitHub's
--- source archives, which that recipe tries first, lack them.
 package("libopus-dnn")
     set_homepage("https://opus-codec.org")
     set_description("Modern audio compression for the internet, with its neural decoder features")
@@ -184,7 +177,6 @@ target("PlayerHub")
     })
 
     add_rules("locale")
-    -- Translated text literals are UTF-8.
     set_encodings("utf-8")
     add_files("src/**.cpp", "src/**.c")
     -- nanopb runtime from the lib/nanopb submodule, because the xmake package
@@ -195,10 +187,8 @@ target("PlayerHub")
     add_headerfiles("src/**.h")
     add_includedirs("src", "src/network/proto", "lib/nanopb")
     add_packages("ixwebsocket-patched", "imgui", "simpleini", "libopus-dnn", "miniaudio", "rnnoise")
-    -- The voice datagrams' socket.
     add_syslinks("ws2_32")
     on_config(function (target)
-        -- The value becomes a C string literal, which SettingsSchema.cpp also checks with a static_assert.
         local address = get_config("server_address") or ""
         local host, port = address:match("^([%w%.%-]+)(.*)$")
         local number = port and port:match("^:(%d+)$")
@@ -208,8 +198,8 @@ target("PlayerHub")
         end
         target:add("defines", format('PLAYERHUB_DEFAULT_SERVER_ADDRESS="%s"', address))
         target:add("defines", "PLAYERHUB_DEFAULT_SERVER_TLS=" .. (has_config("server_tls") and "true" or "false"))
-        -- Defined even when empty: xmake recompiles for a changed define, not an added one.
-        for option, define in pairs({discord_invite = "PLAYERHUB_DISCORD_INVITE", kofi_url = "PLAYERHUB_KOFI_URL"}) do
+        for _, entry in ipairs({{"discord_invite", "PLAYERHUB_DISCORD_INVITE"}, {"kofi_url", "PLAYERHUB_KOFI_URL"}}) do
+            local option, define = entry[1], entry[2]
             local url = get_config(option) or ""
             if url ~= "" and (not url:startswith("https://") or url:find("[%s\"\\]")) then
                 raise("%s must start with https:// and contain no whitespace, quotes, or backslashes", option)
