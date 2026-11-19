@@ -77,7 +77,7 @@ compatibility shims; a version mismatch is refused at the handshake.
 - The first client message must be
   `Hello{protocol_version, view_radius, session_token, display_name, vanished}`
   within `limits.hello_timeout_seconds` (5). A version other than
-  `Protocol.PROTOCOL_VERSION` (17) is closed with status 4001 and reason
+  `Protocol.PROTOCOL_VERSION` (16) is closed with status 4001 and reason
   `protocol <server version>`; anything else first is closed with 1008. The
   session fields are in [Sessions](#sessions).
 - The server answers a hello with
