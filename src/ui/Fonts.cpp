@@ -69,6 +69,9 @@ namespace UI::Fonts
             L"Nirmala.ttc",  // Indic scripts
             L"nirmala.ttf",
         };
+        // The first found draws the bold face's Latin, Greek, and Cyrillic; the regular
+        // system fonts fill in the rest.
+        constexpr std::array<std::wstring_view, 3> kBoldFiles{ L"segoeuib.ttf", L"arialbd.ttf", L"tahomabd.ttf" };
         // Han characters are drawn by the first of these that has them, and their shapes
         // differ between Simplified Chinese, Traditional Chinese, and Japanese.
         constexpr std::array<std::wstring_view, 2> kSimplifiedChineseFiles{ L"msyh.ttc", L"msyh.ttf" };
@@ -169,6 +172,7 @@ namespace UI::Fonts
         // and it lives as long as the process.
         std::vector<MappedView> s_views;
 
+        ImFont* s_systemBold = nullptr;
         ImFont* s_text = nullptr;
         ImFont* s_heading = nullptr;
         ImFont* s_logo = nullptr;
@@ -262,6 +266,34 @@ namespace UI::Fonts
             return font;
         }
 
+        ImFont* AddSystemBold(ImFontAtlas& a_atlas, float a_sizePixels, const std::filesystem::path& a_directory,
+            std::span<const std::span<const std::byte>> a_fallbacks)
+        {
+            for (const auto fileName : kBoldFiles)
+            {
+                const auto path = a_directory / fileName;
+                const auto data = MapFile(path);
+                if (data.empty())
+                {
+                    continue;
+                }
+                const auto font = AddSource(a_atlas, a_sizePixels, data, false);
+                if (!font)
+                {
+                    s_views.pop_back();
+                    continue;
+                }
+                for (const auto fallback : a_fallbacks)
+                {
+                    AddSource(a_atlas, a_sizePixels, fallback, true);
+                }
+                logs::debug("UI overlay: bold font {}", path.filename().string());
+                return font;
+            }
+            logs::debug("UI overlay: no bold system font; the status panel uses the regular one");
+            return nullptr;
+        }
+
         ImFont* AddLogo(ImFontAtlas& a_atlas, float a_sizePixels, const std::filesystem::path& a_path)
         {
             const auto data = MapFile(a_path);
@@ -289,11 +321,12 @@ namespace UI::Fonts
         std::vector<std::span<const std::byte>> system;
         std::string loaded;
         s_loadedHanOrder = GetCurrentHanOrder();
-        if (const auto directory = GetFontsDirectory())
+        const auto systemDirectory = GetFontsDirectory();
+        if (systemDirectory)
         {
             for (const auto fileName : GetSystemFiles(s_loadedHanOrder))
             {
-                const auto path = *directory / fileName;
+                const auto path = *systemDirectory / fileName;
                 const auto data = MapFile(path);
                 if (data.empty())
                 {
@@ -325,6 +358,8 @@ namespace UI::Fonts
         else
         {
             logs::info("UI overlay: fonts {}", loaded);
+            // After the regular fonts, so the first of them stays the atlas default.
+            s_systemBold = AddSystemBold(a_atlas, a_sizePixels, *systemDirectory, system);
         }
 
         const auto directory = Config::GetDirectory();
@@ -358,11 +393,17 @@ namespace UI::Fonts
         // Either drops the atlas's sources before their views are unmapped.
         a_atlas.Clear();
         s_views.clear();
+        s_systemBold = nullptr;
         s_text = nullptr;
         s_heading = nullptr;
         s_headingUnitScale = 0.0F;
         s_logo = nullptr;
         Load(a_atlas, a_sizePixels);
+    }
+
+    ImFont* GetSystemBold()
+    {
+        return s_systemBold;
     }
 
     ImFont* GetText()

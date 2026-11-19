@@ -6,7 +6,9 @@
 #include "runtime/GameSession.h"
 #include "runtime/PluginTime.h"
 #include "text/Text.h"
+#include "ui/Fonts.h"
 #include "ui/Layout.h"
+#include "ui/widgets/TextShadow.h"
 
 #include <imgui.h>
 
@@ -19,7 +21,6 @@ namespace UI
     {
         constexpr auto kCorner = ScreenCorner::kTopRight;
         constexpr float kMarginPixels = 12.0F;
-        constexpr float kBackgroundAlpha = 0.35F;
         constexpr long long kGoodLatencyMilliseconds = 80;
         constexpr long long kFairLatencyMilliseconds = 150;
         constexpr double kBytesPerKilobyte = 1000.0;
@@ -33,7 +34,7 @@ namespace UI
 
         constexpr ImGuiWindowFlags kWindowFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs
             | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing
-            | ImGuiWindowFlags_AlwaysAutoResize;
+            | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground;
 
         void DrawPing(std::optional<std::chrono::milliseconds> a_latency)
         {
@@ -93,25 +94,28 @@ namespace UI
         }
 
         SetNextWindowCorner(kCorner, kMarginPixels);
-        ImGui::SetNextWindowBgAlpha(kBackgroundAlpha);
-        if (!ImGui::Begin("##StatusPanel", nullptr, kWindowFlags))
+        ImGui::PushFont(Fonts::GetSystemBold(), 0.0F);
+        if (ImGui::Begin("##StatusPanel", nullptr, kWindowFlags))
         {
-            ImGui::End();
-            return;
+            const bool connected = Network::IsConnected();
+            const auto latency = Network::GetLatency();
+            const auto rates = Network::GetTrafficRates();
+            const auto pluginTime = PluginTime::GetAverageFrameTime();
+            TextShadow::Draw([&] {
+                if (!connected)
+                {
+                    ImGui::TextColored(kPoorColor, "%s", Text::GetCString(Text::Id::kConnectionDisconnected));
+                }
+                else
+                {
+                    DrawPing(latency);
+                    DrawTraffic(rates);
+                }
+                DrawPluginTime(pluginTime);
+            });
         }
-
-        if (!Network::IsConnected())
-        {
-            ImGui::TextColored(kPoorColor, "%s", Text::GetCString(Text::Id::kConnectionDisconnected));
-        }
-        else
-        {
-            DrawPing(Network::GetLatency());
-            DrawTraffic(Network::GetTrafficRates());
-        }
-        DrawPluginTime(PluginTime::GetAverageFrameTime());
-
         ImGui::End();
+        ImGui::PopFont();
     }
 
     std::unique_ptr<Window> CreateStatusPanel()

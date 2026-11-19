@@ -13,6 +13,8 @@ namespace UI::Fonts
     // Han font first. Call between frames.
     void Update(ImFontAtlas& a_atlas, float a_sizePixels);
 
+    // Null without a bold system font, which ImGui::PushFont takes as the current font.
+    [[nodiscard]] ImFont* GetSystemBold();
     [[nodiscard]] ImFont* GetText();
     [[nodiscard]] ImFont* GetHeading();
     [[nodiscard]] ImFont* GetLogo();

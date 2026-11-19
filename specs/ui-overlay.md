@@ -66,6 +66,7 @@ src/ui/
   widgets/Controls            # switch, accent and red buttons, icon buttons, search field, muted text, striped box
   widgets/RoleBadge           # a role's letter mark beside a name, and its whole badge
   widgets/ItemPicker          # item dropdown
+  widgets/TextShadow          # soft shadow under drawn text, from copies of its vertices
   preview/ItemPreview         # 3D item model, spinning and turned by dragging, and cached thumbnails
   render/Gpu                  # frame target, runtime-compiled full-screen passes, image blend modes
   render/Backdrop             # the game's frame blurred and darkened behind a full-screen window
@@ -226,13 +227,19 @@ and the `[UI] Language` setting are therefore applied before `Fonts::Load`
 letters of every shipped translation, so of those only Japanese and Chinese
 text uses the system fonts.
 
+`Fonts::GetSystemBold` is one more atlas font for the
+[status panel](#status-panel): the first of `segoeuib.ttf`, `arialbd.ttf`,
+and `tahomabd.ttf` found, with the regular system fonts above merged after
+it for every other script. Without any of them it is null, logged at debug,
+and the panel keeps the regular face.
+
 #### Themed faces
 
 The [themed](#theme) windows use Sovngarde 8.9 by mjorka, a serif after
 Skyrim's title lettering, in two more atlas fonts: `Fonts::GetText` is
 `Sovngarde Light.ttf` and `Fonts::GetHeading` is `Sovngarde Bold.ttf`. The
-overlay's own font stays the atlas default, so the status panel keeps the
-system font.
+overlay's own font stays the atlas default, and the status panel uses the
+bold system face.
 
 - The files are in `assets/fonts/`, unmodified from the
   [standalone release](https://mjorka.itch.io/sovngarde), with
@@ -305,7 +312,8 @@ any size with the other glyphs and they stay sharp at every scale:
 
 ### Theme
 
-The overlay's base style is `StyleColorsDark`, which the status panel uses.
+The overlay's base style is `StyleColorsDark`, which the status panel's
+colors sit on.
 `UI::Theme::Scope` gives every window and popup begun while it lives the look
 of the plugin's interactive windows, by pushing ImGui style colors and
 variables and popping them when it ends. `SettingsWindow` wraps its window in
@@ -363,10 +371,9 @@ the player reads or acts in. Non-goal: an opacity per window.
   Dear ImGui's popups, lists, and tooltips, with the chat's name list and
   notes, which take the popup color. A popup or child over a window covers
   more than either alone.
-- Not affected: the [status panel](#status-panel), which keeps its own
-  lighter background (`SetNextWindowBgAlpha`) because it stays on screen over
-  the game while the overlay is not in use; the closed chat's recent lines,
-  which have only a text shadow; the trade cells' wells and thumbnail
+- Not affected: the [status panel](#status-panel) and the closed chat's
+  recent lines, which stay on screen over the game while the overlay is not
+  in use and have only a text shadow; the trade cells' wells and thumbnail
   backgrounds, which must be opaque ([3D preview](#3d-preview)); and the trade
   [backdrop](#backdrop).
 
@@ -696,10 +703,12 @@ Windows.
 
 ## Status panel
 
-`StatusPanel` sits in the top-right corner (`kCorner`) on its own lighter
-background and takes no input. It is drawn only during a game
-(`GameSession::IsInGame`) and while `[Advanced] StatusPanel` is on; a change
-applies on the next frame.
+`StatusPanel` sits in the top-right corner (`kCorner`) and takes no input.
+It is drawn only during a game (`GameSession::IsInGame`) and while
+`[Advanced] StatusPanel` is on; a change applies on the next frame. Like the
+chat's [recent lines](#chat), it has no background: its lines, in
+`Fonts::GetSystemBold`, are drawn over the same soft shadow (`TextShadow::Draw`), with
+the values read once per frame so every copy of the lines matches.
 
 - Not connected, whatever the reason, it shows the disconnected state.
 - Connected, it shows the ping, without a value before the first sample or
@@ -722,8 +731,8 @@ Only in a build with the `time_breakdown` xmake option, `TimeBreakdownPanel`
 shows the [time breakdown](performance.md#time-breakdown) in its own window,
 so the status panel keeps its size. It follows the status panel's conditions
 (in a game, `[Advanced] StatusPanel` on), sits right-aligned below it when it
-was drawn this frame (it is registered right after it), and uses the same
-background. Like the status panel it takes no input, and it is not drawn
+was drawn this frame (it is registered right after it), and keeps a light
+background, since its rows are a table. Like the status panel it takes no input, and it is not drawn
 before the first window.
 
 - First, the stage rows from `PluginTime::CopyBreakdown`: the name indented
@@ -1335,10 +1344,10 @@ sent and only how it is drawn differs.
   chat off the screen. They have no frame, since its corners alone are taller
   than a line or two, and stay in the open chat's column.
 - A soft shadow under the recent lines keeps them readable over bright
-  scenes: `ChatWindow` draws the lines once per shadow offset, turns each
-  copy's vertices black at a fraction of their alpha and shifts them
-  (`MakeShadow`), then draws the lines over them, so it covers role marks and
-  mentions without the lines' drawing knowing about it.
+  scenes: `TextShadow::Draw` draws the lines once per shadow offset, turns
+  each copy's vertices black at a fraction of their alpha and shifts them
+  (`TextShadow::Darken`), then draws the lines over them, so it covers role
+  marks and mentions without the lines' drawing knowing about it.
 - The recent lines' box is pinned by its bottom and fitted to them by Dear
   ImGui from the previous frame's content. For the frame after a line leaves,
   the lines are moved down to its bottom (`KeepContentAtBottom`) rather than
@@ -2758,7 +2767,7 @@ IDs matched against 1.5.97 where given.
    accent, and the window can be dragged by its sidebar or title. Picking a
    sidebar item shows that section.
 9. The themed windows and the chat are in Sovngarde, headings and line labels
-   in the heading face, the status panel in the system font, and the log has
+   in the heading face, the status panel in the bold system font, and the log has
    one `UI overlay: font` line per file. Characters Sovngarde lacks still
    show. With `PlayerHub/fonts/` removed, the log warns for each file and the
    windows use the system font. The sidebar's logo is sharp at every scale,
