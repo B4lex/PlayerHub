@@ -1,6 +1,7 @@
 #include "actor/ScenePackageSuppression.h"
 #include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
+#include "runtime/Profiling.h"
 
 #include <atomic>
 #include <cstdint>
@@ -41,6 +42,8 @@ namespace ScenePackageSuppression
                 a_action.packages.size(), refusedCount);
         }
 
+        PROFILE_HOOK_COUNTER(s_scenePackageProfile, "scene packages");
+
         struct StartActionHook
         {
             // BGSSceneActionPackage vfunc 0x10 (ID 24244): resolves the alias's actor
@@ -48,6 +51,7 @@ namespace ScenePackageSuppression
             // conditions it meets.
             static void Thunk(RE::BGSSceneActionPackage* a_action, RE::BGSScene* a_scene)
             {
+                PROFILE_HOOK(s_scenePackageProfile);
                 const auto* quest = a_action && a_scene ? a_scene->parentQuest : nullptr;
                 RE::NiPointer<RE::TESObjectREFR> reference;
                 if (quest)
@@ -57,7 +61,7 @@ namespace ScenePackageSuppression
                 auto* actor = reference ? reference->As<RE::Actor>() : nullptr;
                 if (!ActorRegistry::IsRegistered(actor))
                 {
-                    _original(a_action, a_scene);
+                    PROFILE_HOOK_ORIGINAL(_original(a_action, a_scene));
                     return;
                 }
 
@@ -83,9 +87,10 @@ namespace ScenePackageSuppression
         {
             static void Thunk(RE::BGSSceneActionPackage* a_action, RE::BGSScene* a_scene, RE::Actor* a_actor)
             {
+                PROFILE_HOOK(s_scenePackageProfile);
                 if (!a_action || !ActorRegistry::IsRegistered(a_actor))
                 {
-                    _original(a_action, a_scene, a_actor);
+                    PROFILE_HOOK_ORIGINAL(_original(a_action, a_scene, a_actor));
                     return;
                 }
 

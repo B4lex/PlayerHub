@@ -5,6 +5,7 @@
 #include "actor/RemoteActor.h"
 #include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
+#include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 
 #include <algorithm>
@@ -308,6 +309,7 @@ namespace ActorMovement
     void ApplyTranslation(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime, TranslationMode a_mode)
     {
         PROFILE_FUNCTION();
+        PLUGIN_TIME_STAGE("Movement");
         const float deltaTime = FrameTime::Clamp(a_deltaTime);
         auto& movement = a_remote.movement;
         // A heading snap starts the graph's NPC_Turn transitions, which only a full pose hides.

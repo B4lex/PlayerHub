@@ -41,6 +41,7 @@ src/ui/
   Layout.h                    # placement helpers (screen corners)
   hud/NameplateLayer          # other players' names projected above their heads
   hud/StatusPanel             # connection, ping, traffic, plugin time
+  hud/TimeBreakdownPanel      # with the time_breakdown option: the time breakdown
   hud/DisplayNameHint         # where to enter a display name, while none is set
   hud/GameView                # whether the world is on screen, for the HUD layers
   hud/NoticeStack             # notices on the right edge, friends coming online
@@ -76,7 +77,7 @@ src/sync/nameplates/NameplateSync # per peer: head node, line of sight, fade, la
 src/sync/voicechat/VoiceChatSync # speaking levels, the local microphone's state, audio devices (voice-chat.md)
 src/sync/filters/PlayerFilters # friends, muted and vanished players of the current server, publishing, friends coming online
 src/sync/chat/PlayerActivation # the activated player, and a whisper picked in its menu
-src/runtime/PluginTime        # plugin time per pass
+src/runtime/PluginTime        # plugin time per pass; with the time_breakdown option its breakdown
 src/text/Text                 # the languages, the game's language, text lookup, formatting, plural forms, field splitting
 src/text/Gettext              # PO file parsing and Plural-Forms rules for the translations read at startup
 locale/                       # gettext sources: the English template, one .po per shipped translation, deployed to PlayerHub/locale/
@@ -715,19 +716,43 @@ and an action in the settings window, so the messages are on its
 `[Connection]` page ([Connection controls](#connection-controls)), and the
 [display name hint](#display-name-hint) leads there.
 
+### Time breakdown panel
+
+Only in a build with the `time_breakdown` xmake option, `TimeBreakdownPanel`
+shows the [time breakdown](performance.md#time-breakdown) in its own window,
+so the status panel keeps its size. It follows the status panel's conditions
+(in a game, `[Advanced] StatusPanel` on), sits right-aligned below it when it
+was drawn this frame (it is registered right after it), and uses the same
+background. Like the status panel it takes no input, and it is not drawn
+before the first window.
+
+- First, the stage rows from `PluginTime::CopyBreakdown`: the name indented
+  by its depth and the average ms per pass. They keep their set and order
+  from window to window.
+- Last, the hook rows, which change membership and order every window, with
+  calls per pass, so they never move the stage rows.
+
+Row names come from code and are not translated.
+
 ### Plugin time
 
-`PluginTime::Scope` wraps the plugin's work in the main-loop hook, the
-renderer hook, and input routing, adding its `std::chrono::steady_clock`
-duration to a shared atomic total, since the renderer hook may run on another
-thread. The main-loop hook calls `PluginTime::EndFrame` once per pass after its
-scope closes; time before the first pass is dropped. Once at least
-`kAverageWindowSeconds` (100 ms) of wall-clock time has passed, the total
-divided by the passes in the window becomes the published average and a new
-window starts, so the number changes about ten times a second. It is always
-compiled in and costs two clock reads per hook call. It leaves out the engine
-hooks that run per actor on animation and AI threads. What the plugin costs
-and how to profile it in detail is in [Performance](performance.md).
+`PLUGIN_TIME_SCOPE` (a `PluginTime::Scope`) wraps the plugin's work in the
+main-loop hook, the renderer hook, and input routing, adding its
+`std::chrono::steady_clock` duration to a shared atomic total, since the
+renderer hook may run on another thread. In builds with hook timing (`tracy`
+or `time_breakdown`) each thread also tracks its scope depth, so hook timers
+can tell calls a scope already counts, and only the outermost scope adds. The
+main-loop hook calls
+`PluginTime::EndFrame` once per pass after its scope closes; time before the
+first pass is dropped. Once at least `kAverageWindowSeconds` (100 ms) of
+wall-clock time has passed, the total divided by the passes in the window
+becomes the published average and a new window starts, so the number changes
+about ten times a second. It is always compiled in and costs two clock reads
+per scope. By default it leaves out the engine hooks; with the
+`time_breakdown` xmake option it also adds the hook time on the main-loop thread outside the scopes, and the
+breakdown shows where the rest goes
+([Performance](performance.md#time-breakdown)). What the plugin costs and how
+to profile it in detail is in [Performance](performance.md).
 
 ## Display name hint
 

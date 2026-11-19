@@ -1,4 +1,5 @@
 #include "ui/render/Backdrop.h"
+#include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 #include "ui/Theme.h"
 #include "ui/render/Gpu.h"
@@ -161,6 +162,7 @@ float4 BlurVertical(Vertex input) : SV_Target
         bool BlurFrame()
         {
             PROFILE_SCOPE("Backdrop");
+            PLUGIN_TIME_STAGE("Backdrop");
             const auto frame = Gpu::GetFrame();
             if (!frame)
             {

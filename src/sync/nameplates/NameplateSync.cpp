@@ -3,6 +3,7 @@
 #include "config/PluginConfig.h"
 #include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
+#include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 #include "sync/PeerState.h"
 #include "sync/PlayerLabel.h"
@@ -128,6 +129,7 @@ namespace NameplateSync
         float a_delta)
     {
         PROFILE_FUNCTION();
+        PLUGIN_TIME_STAGE("Nameplates");
         s_plates.clear();
         if (!GameThread::Require("NameplateSync::Update"))
         {

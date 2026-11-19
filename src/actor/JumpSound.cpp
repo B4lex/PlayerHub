@@ -2,6 +2,7 @@
 #include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
 #include "runtime/CodeDetour.h"
+#include "runtime/Profiling.h"
 
 #include <RE/Skyrim.h>
 
@@ -86,6 +87,8 @@ namespace JumpSound
         // The comments below name 1.7.104 IDs and offsets. Each SE ID was matched
         // against the 1.5.97 disassembly by its code and the functions it calls.
 
+        PROFILE_HOOK_COUNTER(s_footstepProfile, "footstep sounds");
+
         // BGSImpactManager's footstep sink (ID 36209). It picks the impact for the
         // ground material and plays it at the actor's position.
         struct FootstepHook
@@ -93,13 +96,14 @@ namespace JumpSound
             static RE::BSEventNotifyControl Thunk(RE::BSTEventSink<RE::BGSFootstepEvent>* a_sink,
                 const RE::BGSFootstepEvent* a_event, RE::BSTEventSource<RE::BGSFootstepEvent>* a_source)
             {
+                PROFILE_HOOK(s_footstepProfile);
                 if (!a_event || !IsJumpFootstep(a_event->tag) || !ActorRegistry::IsRegistered(a_event->actor))
                 {
-                    return _original(a_sink, a_event, a_source);
+                    return PROFILE_HOOK_ORIGINAL(_original(a_sink, a_event, a_source));
                 }
 
                 t_remoteJumpActor = a_event->actor.native_handle();
-                const auto result = _original(a_sink, a_event, a_source);
+                const auto result = PROFILE_HOOK_ORIGINAL(_original(a_sink, a_event, a_source));
                 t_remoteJumpActor = 0;
                 return result;
             }
@@ -118,10 +122,11 @@ namespace JumpSound
             static bool Thunk(
                 RE::BGSImpactManager* a_manager, RE::BGSImpactManager::ImpactSoundData& a_data, void* a_unused)
             {
+                PROFILE_HOOK(s_footstepProfile);
                 const auto actorHandle = t_remoteJumpActor;
                 if (actorHandle == 0)
                 {
-                    return _original(a_manager, a_data, a_unused);
+                    return PROFILE_HOOK_ORIGINAL(_original(a_manager, a_data, a_unused));
                 }
 
                 auto* sound = a_data.impactData
@@ -131,7 +136,7 @@ namespace JumpSound
                 const auto* listener = audio ? audio->audioListener : nullptr;
                 if (!listener || !sound || !a_data.position || !a_data.pool || AttenuatesWithDistance(sound))
                 {
-                    return _original(a_manager, a_data, a_unused);
+                    return PROFILE_HOOK_ORIGINAL(_original(a_manager, a_data, a_unused));
                 }
 
                 const float distance = a_data.position->GetDistance(listener->listenerPosition);
@@ -143,7 +148,7 @@ namespace JumpSound
                 }
 
                 t_playVolume = volume;
-                const bool played = _original(a_manager, a_data, a_unused);
+                const bool played = PROFILE_HOOK_ORIGINAL(_original(a_manager, a_data, a_unused));
                 t_playVolume.reset();
                 return played;
             }
@@ -161,11 +166,12 @@ namespace JumpSound
 
             static bool Thunk(RE::BSSoundHandle* a_handle)
             {
+                PROFILE_HOOK(s_footstepProfile);
                 if (t_playVolume && a_handle)
                 {
                     (void)a_handle->SetVolume(*t_playVolume);
                 }
-                return _original(a_handle);
+                return PROFILE_HOOK_ORIGINAL(_original(a_handle));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;

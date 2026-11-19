@@ -19,6 +19,9 @@ namespace CombatIsolation
         using CodeDetour::WriteEntryDetour;
 
         PROFILE_HOOK_COUNTER(s_hostilityProfile, "hostility checks");
+        PROFILE_HOOK_COUNTER(s_hitProfile, "hit isolation");
+        PROFILE_HOOK_COUNTER(s_releaseProfile, "arrow release");
+        PROFILE_HOOK_COUNTER(s_knockProfile, "knock explosion");
 
         bool IsRemoteActorCombatQuery(const RE::Actor* a_actor, const RE::Actor* a_target, std::string_view a_path)
         {
@@ -52,6 +55,7 @@ namespace CombatIsolation
 
         bool IsRemoteActorSwing(const RE::Actor* a_attacker, std::string_view a_path)
         {
+            PROFILE_HOOK(s_hitProfile);
             if (!ActorRegistry::IsRegistered(a_attacker))
             {
                 return false;
@@ -66,6 +70,7 @@ namespace CombatIsolation
         bool IsIsolatedHit(const RE::Actor* a_aggressor, const RE::TESObjectREFR* a_target,
             const RE::Projectile* a_projectile, std::string_view a_path)
         {
+            PROFILE_HOOK(s_hitProfile);
             const bool remoteTarget = a_target && ActorRegistry::IsRegistered(a_target->As<RE::Actor>());
             if (!remoteTarget && !ActorRegistry::IsRegistered(a_aggressor))
             {
@@ -83,6 +88,7 @@ namespace CombatIsolation
 
         bool IsRemoteActorRelease(const RE::Actor* a_actor, std::string_view a_path)
         {
+            PROFILE_HOOK(s_releaseProfile);
             if (!ActorRegistry::IsRegistered(a_actor))
             {
                 return false;
@@ -275,6 +281,7 @@ namespace CombatIsolation
             static void Thunk(
                 RE::AIProcess* a_process, RE::Actor* a_actor, const RE::NiPoint3& a_location, float a_magnitude)
             {
+                PROFILE_HOOK(s_knockProfile);
                 if (ActorRegistry::IsRegistered(a_actor))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
@@ -286,7 +293,7 @@ namespace CombatIsolation
                     }
                     return;
                 }
-                _original(a_process, a_actor, a_location, a_magnitude);
+                PROFILE_HOOK_ORIGINAL(_original(a_process, a_actor, a_location, a_magnitude));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;

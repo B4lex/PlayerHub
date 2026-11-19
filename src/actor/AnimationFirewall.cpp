@@ -91,6 +91,8 @@ namespace AnimationFirewall
         static_assert(IsClientManagedAnimationEvent("weapUnequip"));
         static_assert(!IsClientManagedAnimationEvent("AttackStart"));
 
+        PROFILE_HOOK_COUNTER(s_graphOutputProfile, "graph output events");
+
         class GraphOutputEventSink final : public RE::BSTEventSink<RE::BSAnimationGraphEvent>
         {
         public:
@@ -103,6 +105,7 @@ namespace AnimationFirewall
             RE::BSEventNotifyControl ProcessEvent(
                 const RE::BSAnimationGraphEvent* a_event, RE::BSTEventSource<RE::BSAnimationGraphEvent>*) override
             {
+                PROFILE_HOOK(s_graphOutputProfile);
                 const auto* eventName = a_event ? a_event->tag.c_str() : nullptr;
                 if (!a_event || !a_event->holder || !eventName)
                 {
@@ -156,6 +159,7 @@ namespace AnimationFirewall
             GraphOutputEventSink() = default;
         };
 
+        PROFILE_HOOK_COUNTER(s_graphInputProfile, "graph input");
         PROFILE_HOOK_COUNTER(s_directionChannelProfile, "Direction channel");
         PROFILE_HOOK_COUNTER(s_speedChannelProfile, "Speed channel");
         PROFILE_HOOK_COUNTER(s_turnDeltaChannelProfile, "TurnDelta channel");
@@ -167,6 +171,7 @@ namespace AnimationFirewall
         {
             static bool Thunk(RE::IAnimationGraphManagerHolder* a_holder, const RE::BSFixedString& a_eventName)
             {
+                PROFILE_HOOK(s_graphInputProfile);
                 std::uint32_t actorHandle = 0;
                 std::uint32_t blockedEventCount = 0;
                 bool firewallEnabled = false;
@@ -203,7 +208,7 @@ namespace AnimationFirewall
                 if (!blockMountGaitEvent
                     && (!firewallEnabled || allowClientManagedEvent || allowNativeGraphEvent || allowCastEvent))
                 {
-                    const bool accepted = _original(a_holder, a_eventName);
+                    const bool accepted = PROFILE_HOOK_ORIGINAL(_original(a_holder, a_eventName));
                     if (firewallEnabled && (isSwimStartEvent || isSwimStopEvent))
                     {
                         if (accepted)

@@ -1,5 +1,6 @@
 #include "runtime/RemoteActorActivation.h"
 #include "actor/ActorRegistry.h"
+#include "runtime/Profiling.h"
 #include "sync/SyncCoordinator.h"
 
 #include <cstdint>
@@ -8,16 +9,20 @@ namespace RemoteActorActivation
 {
     namespace
     {
+        PROFILE_HOOK_COUNTER(s_activateTextProfile, "activate text");
+        PROFILE_HOOK_COUNTER(s_activateEventProfile, "activate events");
+
         struct ActivateTextHook
         {
             // The HUD's crosshair update (ID 40621, SE 39535) shows no prompt when this returns false.
             static bool Thunk(RE::TESNPC* a_this, RE::TESObjectREFR* a_targetRef, RE::BSString& a_text, bool a_arg4)
             {
+                PROFILE_HOOK(s_activateTextProfile);
                 if (a_targetRef && ActorRegistry::IsDead(a_targetRef->As<RE::Actor>()))
                 {
                     return false;
                 }
-                return _original(a_this, a_targetRef, a_text, a_arg4);
+                return PROFILE_HOOK_ORIGINAL(_original(a_this, a_targetRef, a_text, a_arg4));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -36,6 +41,7 @@ namespace RemoteActorActivation
             RE::BSEventNotifyControl ProcessEvent(
                 const RE::TESActivateEvent* a_event, RE::BSTEventSource<RE::TESActivateEvent>*) override
             {
+                PROFILE_HOOK(s_activateEventProfile);
                 if (!a_event || !a_event->objectActivated
                     || a_event->actionRef.get() != RE::PlayerCharacter::GetSingleton())
                 {

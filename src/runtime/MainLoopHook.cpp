@@ -21,7 +21,7 @@ namespace MainLoopHook
                 _original(a_context);
 
                 {
-                    const PluginTime::Scope timing;
+                    PLUGIN_TIME_SCOPE("Main loop");
                     Update();
                 }
                 PluginTime::EndFrame();

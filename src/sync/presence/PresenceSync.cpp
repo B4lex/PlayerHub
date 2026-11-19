@@ -33,6 +33,8 @@ namespace PresenceSync
             return a_menuName == RE::LoadingMenu::MENU_NAME || a_menuName == RE::MainMenu::MENU_NAME;
         }
 
+        PROFILE_HOOK_COUNTER(s_menuEventProfile, "menu events");
+
         class MenuEventSink final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
         {
         public:
@@ -45,6 +47,7 @@ namespace PresenceSync
             RE::BSEventNotifyControl ProcessEvent(
                 const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
             {
+                PROFILE_HOOK(s_menuEventProfile);
                 if (!a_event || !a_event->opening)
                 {
                     return RE::BSEventNotifyControl::kContinue;

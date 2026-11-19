@@ -293,8 +293,11 @@ namespace Network::VoiceTransport
         }
 
         // Returns whether the datagram was the relay's.
+        PROFILE_HOOK_COUNTER(s_voiceDatagramProfile, "voice datagrams");
+
         bool Receive(Session& a_session, std::span<const std::uint8_t> a_datagram)
         {
+            PROFILE_HOOK(s_voiceDatagramProfile);
             if (a_datagram.size() < kServerHeaderBytes + kTagBytes || a_datagram.size() > kMaximumDatagramBytes)
             {
                 return false;

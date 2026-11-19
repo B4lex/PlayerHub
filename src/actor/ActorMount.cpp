@@ -86,17 +86,20 @@ namespace ActorMount
         // the keyword on it.
         thread_local const RE::Actor* t_seatingDragon = nullptr;
 
+        PROFILE_HOOK_COUNTER(s_mountKeywordProfile, "keyword checks");
+
         // TESObjectREFR::HasKeywordHelper (vfunc 0x48; Actor's is ID 37183, SE 36204), which
         // the HasKeyword condition (ID 21644) calls.
         struct DragonMountKeywordHook
         {
             static bool Thunk(const RE::Actor* a_actor, const RE::BGSKeyword* a_keyword)
             {
+                PROFILE_HOOK(s_mountKeywordProfile);
                 if (a_actor && a_actor == t_seatingDragon && a_keyword && a_keyword == s_dragonMountKeyword)
                 {
                     return true;
                 }
-                return _original(a_actor, a_keyword);
+                return PROFILE_HOOK_ORIGINAL(_original(a_actor, a_keyword));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;

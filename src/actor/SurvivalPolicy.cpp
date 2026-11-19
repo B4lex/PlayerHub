@@ -104,6 +104,12 @@ namespace SurvivalPolicy
             }
         }
 
+        PROFILE_HOOK_COUNTER(s_hitEventProfile, "survival hit events");
+        PROFILE_HOOK_COUNTER(s_magicEffectEventProfile, "magic effect events");
+        PROFILE_HOOK_COUNTER(s_incomingEffectProfile, "incoming effects");
+        PROFILE_HOOK_COUNTER(s_healthDamageProfile, "health damage");
+        PROFILE_HOOK_COUNTER(s_aliasPackageProfile, "alias packages");
+
         class HitEventSink final : public RE::BSTEventSink<RE::TESHitEvent>
         {
         public:
@@ -116,6 +122,7 @@ namespace SurvivalPolicy
             RE::BSEventNotifyControl ProcessEvent(
                 const RE::TESHitEvent* a_event, RE::BSTEventSource<RE::TESHitEvent>*) override
             {
+                PROFILE_HOOK(s_hitEventProfile);
                 if (!a_event || !a_event->target)
                 {
                     return RE::BSEventNotifyControl::kContinue;
@@ -151,6 +158,7 @@ namespace SurvivalPolicy
             RE::BSEventNotifyControl ProcessEvent(
                 const RE::TESMagicEffectApplyEvent* a_event, RE::BSTEventSource<RE::TESMagicEffectApplyEvent>*) override
             {
+                PROFILE_HOOK(s_magicEffectEventProfile);
                 if (!a_event || !a_event->target)
                 {
                     return RE::BSEventNotifyControl::kContinue;
@@ -184,10 +192,11 @@ namespace SurvivalPolicy
         {
             static bool Thunk(RE::MagicTarget* a_target, RE::MagicTarget::AddTargetData& a_targetData)
             {
+                PROFILE_HOOK(s_incomingEffectProfile);
                 const auto [actorHandle, blockedEffectCount] = BlockMagicEffect(a_target, a_targetData);
                 if (blockedEffectCount == 0)
                 {
-                    return _original(a_target, a_targetData);
+                    return PROFILE_HOOK_ORIGINAL(_original(a_target, a_targetData));
                 }
 
                 if (ShouldLogOccurrence(blockedEffectCount))
@@ -214,6 +223,7 @@ namespace SurvivalPolicy
         {
             static void Thunk(RE::Actor* a_actor, RE::Actor* a_attacker, float a_damage)
             {
+                PROFILE_HOOK(s_healthDamageProfile);
                 const auto [actorHandle, blockedDamageCount] = ActorRegistry::BlockHealthDamage(a_actor);
                 if (blockedDamageCount != 0)
                 {
@@ -221,7 +231,7 @@ namespace SurvivalPolicy
                     return;
                 }
 
-                _original(a_actor, a_attacker, a_damage);
+                PROFILE_HOOK_ORIGINAL(_original(a_actor, a_attacker, a_damage));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -232,6 +242,7 @@ namespace SurvivalPolicy
             static void Thunk(RE::ActorValueOwner* a_actorValueOwner, RE::ACTOR_VALUE_MODIFIER a_modifier,
                 RE::ActorValue a_actorValue, float a_value)
             {
+                PROFILE_HOOK(s_healthDamageProfile);
                 if (a_modifier == RE::ACTOR_VALUE_MODIFIER::kDamage && a_actorValue == RE::ActorValue::kHealth
                     && a_value < 0.0F)
                 {
@@ -244,7 +255,7 @@ namespace SurvivalPolicy
                     }
                 }
 
-                _original(a_actorValueOwner, a_modifier, a_actorValue, a_value);
+                PROFILE_HOOK_ORIGINAL(_original(a_actorValueOwner, a_modifier, a_actorValue, a_value));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -254,6 +265,7 @@ namespace SurvivalPolicy
         {
             static void Thunk(RE::Actor* a_actor)
             {
+                PROFILE_HOOK(s_healthDamageProfile);
                 const auto [actorHandle, blockedDamageCount] = ActorRegistry::BlockHealthDamage(a_actor);
                 if (blockedDamageCount != 0)
                 {
@@ -261,7 +273,7 @@ namespace SurvivalPolicy
                     return;
                 }
 
-                _original(a_actor);
+                PROFILE_HOOK_ORIGINAL(_original(a_actor));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -272,6 +284,7 @@ namespace SurvivalPolicy
             static void Thunk(
                 RE::Actor* a_actor, RE::Actor* a_attacker, float a_damage, bool a_sendEvent, bool a_ragdollInstant)
             {
+                PROFILE_HOOK(s_healthDamageProfile);
                 const auto [actorHandle, blockedDamageCount] = ActorRegistry::BlockHealthDamage(a_actor);
                 if (blockedDamageCount != 0)
                 {
@@ -279,7 +292,7 @@ namespace SurvivalPolicy
                     return;
                 }
 
-                _original(a_actor, a_attacker, a_damage, a_sendEvent, a_ragdollInstant);
+                PROFILE_HOOK_ORIGINAL(_original(a_actor, a_attacker, a_damage, a_sendEvent, a_ragdollInstant));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -289,11 +302,12 @@ namespace SurvivalPolicy
         {
             static RE::TESPackage* Thunk(RE::Actor* a_actor)
             {
+                PROFILE_HOOK(s_aliasPackageProfile);
                 // Quest and scene aliases recruit bystanders, and their packages
                 // outrank the do-nothing package and are reselected every pass.
                 if (!ActorRegistry::IsRegistered(a_actor))
                 {
-                    return _original(a_actor);
+                    return PROFILE_HOOK_ORIGINAL(_original(a_actor));
                 }
 
                 // Called from Skyrim's package evaluation, which is not confined to

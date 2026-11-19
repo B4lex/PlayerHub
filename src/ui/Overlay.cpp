@@ -14,6 +14,7 @@
 #include "ui/hud/NameplateLayer.h"
 #include "ui/hud/NoticeStack.h"
 #include "ui/hud/StatusPanel.h"
+#include "ui/hud/TimeBreakdownPanel.h"
 #include "ui/hud/VoiceIndicator.h"
 #include "ui/preview/ItemPreview.h"
 #include "ui/render/Backdrop.h"
@@ -176,6 +177,7 @@ namespace UI::Overlay
             float wheelSteps = 0.0F;
             {
                 PROFILE_SCOPE("Overlay new frame");
+                PLUGIN_TIME_STAGE("New frame");
                 ImGui_ImplDX11_NewFrame();
                 ImGui_ImplWin32_NewFrame();
                 // The Win32 backend uses the client rectangle, which can differ from
@@ -192,6 +194,7 @@ namespace UI::Overlay
             }
             {
                 PROFILE_SCOPE("Overlay windows");
+                PLUGIN_TIME_STAGE("Windows");
                 WindowManager::DrawAll(wheelSteps);
                 Cursor::Draw();
                 ImGui::Render();
@@ -202,6 +205,7 @@ namespace UI::Overlay
                 return;
             }
             PROFILE_SCOPE("Overlay render");
+            PLUGIN_TIME_STAGE("Render");
             Backdrop::BlurPopups(drawData);
 
             // The DX11 backend restores the pipeline state it changes, except the
@@ -233,7 +237,7 @@ namespace UI::Overlay
             static void Thunk(std::uint32_t a_timer)
             {
                 _original(a_timer);
-                const PluginTime::Scope timing;
+                PLUGIN_TIME_SCOPE("Overlay");
                 PROFILE_SCOPE("Overlay");
                 PROFILE_ALLOCATIONS("overlay");
                 DrawFrame();
@@ -253,6 +257,10 @@ namespace UI::Overlay
 
         WindowManager::Register(CreateNameplateLayer());
         WindowManager::Register(CreateStatusPanel());
+#ifdef PLAYERHUB_TIME_BREAKDOWN
+        // After the status panel, which it is placed below.
+        WindowManager::Register(CreateTimeBreakdownPanel());
+#endif
         WindowManager::Register(CreateNoticeStack());
         WindowManager::Register(CreateWorldPlayerMenu());
         WindowManager::Register(CreateTradePrompt());

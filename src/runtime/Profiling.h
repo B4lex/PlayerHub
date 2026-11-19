@@ -1,5 +1,7 @@
 #pragma once
 
+#include "runtime/HookTiming.h"
+
 #ifdef TRACY_ENABLE
 #    include <tracy/Tracy.hpp>
 
@@ -22,51 +24,6 @@ namespace Profiling
 
     protected:
         ~FrameCounter() = default;
-    };
-
-    // Engine hooks that run for every actor on animation and AI threads are too frequent
-    // for a zone per call, so each keeps totals instead.
-    class HookCounter final : public FrameCounter
-    {
-    public:
-        HookCounter(const char* a_callsPlot, const char* a_timePlot) noexcept
-            : callsPlot(a_callsPlot)
-            , timePlot(a_timePlot)
-        {}
-
-        void AddCall() noexcept { calls.fetch_add(1, std::memory_order_relaxed); }
-        void AddTime(std::chrono::steady_clock::duration a_time) noexcept
-        {
-            nanoseconds.fetch_add(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(a_time).count(), std::memory_order_relaxed);
-        }
-        void Plot() noexcept override;
-
-    private:
-        const char* callsPlot;
-        const char* timePlot;
-        std::atomic<std::int64_t> calls{ 0 };
-        std::atomic<std::int64_t> nanoseconds{ 0 };
-    };
-
-    class HookTimer
-    {
-    public:
-        HookTimer(HookCounter& a_counter, bool a_call) noexcept
-            : counter(a_counter)
-        {
-            if (a_call)
-            {
-                counter.AddCall();
-            }
-        }
-        ~HookTimer() { counter.AddTime(std::chrono::steady_clock::now() - start); }
-        HookTimer(const HookTimer&) = delete;
-        HookTimer& operator=(const HookTimer&) = delete;
-
-    private:
-        HookCounter& counter;
-        std::chrono::steady_clock::time_point start{ std::chrono::steady_clock::now() };
     };
 
     void CountAllocation(std::size_t a_size) noexcept;
@@ -127,12 +84,6 @@ namespace Profiling
 #        define PROFILE_LOCKABLE(a_type, a_name) a_type a_name
 #        define PROFILE_SHARED_LOCKABLE(a_type, a_name) a_type a_name
 #    endif
-#    define PROFILE_HOOK_COUNTER(a_var, a_name) \
-        ::Profiling::HookCounter a_var{ "Hook " a_name " calls", "Hook " a_name " us" }
-// Counts one call and times the rest of the scope; keep the engine's original call outside it.
-#    define PROFILE_HOOK(a_counter) const ::Profiling::HookTimer profileHookTimer{ a_counter, true }
-// Times a second stretch of the same call, after the engine's original call.
-#    define PROFILE_HOOK_RESUME(a_counter) const ::Profiling::HookTimer profileHookResume{ a_counter, false }
 #    define PROFILE_ALLOCATIONS(a_name)                                                            \
         static ::Profiling::AllocationCounter profileAllocationCounter{ "Allocations " a_name }; \
         const ::Profiling::AllocationScope profileAllocationScope{ profileAllocationCounter }
@@ -144,8 +95,27 @@ namespace Profiling
 #    define PROFILE_THREAD_NAME(a_name)
 #    define PROFILE_LOCKABLE(a_type, a_name) a_type a_name
 #    define PROFILE_SHARED_LOCKABLE(a_type, a_name) a_type a_name
+#    define PROFILE_ALLOCATIONS(a_name)
+#endif
+
+// Engine hooks and plugin callbacks too frequent for a zone per call keep totals instead: Tracy
+// plots them once per pass, and the time_breakdown option shows them in the plugin time breakdown.
+#ifdef PLAYERHUB_HOOK_TIMING
+#    define PROFILE_HOOK_COUNTER(a_var, a_name) \
+        ::HookTiming::Counter a_var{ a_name, "Hook " a_name " calls", "Hook " a_name " us" }
+// Counts one call and times the rest of the scope.
+#    define PROFILE_HOOK(a_counter) ::HookTiming::Timer profileHookTimer{ a_counter, true }
+// Times a second stretch of the same call.
+#    define PROFILE_HOOK_RESUME(a_counter) const ::HookTiming::Timer profileHookResume{ a_counter, false }
+// Evaluates the engine's original call outside the time PROFILE_HOOK measures in this scope.
+#    define PROFILE_HOOK_ORIGINAL(a_call)                                            \
+        [&]() -> decltype(auto) {                                                     \
+            const ::HookTiming::Exclusion profileHookExclusion{ profileHookTimer }; \
+            return a_call;                                                            \
+        }()
+#else
 #    define PROFILE_HOOK_COUNTER(a_var, a_name) static_assert(true)
 #    define PROFILE_HOOK(a_counter)
 #    define PROFILE_HOOK_RESUME(a_counter)
-#    define PROFILE_ALLOCATIONS(a_name)
+#    define PROFILE_HOOK_ORIGINAL(a_call) a_call
 #endif

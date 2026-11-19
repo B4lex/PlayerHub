@@ -369,12 +369,15 @@ namespace UI::InputCapture
             return device == RE::INPUT_DEVICE::kKeyboard || device == RE::INPUT_DEVICE::kMouse;
         }
 
+        PROFILE_HOOK_COUNTER(s_inputDeliveryProfile, "input delivery");
+
         class DeliverySink final : public RE::BSTEventSink<RE::InputEvent*>
         {
         public:
             RE::BSEventNotifyControl ProcessEvent(
                 RE::InputEvent* const* a_events, RE::BSTEventSource<RE::InputEvent*>*) override
             {
+                PROFILE_HOOK(s_inputDeliveryProfile);
                 if (!std::exchange(s_watchingDelivery, false))
                 {
                     return RE::BSEventNotifyControl::kContinue;
@@ -461,7 +464,7 @@ namespace UI::InputCapture
                 {
                     RE::InputEvent* events = nullptr;
                     {
-                        const PluginTime::Scope timing;
+                        PLUGIN_TIME_SCOPE("Input");
                         PROFILE_SCOPE("InputCapture");
                         events = Route(*a_events);
                     }

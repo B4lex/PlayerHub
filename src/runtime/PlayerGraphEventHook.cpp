@@ -1,4 +1,5 @@
 #include "runtime/PlayerGraphEventHook.h"
+#include "runtime/Profiling.h"
 #include "sync/customanimation/GraphEventSurvey.h"
 #include "sync/customanimation/GraphTrace.h"
 #include "sync/idle/IdleSync.h"
@@ -11,13 +12,16 @@ namespace PlayerGraphEventHook
 {
     namespace
     {
+        PROFILE_HOOK_COUNTER(s_playerGraphInputProfile, "player graph input");
+
         // Actions, idles, casts, and scripts reach the player's graph through this
         // call, on whichever thread raises them.
         struct GraphInputHook
         {
             static bool Thunk(RE::IAnimationGraphManagerHolder* a_holder, const RE::BSFixedString& a_eventName)
             {
-                const bool accepted = _original(a_holder, a_eventName);
+                PROFILE_HOOK(s_playerGraphInputProfile);
+                const bool accepted = PROFILE_HOOK_ORIGINAL(_original(a_holder, a_eventName));
                 if (accepted)
                 {
                     const bool modded = PoseWindow::IsModdedEvent(a_eventName);

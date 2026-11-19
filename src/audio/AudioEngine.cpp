@@ -84,9 +84,13 @@ namespace Audio
             return *engine;
         }
 
+        PROFILE_HOOK_COUNTER(s_voiceCaptureProfile, "voice capture");
+        PROFILE_HOOK_COUNTER(s_voicePlaybackProfile, "voice playback");
+
         void OnCapture(ma_device* a_device, void*, const void* a_input, ma_uint32 a_frames)
         {
             PROFILE_SCOPE("Voice capture");
+            PROFILE_HOOK(s_voiceCaptureProfile);
             auto& engine = *static_cast<Engine*>(a_device->pUserData);
             engine.sinceForegroundCheck += a_frames;
             if (engine.sinceForegroundCheck >= kForegroundCheckSamples)
@@ -103,6 +107,7 @@ namespace Audio
         void OnPlayback(ma_device* a_device, void* a_output, const void*, ma_uint32 a_frames)
         {
             PROFILE_SCOPE("Voice playback");
+            PROFILE_HOOK(s_voicePlaybackProfile);
             auto& engine = *static_cast<Engine*>(a_device->pUserData);
             engine.mixer.Render(static_cast<float*>(a_output), a_frames, engine.outputGain.load(std::memory_order_relaxed));
         }

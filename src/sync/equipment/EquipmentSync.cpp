@@ -10,6 +10,7 @@
 #include "forms/RaceForms.h"
 #include "network/ServerClient.h"
 #include "runtime/FrameTime.h"
+#include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 #include "sync/equipment/FakeLight.h"
 #include "sync/equipment/SpellStandIn.h"
@@ -51,6 +52,8 @@ namespace EquipmentSync
 
         std::atomic_bool localEquipmentDirty{ true };
 
+        PROFILE_HOOK_COUNTER(s_equipEventProfile, "equip events");
+
         class EquipEventSink final : public RE::BSTEventSink<RE::TESEquipEvent>
         {
         public:
@@ -63,6 +66,7 @@ namespace EquipmentSync
             RE::BSEventNotifyControl ProcessEvent(
                 const RE::TESEquipEvent* a_event, RE::BSTEventSource<RE::TESEquipEvent>*) override
             {
+                PROFILE_HOOK(s_equipEventProfile);
                 // The event may fire off the main-loop thread and before the change is complete.
                 if (a_event && a_event->actor && a_event->actor->GetFormID() == kPlayerReferenceFormID)
                 {
@@ -1000,6 +1004,7 @@ namespace EquipmentSync
     void SyncEquipment(RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RemoteActor& a_remoteActor, float a_delta)
     {
         PROFILE_FUNCTION();
+        PLUGIN_TIME_STAGE("Equipment");
         PROFILE_ALLOCATIONS("remote equipment");
         const float delta = FrameTime::Clamp(a_delta);
         EnsureResolved(a_remote, a_playerID);

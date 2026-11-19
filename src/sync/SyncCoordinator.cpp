@@ -7,6 +7,7 @@
 #include "actor/RemoteLights.h"
 #include "network/ServerClient.h"
 #include "runtime/GameThread.h"
+#include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 #include "sync/ActorLifecycle.h"
 #include "sync/CheckpointPublisher.h"
@@ -122,6 +123,7 @@ namespace SyncCoordinator
         void ApplyNetworkChanges(Peers& a_peers)
         {
             PROFILE_FUNCTION();
+            PLUGIN_TIME_STAGE("Network changes");
             PROFILE_ALLOCATIONS("network changes");
             auto changes = Network::DrainRemotePlayerChanges();
             PROFILE_PLOT("Inbound checkpoints", changes.transforms.size());
@@ -219,6 +221,7 @@ namespace SyncCoordinator
         void PlayCheckpoints(Peers& a_peers)
         {
             PROFILE_FUNCTION();
+            PLUGIN_TIME_STAGE("Checkpoint playout");
             const auto now = CheckpointPlayout::Clock::now();
             for (auto& [playerID, peer] : a_peers)
             {
@@ -338,6 +341,7 @@ namespace SyncCoordinator
         void SyncLocalPlayer(RE::PlayerCharacter& a_player, float a_delta)
         {
             PROFILE_FUNCTION();
+            PLUGIN_TIME_STAGE("Local player");
             PROFILE_ALLOCATIONS("local player");
             const LocalFrame local{ .player = a_player };
 
@@ -397,6 +401,7 @@ namespace SyncCoordinator
             float a_delta)
         {
             PROFILE_FUNCTION();
+            PLUGIN_TIME_STAGE("Remote players");
             const auto remote = GetRemoteFrame(a_playerID, a_peer);
             PROFILE_ALLOCATIONS("SyncPeer");
             auto& lifecycle = a_peer.lifecycle;

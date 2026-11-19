@@ -4,6 +4,7 @@
 #include "actor/EffectPresentation.h"
 #include "actor/GameplayPolicy.h"
 #include "actor/SelfEffects.h"
+#include "runtime/Profiling.h"
 
 #include <algorithm>
 #include <array>
@@ -68,6 +69,12 @@ namespace SpellIsolation
                 + kProjectileUpdateCallers.size()
             == kCallDetourCount);
         static_assert(kSpellFirePrologue.size() == 5 && kHitDataPrologue.size() == 5);
+
+        PROFILE_HOOK_COUNTER(s_magicTargetProfile, "magic targets");
+        PROFILE_HOOK_COUNTER(s_projectileProfile, "projectile isolation");
+        PROFILE_HOOK_COUNTER(s_explosionProfile, "explosion isolation");
+        PROFILE_HOOK_COUNTER(s_hitDataProfile, "hit data");
+        PROFILE_HOOK_COUNTER(s_spellCastProfile, "spell casts");
 
         void LogSuppressed(std::atomic_uint32_t& a_counter, std::string_view a_path, const RE::TESForm* a_source,
             const RE::TESForm* a_target)
@@ -214,11 +221,12 @@ namespace SpellIsolation
         {
             static bool Thunk(RE::MagicTarget* a_target, RE::MagicTarget::AddTargetData& a_data)
             {
+                PROFILE_HOOK(s_magicTargetProfile);
                 if (!MayAddTarget(a_target, a_data, "ActorTarget"))
                 {
                     return false;
                 }
-                return _original(a_target, a_data);
+                return PROFILE_HOOK_ORIGINAL(_original(a_target, a_data));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -231,11 +239,12 @@ namespace SpellIsolation
         {
             static bool Thunk(RE::MagicTarget* a_target, RE::MagicTarget::AddTargetData& a_data)
             {
+                PROFILE_HOOK(s_magicTargetProfile);
                 if (!MayAddTarget(a_target, a_data, "ObjectTarget"))
                 {
                     return false;
                 }
-                return _original(a_target, a_data);
+                return PROFILE_HOOK_ORIGINAL(_original(a_target, a_data));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -252,6 +261,7 @@ namespace SpellIsolation
             static void Thunk(RE::MagicCaster* a_caster, const RE::NiPoint3* a_location, RE::Projectile* a_projectile,
                 RE::TESObjectREFR* a_target, float a_arg5, float a_arg6, bool a_arg7, bool a_arg8)
             {
+                PROFILE_HOOK(s_projectileProfile);
                 if (IsRemoteProjectile(a_projectile)
                     && !GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*a_projectile)))
                 {
@@ -259,7 +269,8 @@ namespace SpellIsolation
                     LogSuppressed(suppressedCount, "SpellImpact", a_projectile, a_target);
                     return;
                 }
-                _original(a_caster, a_location, a_projectile, a_target, a_arg5, a_arg6, a_arg7, a_arg8);
+                PROFILE_HOOK_ORIGINAL(
+                    _original(a_caster, a_location, a_projectile, a_target, a_arg5, a_arg6, a_arg7, a_arg8));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -285,6 +296,7 @@ namespace SpellIsolation
         {
             static void Thunk(RE::Actor* a_target, RE::HitData& a_hitData)
             {
+                PROFILE_HOOK(s_hitDataProfile);
                 if (ActorRegistry::IsRegistered(a_hitData.aggressor)
                     && (ActorRegistry::IsRegistered(a_target)
                         || !GameplayPolicy::MayAffectWorld(ClassifyHit(a_hitData))))
@@ -293,7 +305,7 @@ namespace SpellIsolation
                     LogSuppressed(suppressedCount, "HitData", nullptr, a_target);
                     return;
                 }
-                _original(a_target, a_hitData);
+                PROFILE_HOOK_ORIGINAL(_original(a_target, a_hitData));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -306,13 +318,14 @@ namespace SpellIsolation
             static void Thunk(RE::TaskQueueInterface* a_queue, RE::TESObjectREFR* a_ref, float a_damage, bool a_arg4,
                 RE::TESObjectREFR* a_cause)
             {
+                PROFILE_HOOK(s_projectileProfile);
                 if (IsRemoteSource(a_cause) && !GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*a_cause)))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
                     LogSuppressed(suppressedCount, "Destructible", a_cause, a_ref);
                     return;
                 }
-                _original(a_queue, a_ref, a_damage, a_arg4, a_cause);
+                PROFILE_HOOK_ORIGINAL(_original(a_queue, a_ref, a_damage, a_arg4, a_cause));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -325,6 +338,7 @@ namespace SpellIsolation
         {
             static void Thunk(RE::Projectile* a_projectile, void* a_impact, void* a_arg3, void* a_arg4)
             {
+                PROFILE_HOOK(s_projectileProfile);
                 if (IsRemoteProjectile(a_projectile)
                     && !GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*a_projectile)))
                 {
@@ -332,7 +346,7 @@ namespace SpellIsolation
                     LogSuppressed(suppressedCount, "ImpactImpulse", a_projectile, nullptr);
                     return;
                 }
-                _original(a_projectile, a_impact, a_arg3, a_arg4);
+                PROFILE_HOOK_ORIGINAL(_original(a_projectile, a_impact, a_arg3, a_arg4));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -342,6 +356,7 @@ namespace SpellIsolation
         {
             static bool Thunk(RE::Projectile* a_projectile, void* a_hits)
             {
+                PROFILE_HOOK(s_projectileProfile);
                 if (IsRemoteProjectile(a_projectile)
                     && !GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*a_projectile)))
                 {
@@ -349,7 +364,7 @@ namespace SpellIsolation
                     LogSuppressed(suppressedCount, "ConeHits", a_projectile, nullptr);
                     return true;
                 }
-                return _original(a_projectile, a_hits);
+                return PROFILE_HOOK_ORIGINAL(_original(a_projectile, a_hits));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -364,6 +379,7 @@ namespace SpellIsolation
         {
             static void Thunk(RE::Explosion* a_explosion)
             {
+                PROFILE_HOOK(s_explosionProfile);
                 if (IsRemoteExplosion(a_explosion)
                     && !GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*a_explosion)))
                 {
@@ -372,7 +388,7 @@ namespace SpellIsolation
                     LogSuppressed(suppressedCount, "ExplosionTargets", a_explosion, nullptr);
                     return;
                 }
-                _original(a_explosion);
+                PROFILE_HOOK_ORIGINAL(_original(a_explosion));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -386,6 +402,7 @@ namespace SpellIsolation
         {
             static void Thunk(RE::Explosion* a_explosion)
             {
+                PROFILE_HOOK(s_explosionProfile);
                 if (IsRemoteExplosion(a_explosion)
                     && !GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*a_explosion)))
                 {
@@ -394,7 +411,7 @@ namespace SpellIsolation
                     LogSuppressed(suppressedCount, "ExplosionForces", a_explosion, nullptr);
                     return;
                 }
-                _original(a_explosion);
+                PROFILE_HOOK_ORIGINAL(_original(a_explosion));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -417,6 +434,7 @@ namespace SpellIsolation
             static bool Thunk(RE::MagicCaster* a_caster, void* a_arg2, RE::TESObjectREFR* a_shooter, void* a_arg4,
                 const RE::NiPoint3* a_origin, float a_arg6, float a_arg7, std::uint32_t a_arg8, void* a_arg9)
             {
+                PROFILE_HOOK(s_spellCastProfile);
                 const auto* spell = a_caster ? a_caster->currentSpell : nullptr;
                 const auto* effect = spell ? spell->GetAVEffect() : nullptr;
                 if (effect && IsProximityProjectile(effect->data.projectileBase)
@@ -427,7 +445,8 @@ namespace SpellIsolation
                     LogSuppressed(suppressedCount, "ProximityLaunch", spell, effect->data.projectileBase);
                     return true;
                 }
-                return _original(a_caster, a_arg2, a_shooter, a_arg4, a_origin, a_arg6, a_arg7, a_arg8, a_arg9);
+                return PROFILE_HOOK_ORIGINAL(
+                    _original(a_caster, a_arg2, a_shooter, a_arg4, a_origin, a_arg6, a_arg7, a_arg8, a_arg9));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -441,6 +460,7 @@ namespace SpellIsolation
             static void Thunk(RE::Projectile* a_projectile, RE::TESObjectREFR* a_target, void* a_impact,
                 void* a_arg4, std::uint32_t a_arg5, bool a_arg6)
             {
+                PROFILE_HOOK(s_projectileProfile);
                 if (IsRemoteProjectile(a_projectile)
                     && !GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*a_projectile)))
                 {
@@ -448,7 +468,7 @@ namespace SpellIsolation
                     LogSuppressed(suppressedCount, "ImpactEffects", a_projectile, a_target);
                     return;
                 }
-                _original(a_projectile, a_target, a_impact, a_arg4, a_arg5, a_arg6);
+                PROFILE_HOOK_ORIGINAL(_original(a_projectile, a_target, a_impact, a_arg4, a_arg5, a_arg6));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -464,11 +484,12 @@ namespace SpellIsolation
 
             static RE::Explosion* Thunk(std::byte* a_record)
             {
+                PROFILE_HOOK(s_projectileProfile);
                 auto* projectile = *reinterpret_cast<RE::Projectile**>(a_record + kRecordProjectileOffset);
                 if (!IsRemoteProjectile(projectile)
                     || GameplayPolicy::MayAffectWorld(GameplayPolicy::Classify(*projectile)))
                 {
-                    return _original(a_record);
+                    return PROFILE_HOOK_ORIGINAL(_original(a_record));
                 }
                 static std::atomic_uint32_t suppressedCount{ 0 };
                 LogSuppressed(suppressedCount, "ProjectileExplosion", projectile, nullptr);
@@ -500,6 +521,7 @@ namespace SpellIsolation
             static bool Thunk(RE::MagicCaster* a_caster, RE::MagicItem* a_spell, bool a_dualCast,
                 float* a_effectStrength, RE::MagicSystem::CannotCastReason* a_reason, bool a_useBaseValueForCost)
             {
+                PROFILE_HOOK(s_spellCastProfile);
                 if (ActorRegistry::IsRegistered(a_caster->GetCasterAsActor()))
                 {
                     if (a_reason)
@@ -508,7 +530,8 @@ namespace SpellIsolation
                     }
                     return true;
                 }
-                return _original(a_caster, a_spell, a_dualCast, a_effectStrength, a_reason, a_useBaseValueForCost);
+                return PROFILE_HOOK_ORIGINAL(
+                    _original(a_caster, a_spell, a_dualCast, a_effectStrength, a_reason, a_useBaseValueForCost));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -553,6 +576,7 @@ namespace SpellIsolation
 
             static bool Thunk(RE::MagicCaster* a_caster, RE::TESObjectREFR* a_target, bool a_flag)
             {
+                PROFILE_HOOK(s_spellCastProfile);
                 auto* actor = a_caster->GetCasterAsActor();
                 if (ActorRegistry::IsRegistered(actor) && IsNativeRemoteSpell(a_caster->currentSpell)
                     && GameplayPolicy::ShowsNativeFire(a_caster->currentSpell)
@@ -567,7 +591,7 @@ namespace SpellIsolation
                     }
                     const auto* outer = t_nativeSpellFireCaster;
                     t_nativeSpellFireCaster = a_caster;
-                    const bool result = _original(a_caster, a_target, a_flag);
+                    const bool result = PROFILE_HOOK_ORIGINAL(_original(a_caster, a_target, a_flag));
                     t_nativeSpellFireCaster = outer;
                     return result;
                 }
@@ -583,7 +607,7 @@ namespace SpellIsolation
                     }
                     return true;
                 }
-                return _original(a_caster, a_target, a_flag);
+                return PROFILE_HOOK_ORIGINAL(_original(a_caster, a_target, a_flag));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -596,13 +620,14 @@ namespace SpellIsolation
                 RE::TESObjectREFR* a_target, float a_effectiveness, bool a_hostileEffectivenessOnly,
                 float a_magnitudeOverride, RE::Actor* a_blameActor)
             {
+                PROFILE_HOOK(s_spellCastProfile);
                 if (a_caster != t_nativeSpellFireCaster && !EffectPresentation::IsPresentationSpell(a_spell)
                     && IsRemoteActorCaster(a_caster->GetCasterAsActor(), "CastSpellImmediate"))
                 {
                     return;
                 }
-                _original(a_caster, a_spell, a_noHitEffectArt, a_target, a_effectiveness, a_hostileEffectivenessOnly,
-                    a_magnitudeOverride, a_blameActor);
+                PROFILE_HOOK_ORIGINAL(_original(a_caster, a_spell, a_noHitEffectArt, a_target, a_effectiveness,
+                    a_hostileEffectivenessOnly, a_magnitudeOverride, a_blameActor));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;

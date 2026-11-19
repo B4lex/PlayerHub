@@ -2,6 +2,7 @@
 #include "actor/ActorConstants.h"
 #include "actor/ActorRegistry.h"
 #include "runtime/CodeDetour.h"
+#include "runtime/Profiling.h"
 
 #include <array>
 #include <atomic>
@@ -76,6 +77,10 @@ namespace ReactionSuppression
                 || subtype == Subtype::kVoicePowerEndShort || subtype == Subtype::kVoicePowerEndLong;
         }
 
+        PROFILE_HOOK_COUNTER(s_dialogueProfile, "dialogue responses");
+        PROFILE_HOOK_COUNTER(s_fleeingProfile, "IsFleeing");
+        PROFILE_HOOK_COUNTER(s_detectionProfile, "detection state");
+
         // The AI process starting a dialogue item (ID 39643), reached only from
         // ID 39642 once it has chosen a topic response for the speaker. Skyrim's own
         // barks, such as hit and combat lines, start here. a_item points at a by-value
@@ -85,6 +90,7 @@ namespace ReactionSuppression
             static void Thunk(RE::AIProcess* a_process, RE::DialogueItem** a_item, RE::Actor* a_speaker,
                 RE::TESObjectREFR* a_listener, bool a_flag)
             {
+                PROFILE_HOOK(s_dialogueProfile);
                 if (ActorRegistry::IsRegistered(a_speaker) && !IsShoutTopic(a_item ? *a_item : nullptr))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
@@ -102,7 +108,7 @@ namespace ReactionSuppression
                     ReleaseDialogueItem(a_item ? std::exchange(*a_item, nullptr) : nullptr);
                     return;
                 }
-                _original(a_process, a_item, a_speaker, a_listener, a_flag);
+                PROFILE_HOOK_ORIGINAL(_original(a_process, a_item, a_speaker, a_listener, a_flag));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;
@@ -113,7 +119,8 @@ namespace ReactionSuppression
         {
             static bool Thunk(RE::Actor* a_actor)
             {
-                const bool fleeing = _original(a_actor);
+                PROFILE_HOOK(s_fleeingProfile);
+                const bool fleeing = PROFILE_HOOK_ORIGINAL(_original(a_actor));
                 if (fleeing && ActorRegistry::IsRegistered(a_actor))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
@@ -138,6 +145,7 @@ namespace ReactionSuppression
         {
             static void Thunk(RE::ActorKnowledge* a_knowledge, RE::DetectionState* a_state)
             {
+                PROFILE_HOOK(s_detectionProfile);
                 if (a_knowledge && ActorRegistry::IsRegistered(a_knowledge->owner))
                 {
                     static std::atomic_uint32_t suppressedCount{ 0 };
@@ -148,7 +156,7 @@ namespace ReactionSuppression
                     }
                     return;
                 }
-                _original(a_knowledge, a_state);
+                PROFILE_HOOK_ORIGINAL(_original(a_knowledge, a_state));
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;

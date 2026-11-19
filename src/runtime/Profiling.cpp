@@ -9,7 +9,7 @@ namespace Profiling
 {
     namespace
     {
-        // Counters register during module load (hooks) and on first use on any thread (allocations).
+        // Allocation counters register on first use on any thread.
         std::mutex& CounterLock()
         {
             static std::mutex lock;
@@ -25,18 +25,37 @@ namespace Profiling
         std::atomic<std::int64_t> s_allocations{ 0 };
         std::atomic<std::int64_t> s_allocatedBytes{ 0 };
         thread_local std::int64_t t_allocations{ 0 };
+
+        // Each hook counter's totals at the previous pass, by its index in HookTiming::GetCounters.
+        std::vector<HookTiming::Totals> s_plottedHooks;
+
+        void PlotHooks() noexcept
+        {
+            const std::scoped_lock lock{ HookTiming::GetCounterLock() };
+            const auto counters = HookTiming::GetCounters();
+            s_plottedHooks.resize(counters.size());
+            for (std::size_t index = 0; index < counters.size(); ++index)
+            {
+                HookTiming::Totals totals;
+                for (std::size_t role = 0; role < HookTiming::kRoleCount; ++role)
+                {
+                    const auto roleTotals = counters[index]->GetTotals(static_cast<HookTiming::Role>(role));
+                    totals.calls += roleTotals.calls;
+                    totals.nanoseconds += roleTotals.nanoseconds;
+                }
+                auto& previous = s_plottedHooks[index];
+                TracyPlot(counters[index]->GetCallsPlot(), totals.calls - previous.calls);
+                TracyPlot(counters[index]->GetTimePlot(),
+                    static_cast<double>(totals.nanoseconds - previous.nanoseconds) / 1000.0);
+                previous = totals;
+            }
+        }
     }
 
     FrameCounter::FrameCounter() noexcept
     {
         const std::scoped_lock lock{ CounterLock() };
         Counters().push_back(this);
-    }
-
-    void HookCounter::Plot() noexcept
-    {
-        TracyPlot(callsPlot, calls.exchange(0, std::memory_order_relaxed));
-        TracyPlot(timePlot, static_cast<double>(nanoseconds.exchange(0, std::memory_order_relaxed)) / 1000.0);
     }
 
     void AllocationCounter::Plot() noexcept
@@ -65,6 +84,7 @@ namespace Profiling
                 counter->Plot();
             }
         }
+        PlotHooks();
         // Every plugin thread's allocations, not only the main loop's.
         TracyPlot("Plugin allocations", s_allocations.exchange(0, std::memory_order_relaxed));
         // Everything this thread allocated since the last pass, engine callbacks included.

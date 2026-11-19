@@ -1,6 +1,7 @@
 #include "sync/trade/TradeSync.h"
 #include "forms/FormLookup.h"
 #include "runtime/GameThread.h"
+#include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 #include "sync/filters/PlayerFilters.h"
 #include "sync/notices/Notices.h"
@@ -91,6 +92,8 @@ namespace TradeSync
         std::uint32_t s_secondsLeft = 0;
         bool s_viewDirty = false;
 
+        PROFILE_HOOK_COUNTER(s_tradeHitEventProfile, "trade hit events");
+
         class HitEventSink final : public RE::BSTEventSink<RE::TESHitEvent>
         {
         public:
@@ -103,6 +106,7 @@ namespace TradeSync
             RE::BSEventNotifyControl ProcessEvent(
                 const RE::TESHitEvent* a_event, RE::BSTEventSource<RE::TESHitEvent>*) override
             {
+                PROFILE_HOOK(s_tradeHitEventProfile);
                 if (s_phase.load(std::memory_order_acquire) != Phase::kIdle && a_event
                     && a_event->target.get() == RE::PlayerCharacter::GetSingleton())
                 {
@@ -945,6 +949,7 @@ namespace TradeSync
     void Sync(RE::PlayerCharacter& a_player, bool a_inWorld, float a_delta)
     {
         PROFILE_FUNCTION();
+        PLUGIN_TIME_STAGE("Trade");
         if (!GameThread::Require("TradeSync::Sync"))
         {
             return;

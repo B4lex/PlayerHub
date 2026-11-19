@@ -8,6 +8,7 @@
 #include "runtime/GameSession.h"
 #include "runtime/GameThread.h"
 #include "runtime/KeyState.h"
+#include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 #include "sync/PeerState.h"
 #include "sync/chat/ChatRoster.h"
@@ -145,6 +146,7 @@ namespace VoiceChatSync
         RE::TESObjectCELL& a_cell, float a_delta)
     {
         PROFILE_FUNCTION();
+        PLUGIN_TIME_STAGE("Voice");
         s_speakers.clear();
         if (!GameThread::Require("VoiceChatSync::UpdatePeers"))
         {

@@ -6,6 +6,7 @@
 #include "actor/RemoteActor.h"
 #include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
+#include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 
 #include <algorithm>
@@ -1163,6 +1164,7 @@ namespace ActorAnimation
     void ApplyAnimationUpdate(RE::Actor& a_actor, RemoteActor& a_remote, float a_deltaTime)
     {
         PROFILE_FUNCTION();
+        PLUGIN_TIME_STAGE("Animation");
         const auto landingSinkRegistered = ObserveGraph(a_actor, a_remote);
         if (!landingSinkRegistered)
         {

@@ -2,6 +2,7 @@
 #include "config/PluginConfig.h"
 #include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
+#include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 #include "text/Text.h"
 #include "ui/render/Gpu.h"
@@ -1514,6 +1515,7 @@ float4 Separate(Vertex input) : SV_Target
         }
 
         PROFILE_SCOPE("ItemPreview");
+        PLUGIN_TIME_STAGE("Item preview");
         const float delta = FrameTime::Clamp(ImGui::GetIO().DeltaTime);
         clock += delta;
         model.spinDue = IsModelSpinning() && IsSpinCaptureDue(delta);

@@ -17,10 +17,11 @@ Server throughput and its measurements are in
 
 | Module | Responsibility |
 | --- | --- |
-| `runtime/Profiling.h`, `runtime/Profiling.cpp` | Tracy macros: zones, plots, the frame mark, opt-in lock wrappers, hook counters, allocation counters; all expand to nothing without `TRACY_ENABLE` |
+| `runtime/Profiling.h`, `runtime/Profiling.cpp` | Tracy macros: zones, plots, the frame mark, opt-in lock wrappers, allocation counters, all expanding to nothing without `TRACY_ENABLE`; the hook macros, active in Tracy builds and with `time_breakdown` |
+| `runtime/HookTiming` | Hook counters: calls and own time per hook, split by thread role; built only with `tracy` or `time_breakdown` (`PLAYERHUB_HOOK_TIMING`) |
 | `runtime/ProfilingMemory.cpp` | In Tracy builds, replaces the plugin's global `operator new` and `delete` to count allocations, and with `tracy_memory` reports them to Tracy |
-| `runtime/PluginTime` | The always-built plugin time the status panel shows ([UI overlay](ui-overlay.md#plugin-time)) |
-| `xmake.lua` options `tracy`, `tracy_locks`, `tracy_memory` | Tracy build switches |
+| `runtime/PluginTime` | The always-built plugin time the status panel shows ([UI overlay](ui-overlay.md#plugin-time)); with `time_breakdown` its stages and the [time breakdown](#time-breakdown) |
+| `xmake.lua` options `tracy`, `tracy_locks`, `tracy_memory`, `time_breakdown` | Tracy build switches, and the time breakdown (`PLAYERHUB_TIME_BREAKDOWN`) |
 
 ## Where the time goes
 
@@ -28,7 +29,9 @@ The plugin's own frame cost is **plugin time**: the main-loop hook's pass
 ([Sync pipeline](sync-pipeline.md#frame-sequence)), the overlay drawn from
 the renderer's end hook ([UI overlay](ui-overlay.md)), and input routing.
 `PluginTime` sums these, and in the captures all three ran on the same thread,
-so plugin time adds to the frame directly.
+so plugin time adds to the frame directly. With `time_breakdown` it also
+includes hook time on the main-loop thread outside them
+([Time breakdown](#time-breakdown)).
 
 Work elsewhere does not count toward plugin time:
 
@@ -220,10 +223,14 @@ Does not measurably affect it:
   not for timings.
 - Zones mark each sync stage and per-peer function (`PROFILE_FUNCTION`,
   `PROFILE_SCOPE`), never each call of a frequent engine hook.
-- Engine hooks keep totals instead (`PROFILE_HOOK_COUNTER`, `PROFILE_HOOK`,
-  `PROFILE_HOOK_RESUME`): each hook's call count and own time, without the
-  engine function it wraps, plotted once per pass as `Hook <name> calls` and
-  `Hook <name> us`.
+- Engine hooks, event sinks, and the callbacks on the connection, voice
+  datagram, and audio device threads keep totals instead
+  (`PROFILE_HOOK_COUNTER`, `PROFILE_HOOK`, `PROFILE_HOOK_RESUME`): each
+  counter's call count and own time, plotted once per pass as
+  `Hook <name> calls` and `Hook <name> us`. `PROFILE_HOOK_ORIGINAL` wraps the
+  engine's original call inside a timed scope and leaves it out of the time;
+  hooks it reaches count on their own. Related hooks share a counter (for
+  example the hostility checks, or the projectile isolation hooks).
 - Allocations are counted in every Tracy build: `Plugin allocations` and
   `Plugin allocated bytes` over all plugin threads, `Main-loop thread
   allocations`, and `Allocations <stage>` for the calling thread within a
@@ -237,6 +244,45 @@ Does not measurably affect it:
   batch of bots from the recording there
   ([Recording and replay](recording-and-replay.md#load-testing)); bots replay
   the recorded positions, so the local player stands among them.
+
+## Time breakdown
+
+A build configured with `xmake f --time_breakdown=y` (off by default, in any
+mode) shows where plugin time goes, and what the plugin adds outside it, in
+the [time breakdown panel](ui-overlay.md#time-breakdown-panel).
+
+- **Stages.** `PLUGIN_TIME_SCOPE` opens a root stage with its scope (main
+  loop, overlay, input), and `PLUGIN_TIME_STAGE` a nested one: a static
+  `PluginTime::Stage` whose parent is the stage open on the thread when it
+  first runs, so the tree follows the call structure. Stages mark the main
+  loop's network changes, checkpoint playout, local player, trade, remote
+  players (per `SyncPeer`, with spawns, equipment, animation, and movement
+  under it), voice, nameplates, and remote lights, and the overlay's item
+  preview, backdrop, new frame, windows, and render. Without the option the
+  stage macro expands to nothing.
+- **Hook roles.** A hook timer classifies its call when it starts: inside a
+  plugin time scope or another timer's own time it is nested, already counted
+  where it runs, and not shown; otherwise it is on the main-loop thread
+  (`GameThread::IsAuthoritative`) or on another thread. Main-thread time adds
+  to plugin time, since it lengthens the frame directly. Other threads' time
+  is a separate off-thread total, since cores share it and the frame waits for
+  it only in part.
+- **Rows.** At the end of each plugin time window, `EndFrame` takes the stage
+  totals and each counter's change since the last window, and publishes two
+  lists of rows averaged per pass. The stage list is the stage tree followed
+  by the main-thread hook total, so it adds up to plugin time. It has a row
+  for every stage registered so far, however small, in registration order, and
+  a stage with child stages always gets a rest row for what they do not
+  cover, so the panel keeps the same rows in the same order and only
+  grows when a stage runs for the first time. The hook list has the
+  main-thread and off-thread totals, each with its most expensive counters
+  (`kMainThreadHookRows` 5, `kOtherThreadHookRows` 8) by time, with their
+  calls per pass; a hook below `kMinimumRowNanoseconds` (5 µs) is left out,
+  and a total with listed hooks always gets a rest row.
+- **Cost.** Two clock reads per stage entry and per hook call, and atomic adds
+  shared across the animation and AI threads. Configure it with
+  `-m releasedbg` for timings close to a release build; in `debug` mode the
+  numbers measure unoptimized code and show proportions only.
 
 ## Engine assumptions
 
@@ -253,7 +299,14 @@ Does not measurably affect it:
    proportional to the square of the actor count.
 4. In steady state the main-loop thread allocates fewer than 20 times per pass
    at 200 actors.
-5. A build without `--tracy=y` contains none of the profiling code.
+5. A build without `--tracy=y` or `--time_breakdown=y` contains none of the
+   profiling code, hook timing, or stages; plugin time there is the scopes
+   alone.
+6. With `--time_breakdown=y` the time breakdown panel shows every stage that
+   has run, in a fixed order; with their rest rows they add up to their
+   parent, and plugin time includes the main-thread hook total. Below them it
+   lists the main-thread and off-thread hook totals with their costliest
+   hooks and calls per pass.
 
 ## Known limitations
 

@@ -91,6 +91,8 @@ namespace VoiceSync
                 .words = words };
         }
 
+        PROFILE_HOOK_COUNTER(s_spellCastEventProfile, "spell cast events");
+
         // TESSpellCastEvent is sent for each spell the player's casters fire, including a
         // power the shout key casts, possibly off the main-loop thread.
         class SpellCastEventSink final : public RE::BSTEventSink<RE::TESSpellCastEvent>
@@ -105,6 +107,7 @@ namespace VoiceSync
             RE::BSEventNotifyControl ProcessEvent(
                 const RE::TESSpellCastEvent* a_event, RE::BSTEventSource<RE::TESSpellCastEvent>*) override
             {
+                PROFILE_HOOK(s_spellCastEventProfile);
                 if (a_event && a_event->object && a_event->object->GetFormID() == kPlayerReferenceFormID)
                 {
                     const std::scoped_lock lock{ s_castLock };

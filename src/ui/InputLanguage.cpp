@@ -1,4 +1,5 @@
 #include "ui/InputLanguage.h"
+#include "runtime/Profiling.h"
 
 #include <windows.h>
 
@@ -41,16 +42,22 @@ namespace UI::InputLanguage
             return ::GetKeyboardLayout(thread);
         }
 
+        PROFILE_HOOK_COUNTER(s_keyboardLayoutProfile, "keyboard layout");
+
         UINT WINAPI MapVirtualKeyThunk(UINT a_code, UINT a_mapType)
         {
-            return ::MapVirtualKeyExA(a_code, a_mapType, WindowLayout());
+            PROFILE_HOOK(s_keyboardLayoutProfile);
+            const auto layout = WindowLayout();
+            return PROFILE_HOOK_ORIGINAL(::MapVirtualKeyExA(a_code, a_mapType, layout));
         }
 
         int WINAPI ToUnicodeThunk(
             UINT a_virtualKey, UINT a_scanCode, const BYTE* a_keyState, LPWSTR a_buffer, int a_size, UINT a_flags)
         {
+            PROFILE_HOOK(s_keyboardLayoutProfile);
             const auto layout = WindowLayout();
-            const auto result = ::ToUnicodeEx(a_virtualKey, a_scanCode, a_keyState, a_buffer, a_size, a_flags, layout);
+            const auto result = PROFILE_HOOK_ORIGINAL(
+                ::ToUnicodeEx(a_virtualKey, a_scanCode, a_keyState, a_buffer, a_size, a_flags, layout));
             if (s_loggedLayout.exchange(layout, std::memory_order_relaxed) != layout)
             {
                 logs::debug("UI input: typing with keyboard layout {:#x} of the game window's thread; input thread "

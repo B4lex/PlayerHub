@@ -2,6 +2,7 @@
 #include "actor/ActorRegistry.h"
 #include "config/PluginConfig.h"
 #include "runtime/GameThread.h"
+#include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 
 #include <algorithm>
@@ -156,6 +157,7 @@ namespace RemoteLights
             return;
         }
         PROFILE_FUNCTION();
+        PLUGIN_TIME_STAGE("Remote lights");
         FollowConfig();
         ++s_pass;
         s_candidates.clear();

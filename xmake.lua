@@ -30,6 +30,13 @@ option("tracy_memory")
     set_description("With tracy: record every plugin allocation")
 option_end()
 
+-- Costs two clock reads per stage and per hook call, so release builds leave it off.
+option("time_breakdown")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Show where plugin time goes, with hook timings, under the status panel")
+option_end()
+
 -- Release builds set both to the public server, which the repository does not name.
 option("server_address")
     set_default("127.0.0.1")
@@ -210,6 +217,9 @@ target("PlayerHub")
             target:add("defines", format('%s="%s"', define, url))
         end
     end)
+    if has_config("time_breakdown") then
+        add_defines("PLAYERHUB_TIME_BREAKDOWN")
+    end
     if has_config("tracy") then
         add_packages("tracy")
         -- The package does not export TRACY_ENABLE to consumers.

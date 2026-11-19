@@ -6,6 +6,7 @@
 #include "actor/RaceMenuOverlays.h"
 #include "actor/SurvivalPolicy.h"
 #include "runtime/GameThread.h"
+#include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 
 #include <cmath>
@@ -46,6 +47,7 @@ namespace ActorSpawner
         float a_speed, float a_stoppingDistance)
     {
         PROFILE_FUNCTION();
+        PLUGIN_TIME_STAGE("Spawns");
         if (!GameThread::Require("SpawnControlledNPC") || !a_npcBase || !std::isfinite(a_targetPosition.x)
             || !std::isfinite(a_targetPosition.y) || !std::isfinite(a_targetPosition.z)
             || !std::isfinite(a_targetHeading) || !std::isfinite(a_speed) || a_speed <= 0.0F

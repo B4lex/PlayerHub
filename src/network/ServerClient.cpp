@@ -781,6 +781,8 @@ namespace Network
                 std::move(a_message));
         }
 
+        PROFILE_HOOK_COUNTER(s_serverMessageProfile, "server messages");
+
         void OnSocketMessage(const ix::WebSocketMessagePtr& a_message)
         {
             switch (a_message->type)
@@ -799,6 +801,7 @@ namespace Network
                 case ix::WebSocketMessageType::Message:
                 {
                     PROFILE_SCOPE("Server message");
+                    PROFILE_HOOK(s_serverMessageProfile);
                     PROFILE_ALLOCATIONS("server message");
                     PROFILE_PLOT("Server message bytes", a_message->wireSize);
                     CountReceivedBytes(a_message->wireSize);
