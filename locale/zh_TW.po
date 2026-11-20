@@ -1505,6 +1505,10 @@ msgctxt "VoiceDefaultDevice"
 msgid "System default"
 msgstr "系統預設"
 
+msgctxt "VoiceNoInputDevice"
+msgid "None"
+msgstr "無"
+
 msgctxt "VoiceInputVolume"
 msgid "Microphone volume"
 msgstr "麥克風音量"

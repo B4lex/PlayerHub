@@ -51,8 +51,7 @@ namespace Config
         // Not shown in the settings window, so the comment is only English.
         virtual void Layout(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
             std::uint32_t a_minimum, std::uint32_t a_maximum) = 0;
-        // An audio device by its system name, empty for the default; the file holds it as a string,
-        // and the settings window offers the devices it finds.
+
         virtual void AudioDevice(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment,
             bool a_capture)
         {

@@ -278,8 +278,9 @@ always hit nothing ([Remote actor](remote-actor.md#combat-isolation)).
 ### `[Voice]`
 
 [Voice chat](voice-chat.md) with the players nearby, in three
-groups: Microphone (`Mode`, the input meter, `ActivationLevel`,
-`InputDevice`, `InputVolume`, `NoiseSuppression`), Other players
+groups: Microphone (`InputDevice`, `Mode`, the input meter, `ActivationLevel`,
+`InputVolume`, `NoiseSuppression`; the settings window shows the rows after
+`InputDevice` only while it is not `None`), Other players
 (`OutputDevice`, `OutputVolume`), and Indicator (`Indicator`,
 `IndicatorPositionHorizontal`, `IndicatorPositionVertical`).
 
@@ -287,7 +288,7 @@ groups: Microphone (`Mode`, the input meter, `ActivationLevel`,
 | --- | --- | --- |
 | `Mode` | `PushToTalk`, heard while `[Controls] Microphone` is held, or `VoiceActivation`, heard while speaking ([Voice chat](voice-chat.md#activation)) | `PushToTalk` |
 | `ActivationLevel` | The input level at which voice activation opens, `0..100` on the meter's scale, 0 at -60 dBFS and 100 at full scale; the settings window shows it only with `VoiceActivation` | `25` |
-| `InputDevice`, `OutputDevice` | The capture and playback devices by their system names, as the settings window lists them; empty is the system's default device. A name no device has logs a warning and uses the default | empty |
+| `InputDevice`, `OutputDevice` | The capture and playback devices by their system names, as the settings window lists them; empty is the system's default device. A name no device has logs a warning and uses the default. `InputDevice` `None` opens no microphone: the player hears others but is never heard ([Voice chat](voice-chat.md#devices)) | empty |
 | `InputVolume` | How loud the microphone is sent, `50..150` percent in steps of `5`; the gain is 1.4 times its square ([Voice chat](voice-chat.md#capture-and-encoding)) | `100` |
 | `NoiseSuppression` | Runs the microphone through RNNoise before encoding, and lets voice activation open only on speech | `true` |
 | `OutputVolume` | Gain on other players' voices in percent, `0..150` in steps of `5` | `100` |

@@ -1523,6 +1523,10 @@ msgctxt "VoiceDefaultDevice"
 msgid "System default"
 msgstr "システムの既定"
 
+msgctxt "VoiceNoInputDevice"
+msgid "None"
+msgstr "なし"
+
 msgctxt "VoiceInputVolume"
 msgid "Microphone volume"
 msgstr "マイク音量"

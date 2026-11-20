@@ -1547,6 +1547,10 @@ msgctxt "VoiceDefaultDevice"
 msgid "System default"
 msgstr "Predefinito di sistema"
 
+msgctxt "VoiceNoInputDevice"
+msgid "None"
+msgstr "Nessuno"
+
 msgctxt "VoiceInputVolume"
 msgid "Microphone volume"
 msgstr "Volume del microfono"

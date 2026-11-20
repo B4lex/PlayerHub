@@ -342,16 +342,22 @@ namespace Config
         {
             a_visitor.Section("Voice", Id::kSectionVoice, Id::kVoiceComment);
             a_visitor.Comment(Id::kVoiceGroupMicrophone);
-            a_visitor.Choice("Mode", Id::kVoiceMode, a_settings.mode, Id::kVoiceModeComment, VoiceSettings::kModeNames,
-                kVoiceModeLabels);
-            a_visitor.InputMeter(Id::kVoiceInputLevel, a_settings.activationLevel);
-            a_visitor.ShowNextIf(a_settings.mode == VoiceSettings::kVoiceActivation);
-            a_visitor.Percent("ActivationLevel", Id::kVoiceActivationLevel, a_settings.activationLevel,
-                Id::kVoiceActivationLevelComment, 0, VoiceSettings::kMaximumActivationLevel, 1);
+            // First, so hiding the rows below does not move the combo that hid them.
             a_visitor.AudioDevice("InputDevice", Id::kVoiceInputDevice, a_settings.inputDevice,
                 Id::kVoiceInputDeviceComment, true);
+            const bool microphone = a_settings.inputDevice != VoiceSettings::kNoInputDevice;
+            a_visitor.ShowNextIf(microphone);
+            a_visitor.Choice("Mode", Id::kVoiceMode, a_settings.mode, Id::kVoiceModeComment, VoiceSettings::kModeNames,
+                kVoiceModeLabels);
+            a_visitor.ShowNextIf(microphone);
+            a_visitor.InputMeter(Id::kVoiceInputLevel, a_settings.activationLevel);
+            a_visitor.ShowNextIf(microphone && a_settings.mode == VoiceSettings::kVoiceActivation);
+            a_visitor.Percent("ActivationLevel", Id::kVoiceActivationLevel, a_settings.activationLevel,
+                Id::kVoiceActivationLevelComment, 0, VoiceSettings::kMaximumActivationLevel, 1);
+            a_visitor.ShowNextIf(microphone);
             a_visitor.Percent("InputVolume", Id::kVoiceInputVolume, a_settings.inputVolume, Id::kVoiceInputVolumeComment,
                 VoiceSettings::kMinimumInputVolume, VoiceSettings::kMaximumInputVolume, VoiceSettings::kVolumeStep);
+            a_visitor.ShowNextIf(microphone);
             a_visitor.Bool("NoiseSuppression", Id::kVoiceNoiseSuppression, a_settings.noiseSuppression,
                 Id::kVoiceNoiseSuppressionComment);
 

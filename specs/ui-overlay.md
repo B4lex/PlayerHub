@@ -1885,8 +1885,8 @@ carried, and played is in [Voice chat](voice-chat.md).
   setting applies on release like the chat's.
 - The `[Voice]` page of the [settings window](#settings-window) draws two
   rows of its own. An audio device (`SettingsVisitor::AudioDevice`) is a combo
-  of the system's default, then the devices `VoiceChatSync::CopyDeviceNames`
-  lists, with a saved device that is not plugged in kept in the list; opening
+  of the system's default, for the input device a row that stores `None`, then
+  the devices `VoiceChatSync::CopyDeviceNames` lists, with a saved device that is not plugged in kept in the list; opening
   it asks the audio engine to list the devices again. The input meter
   (`SettingsVisitor::InputMeter`) is a bar of the microphone's level from
   `VoiceChatSync::GetLocalStatus`, which `InputVolume` does not change, in the

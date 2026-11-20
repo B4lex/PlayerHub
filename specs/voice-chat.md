@@ -239,9 +239,14 @@ cave echoes as the cave's NPCs do, and outdoors stays dry.
   game, relay link connected). The worker opens both devices only while
   active, so the system's microphone indicator shows only then. A changed
   device name reopens that device; gains and gating change without reopening.
-- `[Voice] InputDevice` and `OutputDevice` hold system device names; empty is
-  the system default, which miniaudio's WASAPI backend follows. An unknown name
-  logs a warning and uses the default.
+- `[Voice] InputDevice` `None` (`VoiceSettings::kNoInputDevice`) clears
+  `Audio::Settings::input`: the worker opens only the playback device, so the
+  player listens without being heard. It is for Bluetooth headsets, which
+  switch to their low-quality hands-free profile while a microphone is open.
+  The relay link still runs its probes, so voice from others arrives.
+- Otherwise `[Voice] InputDevice` and `OutputDevice` hold system device
+  names; empty is the system default, which miniaudio's WASAPI backend
+  follows. An unknown name logs a warning and uses the default.
 - A device that stops by itself (unplugged) reopens with the next voice setting
   change or connection.
 - Backends: WASAPI, then DirectSound and WinMM.
@@ -295,11 +300,13 @@ otherwise. A listener receives about the same per speaker heard
    the speaker's own.
 8. Changing a device applies without a restart; a disconnected game holds no
    audio device open.
-9. Inside a reverberant interior, such as a cave or a stone hall, a voice
+9. With `InputDevice` `None`, the system shows no microphone in use, the
+   player hears others, and the microphone key sends nothing.
+10. Inside a reverberant interior, such as a cave or a stone hall, a voice
    echoes with the room as NPC dialogue does, more so from farther away; it
    rings on briefly after the speaker stops. Outdoors a voice is dry. Walking
    between them fades the reverb as the game's does.
-10. A voice from behind is duller than the same voice from in front, and a far
+11. A voice from behind is duller than the same voice from in front, and a far
     voice is duller than a near one.
 
 ## Known limitations

@@ -14,6 +14,7 @@ namespace Audio
     {
         // Whether the devices are open: in a game with a connection that carries voice.
         bool active{ false };
+        bool input{ true };
         // Device names as the system lists them; empty for the system's default device.
         std::string inputDevice;
         std::string outputDevice;

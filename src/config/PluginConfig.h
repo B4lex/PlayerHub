@@ -148,6 +148,7 @@ namespace Config
         static constexpr std::uint32_t kVolumeStep = 5;
         static constexpr std::uint32_t kMaximumActivationLevel = 100;
         static constexpr std::size_t kMaximumDeviceNameBytes = 255;
+        static constexpr std::string_view kNoInputDevice = "None";
         static constexpr float kMaximumIndicatorPosition = 100.0F;
 
         std::uint32_t mode{ kPushToTalk };

@@ -635,7 +635,10 @@ namespace UI
                     return;
                 }
                 const auto* systemDefault = Text::GetCString(Text::Id::kVoiceDefaultDevice);
-                if (ImGui::BeginCombo("##value", a_value.empty() ? systemDefault : a_value.c_str()))
+                const auto* noDevice = Text::GetCString(Text::Id::kVoiceNoInputDevice);
+                const bool none = a_capture && a_value == Config::VoiceSettings::kNoInputDevice;
+                const auto* shown = a_value.empty() ? systemDefault : none ? noDevice : a_value.c_str();
+                if (ImGui::BeginCombo("##value", shown))
                 {
                     if (ImGui::IsWindowAppearing())
                     {
@@ -647,8 +650,12 @@ namespace UI
                     {
                         a_value.clear();
                     }
+                    if (a_capture && ImGui::Selectable(noDevice, none))
+                    {
+                        a_value = Config::VoiceSettings::kNoInputDevice;
+                    }
                     // A saved device that is unplugged stays listed, so the combo shows what is set.
-                    if (!a_value.empty() && !std::ranges::contains(deviceNames, a_value))
+                    if (!a_value.empty() && !none && !std::ranges::contains(deviceNames, a_value))
                     {
                         deviceNames.push_back(a_value);
                     }

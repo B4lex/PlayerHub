@@ -241,7 +241,7 @@ namespace Audio
 
             // Closed when inactive, for another device, or after stopping by itself; opened again below.
             if (a_engine.capture
-                && (!a_settings.active || a_settings.inputDevice != a_engine.captureName
+                && (!a_settings.active || !a_settings.input || a_settings.inputDevice != a_engine.captureName
                     || !a_engine.inputOpen.load(std::memory_order_acquire)))
             {
                 a_engine.inputOpen.store(false, std::memory_order_release);
@@ -261,7 +261,7 @@ namespace Audio
                 a_engine.mixer.Clear();
                 return;
             }
-            if (!a_engine.capture)
+            if (a_settings.input && !a_engine.capture)
             {
                 a_engine.captureName = a_settings.inputDevice;
                 a_engine.capture = OpenDevice(a_engine, ma_device_type_capture, a_settings.inputDevice);

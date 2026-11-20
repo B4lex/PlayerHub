@@ -113,8 +113,10 @@ namespace VoiceChatSync
         const auto state = Network::VoiceTransport::GetState();
         // Squared, so the slider reads close to loudness as heard: twice as loud takes about 10 dB.
         const auto inputVolume = static_cast<float>(voice.inputVolume) / 100.0F;
+        const bool input = voice.inputDevice != Config::VoiceSettings::kNoInputDevice;
         const Audio::Settings settings{ .active = state == State::kConnected && GameSession::IsInGame(),
-            .inputDevice = voice.inputDevice,
+            .input = input,
+            .inputDevice = input ? voice.inputDevice : std::string{},
             .outputDevice = voice.outputDevice,
             .inputGain = kBaseInputGain * inputVolume * inputVolume,
             .outputGain = static_cast<float>(voice.outputVolume) / 100.0F,
@@ -127,7 +129,9 @@ namespace VoiceChatSync
             {
                 if (!s_configured || !s_settings.active)
                 {
-                    logs::info("Voice is on: mode={}", settings.voiceActivation ? "voice activation" : "push to talk");
+                    logs::info("Voice is on: mode={}", !settings.input         ? "no microphone"
+                                                       : settings.voiceActivation ? "voice activation"
+                                                                                  : "push to talk");
                 }
             }
             else if (s_configured && s_settings.active)
