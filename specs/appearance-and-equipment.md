@@ -201,7 +201,13 @@ height are kept. Each fallback is logged once per revision.
   most 16 non-zero layers). The render reads only the mask's `textureName`
   ([tint render](#engine-assumptions)), so each mask is a stack `MaskTexture`
   with `TESTexture`'s layout and the asset's vtable. It renders again whenever
-  the head gets a new tint texture, such as after a 3D reset.
+  the head gets a new tint texture, such as after a 3D reset. Each remote render
+  is followed by a render of the local player's own tint list with no
+  destination (`QueuePlayerFaceTintRestore`), because after a RaceMenu tint
+  edit the player's face shows the shared tint render target itself
+  ([tint render](#engine-assumptions)); without it, a remote face built while
+  that holds would repaint the player's face with the remote player's skin and
+  war paint.
 - RaceMenu overlays are applied in the same pass as the colors, when the
   spawned revision is the latest ([Overlays](#overlays)).
 
@@ -707,6 +713,16 @@ at runtime from the base's head parts and face data.
 14. [Tint render](#spawn-and-respawn), from both executables: the render
     (ID 27040, SE 26454) reads a mask's `texture` only for `textureName` (+0x8)
     and passes it to the texture load (ID 76005, SE 74273) before returning.
+    From 1.7.104: the render queues a job that `Main::Update` (ID 36564) runs
+    in queue order, all queued jobs in one pass (ID 27041) after the main-loop
+    hook. Each job renders into the shared face tint render target and, when it
+    has a destination, copies the target into a new texture (ID 77318). The
+    player tint update (ID 52396, SKSE's `UpdatePlayerTints`, run by RaceMenu
+    on tint edits) queues the player's list with no destination and gives the
+    player's face a texture that views the target (ID 77302), so later jobs
+    draw on the player's face until its head is rebuilt. The player's list is
+    `overlayTintMasks` when set, else `tintMasks` (ID 40410). The SE side of
+    this is not checked; the restore render is harmless either way.
 15. From `RaceMenu.psc`: a war paint choice calls
     `Game.SetTintMaskTexturePath`, and a loaded game reapplies saved paths
     (`Game.SetNthTintMaskTexturePath`), add-on war paints too; SKSE writes the
@@ -735,7 +751,8 @@ at runtime from the base's head parts and face data.
    equipment change applies within 0.5 s without respawn, animation, or sound.
 3. The actor's inventory holds exactly the synchronized items, also after a cell
    reload, a respawn, and a hit reaction. The local player's appearance,
-   inventory, and equipment never change because of a remote actor.
+   inventory, and equipment never change because of a remote actor, also while
+   the local player edits tints in RaceMenu and a remote face is built.
 4. A peer missing a race or head part plugin sees a vanilla fallback, or the
    source's default race in the source's sex with the race's default look, and
    no crash.

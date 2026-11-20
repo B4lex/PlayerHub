@@ -1028,6 +1028,23 @@ namespace AppearanceSync
         };
         static_assert(sizeof(MaskTexture) == sizeof(RE::TESTexture));
 
+        using RenderTintMasks = bool(RE::BSTArray<RE::TintMask*>*, RE::NiTexture*);
+
+        // The player tint update that RaceMenu runs on each tint edit queues
+        // the player's masks with no destination and then points the player's face
+        // at a texture that views the shared face tint render target instead of a copy of it
+        void QueuePlayerFaceTintRestore(REL::Relocation<RenderTintMasks>& a_render)
+        {
+            auto* player = RE::PlayerCharacter::GetSingleton();
+            if (!player || REL::Module::IsVR())
+            {
+                return;
+            }
+            auto& runtime = player->GetPlayerRuntimeData();
+            auto* masks = runtime.overlayTintMasks ? runtime.overlayTintMasks : std::addressof(runtime.tintMasks);
+            a_render(masks, nullptr);
+        }
+
         // PrepareHeadPartForShaders (ID 26838, SE 26259) gives a runtime-built face a
         // blank tint texture and renders tint masks into it only for the player base,
         // or for other NPCs when bUseFaceGenPreprocessedHeads is off. Remote actor
@@ -1041,7 +1058,6 @@ namespace AppearanceSync
             PROFILE_FUNCTION();
             // A render job has 16 layer slots and does not check the mask count.
             constexpr std::size_t kMaximumRenderedTints = 16;
-            using RenderTintMasks = bool(RE::BSTArray<RE::TintMask*>*, RE::NiTexture*);
             static REL::Relocation<RenderTintMasks> renderTintMasks{ RELOCATION_ID(26454, 27040) };
 
             auto* race = a_base.race;
@@ -1077,6 +1093,7 @@ namespace AppearanceSync
 
             // The job copies the textures and colors, so the masks may go out of scope.
             renderTintMasks(std::addressof(maskList), std::addressof(a_texture));
+            QueuePlayerFaceTintRestore(renderTintMasks);
             return maskList.size();
         }
     }
