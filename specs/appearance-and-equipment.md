@@ -466,7 +466,9 @@ counts them.
 The actor's inventory must always equal the resolved set. The runtime base has
 no container or outfits, and reconciliation is the authority for everything
 else. It runs for a ready, 3D-loaded actor and compares live inventory counts,
-worn armor, and equipped hand objects with the resolved set. When they differ:
+worn armor, and equipped hand objects with the resolved set. A worn shield,
+which `GetEquippedObject(true)` reports as the left hand's object, counts as an
+empty left hand and is compared with the armor. When they differ:
 
 1. Required counts are one per armor entry and one per hand object (two when
    dual-wielding one weapon), plus 20 of the resolved ammo.
@@ -651,7 +653,8 @@ at runtime from the base's head parts and face data.
 3. `TESEquipEvent` fires for favorites swaps, the inventory menu, hotkeys, and
    script `EquipItem`/`UnequipItem`; otherwise the 1 s poll covers it.
 4. `GetEquippedObject(true)` may also report two-handed weapons, bows, and
-   crossbows in the left hand; capture handles either answer.
+   crossbows in the left hand; capture handles either answer. It reports a
+   worn shield's `TESObjectARMO` there too.
 5. `EquipObject` with `forceEquip=true` swaps a drawn weapon in place and
    updates `iRightHandType`/`iLeftHandType` without events the firewall blocks.
 6. Actors do not auto-equip or unequip once their inventory holds only the

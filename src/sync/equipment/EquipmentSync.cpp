@@ -650,11 +650,12 @@ namespace EquipmentSync
                 a_leftHand ? kLeftHandEquipSlotFormID : kRightHandEquipSlotFormID);
         }
 
-        // Unarmed is reported as nothing or as a hand-to-hand weapon; both are empty.
+        // Unarmed is reported as nothing or as a hand-to-hand weapon. A worn
+        // shield is reported as the left hand's object, but it is compared with the armor set.
         RE::TESBoundObject* GetEquippedHandObject(const RE::Actor& a_actor, bool a_leftHand)
         {
             auto* form = a_actor.GetEquippedObject(a_leftHand);
-            if (!form)
+            if (!form || form->Is(RE::FormType::Armor))
             {
                 return nullptr;
             }
