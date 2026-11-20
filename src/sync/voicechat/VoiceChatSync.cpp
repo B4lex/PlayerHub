@@ -30,6 +30,10 @@ namespace VoiceChatSync
         constexpr float kFullVolumeDistance = 300.0F;
         constexpr float kRolloffExponent = 0.7F;
         constexpr float kFadeFraction = 0.2F;
+        // Vanilla's dialogue output models send 20 to 30% to the game's reverb. The send falls with
+        // the square root of the direct rolloff, so a farther voice is heard more through the room.
+        constexpr float kReverbSend = 0.2F;
+        constexpr float kReverbRolloffExponent = 0.5F;
         // Heights of the ray between the listener's and the speaker's heads above their origins.
         constexpr float kListenerHeadHeight = 120.0F;
         constexpr float kSpeakerHeadHeight = 110.0F;
@@ -47,17 +51,22 @@ namespace VoiceChatSync
         std::vector<Audio::Speaker> s_speakers;
         std::vector<Audio::SpeakerLevel> s_levels;
 
-        float Attenuate(float a_distance, float a_radius)
+        struct Loudness
+        {
+            float direct{ 0.0F };
+            float reverbSend{ 0.0F };
+        };
+
+        Loudness Attenuate(float a_distance, float a_radius)
         {
             if (a_distance >= a_radius)
             {
-                return 0.0F;
+                return {};
             }
-            const auto rolloff = a_distance <= kFullVolumeDistance
-                                   ? 1.0F
-                                   : std::pow(kFullVolumeDistance / a_distance, kRolloffExponent);
+            const auto rolloff = a_distance <= kFullVolumeDistance ? 1.0F : kFullVolumeDistance / a_distance;
             const auto fade = std::clamp((a_radius - a_distance) / (a_radius * kFadeFraction), 0.0F, 1.0F);
-            return rolloff * fade;
+            return Loudness{ .direct = std::pow(rolloff, kRolloffExponent) * fade,
+                .reverbSend = kReverbSend * std::pow(rolloff, kReverbRolloffExponent) * fade };
         }
 
         float FindLevel(Multiplayer::PeerSlot a_playerID)
@@ -168,13 +177,16 @@ namespace VoiceChatSync
         const auto playerPosition = a_player.GetPosition();
         auto listener = playerPosition;
         // Gamebryo's NiCamera looks along its local X axis with Z to its right
-        // (NiCamera::GetWorldRightVector), so the rotation's third column points right on screen.
+        // (NiCamera::GetWorldRightVector), so the rotation's first column is the view direction and
+        // its third points right on screen.
         RE::NiPoint3 right{ 0.0F, 0.0F, 0.0F };
+        RE::NiPoint3 forward{ 0.0F, 0.0F, 0.0F };
         if (const auto* camera = RE::Main::WorldRootCamera())
         {
             listener = camera->world.translate;
             const auto& rotate = camera->world.rotate;
             right = RE::NiPoint3{ rotate.entry[0][2], rotate.entry[1][2], rotate.entry[2][2] };
+            forward = RE::NiPoint3{ rotate.entry[0][0], rotate.entry[1][0], rotate.entry[2][0] };
         }
         const RE::NiPoint3 listenerHead{ playerPosition.x, playerPosition.y, playerPosition.z + kListenerHeadHeight };
         const FilterRevision revision{ .roster = ChatRoster::GetRevision(), .filters = PlayerFilters::GetRevision() };
@@ -208,7 +220,9 @@ namespace VoiceChatSync
                 continue;
             }
             RefreshFilter(state, playerID, revision);
-            const auto gain = state.silenced ? 0.0F : Attenuate(playerPosition.GetDistance(position), radius);
+            const auto distance = playerPosition.GetDistance(position);
+            const auto loudness = state.silenced ? Loudness{} : Attenuate(distance, radius);
+            const auto gain = loudness.direct;
             const auto level = gain > 0.0F ? FindLevel(playerID) : 0.0F;
             if (gain > 0.0F)
             {
@@ -223,8 +237,17 @@ namespace VoiceChatSync
                 auto direction = position - listener;
                 const auto length = direction.Length();
                 const auto pan = length > 1.0F ? std::clamp(direction.Dot(right) / length, -1.0F, 1.0F) : 0.0F;
-                s_speakers.push_back(Audio::Speaker{
-                    .slot = playerID, .gain = gain, .pan = pan, .occlusion = state.occluded ? 1.0F : 0.0F });
+                const auto rear = length > 1.0F ? std::clamp(-direction.Dot(forward) / length, 0.0F, 1.0F) : 0.0F;
+                const auto air = radius > kFullVolumeDistance
+                                   ? std::clamp((distance - kFullVolumeDistance) / (radius - kFullVolumeDistance), 0.0F, 1.0F)
+                                   : 0.0F;
+                s_speakers.push_back(Audio::Speaker{ .slot = playerID,
+                    .gain = gain,
+                    .pan = pan,
+                    .occlusion = state.occluded ? 1.0F : 0.0F,
+                    .reverbSend = loudness.reverbSend,
+                    .air = air,
+                    .rear = rear });
             }
 
             if (!actor)

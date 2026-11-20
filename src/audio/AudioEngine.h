@@ -43,6 +43,8 @@ namespace Audio
 
     // Game thread, once per pass.
     void SetSpeakers(std::span<const Speaker> a_speakers);
+    // Any thread; kept while the devices are closed.
+    void SetReverb(const RoomReverb& a_reverb, float a_fadeSeconds);
     void CopySpeakerLevels(std::vector<SpeakerLevel>& a_levels);
 
     [[nodiscard]] float GetInputLevel();

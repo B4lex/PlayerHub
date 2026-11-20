@@ -1,5 +1,6 @@
 #pragma once
 
+#include "audio/VoiceReverb.h"
 #include "protocol/PeerSlot.h"
 #include "protocol/VoiceFrame.h"
 
@@ -21,6 +22,12 @@ namespace Audio
         float pan{ 0.0F };
         // 0 is in the open, 1 behind a wall.
         float occlusion{ 0.0F };
+        // Linear level sent to the room reverb.
+        float reverbSend{ 0.0F };
+        // Air absorption: 0 is beside the listener, 1 at the edge of hearing.
+        float air{ 0.0F };
+        // 0 is in front of or beside the camera, 1 straight behind it.
+        float rear{ 0.0F };
     };
 
     struct SpeakerLevel
@@ -46,6 +53,9 @@ namespace Audio
         // Speakers not named lose their buffers.
         void SetSpeakers(std::span<const Speaker> a_speakers);
 
+        // Any thread. The reverb moves to a_reverb over a_fadeSeconds.
+        void SetReverb(const RoomReverb& a_reverb, float a_fadeSeconds);
+
         void Render(float* a_stereo, std::size_t a_frames, float a_masterGain);
 
         void CopyLevels(std::vector<SpeakerLevel>& a_levels);
@@ -66,9 +76,15 @@ namespace Audio
         // Removed channels wait here while Render may still be mixing them without the lock.
         std::vector<std::unique_ptr<Channel>> retired;
         bool mixing{ false };
+        RoomReverb pendingReverb;
+        float pendingFadeSeconds{ 0.0F };
+        bool reverbChanged{ false };
+        bool resetReverb{ false };
 
         // The playback thread's own.
         std::vector<Channel*> active;
         std::vector<float> mix;
+        std::vector<float> send;
+        VoiceReverb reverb;
     };
 }

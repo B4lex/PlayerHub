@@ -35,8 +35,13 @@ namespace Audio
         constexpr int kDecoderComplexity = 7;
 
         constexpr float kOpenCutoffHertz = 20000.0F;
+        // Air absorption at the edge of hearing, exaggerated as games do so distance is heard.
+        constexpr float kFarCutoffHertz = 7000.0F;
         constexpr float kOccludedCutoffHertz = 900.0F;
         constexpr float kOccludedGain = 0.55F;
+        // Behind the listener the head shadows the highs: a first-order shelf, -6 dB above about 3 kHz.
+        constexpr float kRearShelfHertz = 3000.0F;
+        constexpr float kRearShelfGain = 0.5F;
         // Smoothing towards the game thread's parameters per sample, about 20 ms, so a step
         // does not click.
         constexpr float kParameterSmoothing = 1.0F / 960.0F;
@@ -46,10 +51,19 @@ namespace Audio
         constexpr float kSilentLevel = 0.01F;
         constexpr float kLimiterKnee = 0.9F;
 
-        float LowpassCoefficient(float a_occlusion)
+        float CutoffCoefficient(float a_hertz)
         {
-            const auto cutoff = std::lerp(kOpenCutoffHertz, kOccludedCutoffHertz, std::clamp(a_occlusion, 0.0F, 1.0F));
-            return 1.0F - std::exp(-2.0F * std::numbers::pi_v<float> * cutoff / Multiplayer::kVoiceSampleRate);
+            return 1.0F - std::exp(-2.0F * std::numbers::pi_v<float> * a_hertz / Multiplayer::kVoiceSampleRate);
+        }
+
+        const float kRearShelfCoefficient = CutoffCoefficient(kRearShelfHertz);
+
+        // Distance and occlusion blend on a logarithmic frequency scale, as pitch is heard.
+        float LowpassCoefficient(float a_air, float a_occlusion)
+        {
+            const auto air = kOpenCutoffHertz * std::pow(kFarCutoffHertz / kOpenCutoffHertz, std::clamp(a_air, 0.0F, 1.0F));
+            const auto cutoff = air * std::pow(kOccludedCutoffHertz / air, std::clamp(a_occlusion, 0.0F, 1.0F));
+            return CutoffCoefficient(cutoff);
         }
 
         float Limit(float a_sample)
@@ -328,6 +342,9 @@ namespace Audio
         float targetGain{ 0.0F };
         float targetPan{ 0.0F };
         float targetOcclusion{ 0.0F };
+        float targetSend{ 0.0F };
+        float targetAir{ 0.0F };
+        float targetRear{ 0.0F };
         std::array<Job, kJobsPerBlock> jobs{};
         std::size_t jobCount{ 0 };
         std::array<float, Multiplayer::kVoiceFrameSamples> pcm{};
@@ -336,12 +353,17 @@ namespace Audio
         float gain{ 0.0F };
         float pan{ 0.0F };
         float occlusion{ 0.0F };
+        float send{ 0.0F };
+        float air{ 0.0F };
+        float rear{ 0.0F };
+        float rearLowpass{ 0.0F };
         float lowpass{ 0.0F };
     };
 
     VoiceMixer::VoiceMixer()
     {
         mix.resize(kBlockFrames * 2);
+        send.resize(kBlockFrames);
         active.reserve(kMaximumChannels);
     }
 
@@ -390,6 +412,9 @@ namespace Audio
             channel->gain = speaker->gain;
             channel->pan = speaker->pan;
             channel->occlusion = speaker->occlusion;
+            channel->send = speaker->reverbSend;
+            channel->air = speaker->air;
+            channel->rear = speaker->rear;
         }
         channel->Insert(a_frame, now);
     }
@@ -421,17 +446,28 @@ namespace Audio
         CollectRetiredLocked(removed);
     }
 
+    void VoiceMixer::SetReverb(const RoomReverb& a_reverb, float a_fadeSeconds)
+    {
+        const std::scoped_lock guard{ lock };
+        pendingReverb = a_reverb;
+        pendingFadeSeconds = a_fadeSeconds;
+        reverbChanged = true;
+    }
+
     void VoiceMixer::MixChannel(Channel& a_channel, std::size_t a_frames)
     {
-        // Pan and occlusion move once per block, a few milliseconds, which is smooth enough for
+        // Pan, occlusion, air, and rear move once per block, a few milliseconds, which is smooth enough for
         // them and spares an exponential and two cosines per sample.
         const auto step = (std::min)(1.0F, static_cast<float>(a_frames) * kParameterSmoothing);
         if (a_channel.hasSpeaker)
         {
             a_channel.pan += (a_channel.targetPan - a_channel.pan) * step;
             a_channel.occlusion += (a_channel.targetOcclusion - a_channel.occlusion) * step;
+            a_channel.air += (a_channel.targetAir - a_channel.air) * step;
+            a_channel.rear += (a_channel.targetRear - a_channel.rear) * step;
         }
-        const auto coefficient = LowpassCoefficient(a_channel.occlusion);
+        const auto coefficient = LowpassCoefficient(a_channel.air, a_channel.occlusion);
+        const auto rearShelf = std::lerp(1.0F, kRearShelfGain, std::clamp(a_channel.rear, 0.0F, 1.0F));
         const auto occlusionGain = std::lerp(1.0F, kOccludedGain, a_channel.occlusion);
         // Equal power across the stereo field.
         const auto angle = (std::clamp(a_channel.pan, -1.0F, 1.0F) + 1.0F) * std::numbers::pi_v<float> / 4.0F;
@@ -450,10 +486,16 @@ namespace Audio
                 a_channel.Decode(a_channel.jobs[job++]);
             }
             a_channel.gain += (a_channel.targetGain - a_channel.gain) * kParameterSmoothing;
-            a_channel.lowpass += (a_channel.pcm[a_channel.read++] - a_channel.lowpass) * coefficient;
+            a_channel.send += (a_channel.targetSend - a_channel.send) * kParameterSmoothing;
+            const auto input = a_channel.pcm[a_channel.read++];
+            a_channel.rearLowpass += (input - a_channel.rearLowpass) * kRearShelfCoefficient;
+            const auto shaped = a_channel.rearLowpass + (input - a_channel.rearLowpass) * rearShelf;
+            a_channel.lowpass += (shaped - a_channel.lowpass) * coefficient;
             const auto sample = a_channel.lowpass * a_channel.gain;
             mix[i * 2] += sample * left;
             mix[i * 2 + 1] += sample * right;
+            // Without the occlusion gain: a voice behind a wall keeps its room, as from the next room.
+            send[i] += a_channel.lowpass * a_channel.send;
         }
     }
 
@@ -462,19 +504,30 @@ namespace Audio
         while (a_frames > 0)
         {
             const auto block = (std::min)(a_frames, kBlockFrames);
+            bool reverbChange = false;
+            bool reverbReset = false;
+            RoomReverb nextReverb;
+            float reverbFadeSeconds = 0.0F;
             {
                 const std::scoped_lock guard{ lock };
                 mixing = true;
+                reverbReset = std::exchange(resetReverb, false);
+                reverbChange = std::exchange(reverbChanged, false);
+                nextReverb = pendingReverb;
+                reverbFadeSeconds = pendingFadeSeconds;
                 active.clear();
                 for (const auto& channel : channels)
                 {
                     const auto* speaker = FindSpeakerLocked(channel->slot);
                     channel->hasSpeaker = speaker != nullptr;
                     channel->targetGain = speaker ? speaker->gain : 0.0F;
+                    channel->targetSend = speaker ? speaker->reverbSend : 0.0F;
                     if (speaker)
                     {
                         channel->targetPan = speaker->pan;
                         channel->targetOcclusion = speaker->occlusion;
+                        channel->targetAir = speaker->air;
+                        channel->targetRear = speaker->rear;
                     }
                     channel->jobCount = 0;
                     auto buffered = channel->pcm.size() - channel->read;
@@ -488,11 +541,23 @@ namespace Audio
                 }
             }
 
+            if (reverbReset)
+            {
+                reverb.Reset();
+            }
+            if (reverbChange)
+            {
+                reverb.SetTarget(nextReverb, reverbFadeSeconds);
+            }
+
             std::fill_n(mix.begin(), block * 2, 0.0F);
+            std::fill_n(send.begin(), block, 0.0F);
             for (auto* channel : active)
             {
                 MixChannel(*channel, block);
             }
+            // After the voices, so a tail rings on once its speaker stops or leaves.
+            reverb.Process(send.data(), mix.data(), block);
 
             {
                 const std::scoped_lock guard{ lock };
@@ -532,6 +597,7 @@ namespace Audio
         std::ranges::move(channels, std::back_inserter(retired));
         channels.clear();
         speakers.clear();
+        resetReverb = true;
         CollectRetiredLocked(removed);
     }
 }

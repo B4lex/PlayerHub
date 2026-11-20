@@ -2,15 +2,15 @@
 
 ## Scope
 
-Goal: players hear the players near them, from their characters' positions,
-and are heard with push-to-talk or voice activation, at a bandwidth that
+Goal: players hear the players near them, from their characters' positions and
+in the room the game's own sounds are in, and are heard with push-to-talk or voice activation, at a bandwidth that
 stays small beside the checkpoint stream. Non-goals: voice without a
 character to place it at (radio, party, or whisper channels), recording voice,
 echo cancellation, and server-side mixing.
 
 This system owns the audio devices, capture and encoding, the client's
-[relay link](#relay-link), playback with its jitter buffers and spatial mix,
-and the game-side voice state: the microphone key, each speaker's distance,
+[relay link](#relay-link), playback with its jitter buffers, spatial mix, and
+[room reverb](#room-reverb), and the game-side voice state: the microphone key, each speaker's distance,
 direction, occlusion, and lip sync. Other systems own:
 
 - the wire messages, datagram layout, and validation:
@@ -30,7 +30,9 @@ direction, occlusion, and lip sync. Other systems own:
 | --- | --- |
 | `audio/AudioEngine` | Public audio API; miniaudio devices opened and closed on a worker thread; device list; capture and playback callbacks |
 | `audio/VoiceEncoder` | RNNoise, meter, push-to-talk and voice activation gating, input gain and limiter, Opus encoding |
-| `audio/VoiceMixer` | Per-speaker jitter buffer and Opus decoder, concealment, stereo mix with gain, pan, and occlusion |
+| `audio/VoiceMixer` | Per-speaker jitter buffer and Opus decoder, concealment, stereo mix with gain, pan, occlusion, air absorption, rear shading, and the reverb send |
+| `audio/VoiceReverb` | The shared room reverb: early reflections and a feedback delay network, fading between rooms |
+| `runtime/GameReverbHook` | Hook on the game's reverb changes, forwarding each to `Audio::SetReverb` |
 | `audio/MiniAudio.c` | The miniaudio implementation, built as C |
 | `network/VoiceTransport` | Datagram socket, AES-256-GCM through Windows CNG, probes and keepalives, link state |
 | `sync/voicechat/VoiceChatSync` | Game-thread state: devices following settings and connection, microphone key, speaker parameters, occlusion rays, lip sync, speaking levels for the UI |
@@ -44,14 +46,15 @@ direction, occlusion, and lip sync. Other systems own:
 | Main loop | `VoiceChatSync::Maintain` every frame, also paused and in the main menu; `UpdateLocal` and `UpdatePeers` in the pass ([Sync pipeline](sync-pipeline.md#frame-sequence)) |
 | Input | `KeyState::Record` from `InputCapture` |
 | Capture device | `VoiceEncoder::Process`, then `VoiceTransport::Send` per frame |
-| Playback device | `VoiceMixer::Render` |
+| Playback device | `VoiceMixer::Render`, including the reverb |
+| Thread setting the game's reverb | `GameReverbHook` hands the new reverb to `Audio::SetReverb` |
 | Datagram thread | Receives datagrams, sends probes, sets the link state |
 | WebSocket thread | `VoiceTransport::Start` on the welcome, `Stop` on a loss |
 | Audio worker | Opening, closing, and listing devices, so no game or transport thread waits for a driver |
 
 Frames cross threads as fixed-size `Multiplayer::VoiceFrame` values, so nothing
 allocates per frame. One mixer mutex is shared by the network threads' `Push`,
-the game thread's `SetSpeakers` and `CopyLevels`, and `Render`. `Render` holds
+the game thread's `SetSpeakers` and `CopyLevels`, `SetReverb`, and `Render`. `Render` holds
 it only to take each speaker's parameters and up to two frames, and to publish
 levels; it decodes and mixes unlocked, and a decoder reset at a spurt's start
 travels with the next frame for the same reason. A channel removed while a mix
@@ -141,14 +144,28 @@ and their buffers freed.
 - **Gain**: full within 300 units, then `(300 / distance)^0.7`, gentler than
   physical falloff so a voice carries across a camp, times a fade over the last
   fifth of the radius. `[Voice] OutputVolume` scales the mix.
+- **Reverb send**: `0.2 × (300 / distance)^0.5` beyond 300 units, times the
+  same fade, into the [room reverb](#room-reverb). Vanilla's dialogue output
+  models (`SOMDialogue3D*`) send 20 to 30% to the game's reverb. The send falls
+  slower than the direct sound, so a farther voice is heard more through the
+  room, the cue that places it at a distance.
 - **Pan**: the speaker's direction against the camera's right vector, equal
   power. Distance is from the player's character, so the third-person camera
   does not quiet everyone.
 - **Occlusion**: a head-to-head ray ([Remote actor](remote-actor.md#voice))
   every 0.25 s while the speaker is heard, else every second, at most 4 per
   pass. A blocked speaker goes through a 900 Hz one-pole low-pass at 0.55 gain.
-  Pan and occlusion move per render block, gain per sample, each over about
-  20 ms, so steps never click.
+  The reverb send skips the 0.55, so a voice behind a wall keeps its room, as
+  from the next room.
+- **Air absorption**: the same low-pass falls from 20 kHz at 300 units to
+  7 kHz at the radius, on a logarithmic frequency scale, and blends with
+  occlusion on that scale.
+- **Rear**: a speaker behind the camera (against the camera's view vector, the
+  first column of its world rotation) goes through a first-order shelf, down to
+  -6 dB above about 3 kHz straight behind, since stereo pan alone cannot tell
+  front from back.
+- Pan, occlusion, air, and rear move per render block; gain and the send per
+  sample; each over about 20 ms, so steps never click.
 - **Jitter buffer**: 16 frames per speaker. A spurt starts once it holds 2
   frames, up to 6 (120 ms) as measured jitter grows, or at once with an `end`
   frame. A late frame is dropped; one 16 or more ahead restarts the buffer.
@@ -163,7 +180,42 @@ and their buffers freed.
   silent; an `end` frame stops the spurt at once.
 - **Cap**: 16 speakers decode at once. A new speaker over the cap replaces the
   quietest one not playing, or is left out.
-- The mix is soft-limited above 0.9 of full scale.
+- The mix is soft-limited above 0.9 of full scale, after the reverb.
+
+## Room reverb
+
+Voices take the reverb the game applies to its own sounds, so a player in a
+cave echoes as the cave's NPCs do, and outdoors stays dry.
+
+- `GameReverbHook` replaces vfunc 7 of `BSXAudio2Audio`,
+  `BSAudio::ApplyReverbType(BSIReverbType*, fadeMilliseconds)`. It reads the
+  type's I3DL2 parameters (room and room HF levels, decay time and HF ratio,
+  reflections level and delay, reverb level and delay, diffusion, HF
+  reference), converts millibels to linear levels, and passes them with the
+  fade to `Audio::SetReverb`, then calls the original. A type with a
+  non-finite parameter is ignored. Until the first call the reverb is silent.
+- `VoiceMixer` sums every channel's send into one mono bus; `VoiceReverb`
+  renders it once per block for all speakers, after the voices, so a tail rings
+  on after its speaker stops or leaves. The parameters reach the playback
+  thread under the mixer mutex; `Clear` drops the tail but keeps the room.
+- The bus passes a one-pole low-pass with the room HF level as its power gain
+  at the HF reference, then a delay line. Six taps from the reflections delay
+  on, spread over 26 ms and alternating sides, make the early reflections at
+  `room × reflections`, normalized to unit energy per ear.
+- The tail reads the line at the reflections delay plus the reverb delay,
+  through two Schroeder allpasses with `0.6 × diffusion`, into eight delay
+  lines of 25 to 39 ms mixed by a Hadamard matrix. Each line's gain gives the
+  decay time; a one-pole low-pass in each gives the HF decay at the HF
+  reference from the HF ratio. It plays at `room × reverb`, its first pass at
+  half the input's energy per ear. The decay matches the records' within a few
+  percent, from 0.19 s (`IntRoomWoodShipReverb`) to 3.7 s
+  (`IntRoomStoneLargeExtraReverb`).
+- A change fades every parameter linearly over the engine's fade, as levels,
+  seconds, and hertz, and the coefficients follow per block. Line lengths stay
+  fixed, so a change never clicks.
+- The reverb skips its work while the room is silent, and once its input has
+  been silent for longer than its tail; it then clears its lines. It costs
+  about 55 µs per 10 ms block while it rings.
 
 ## Speaking levels and lip sync
 
@@ -201,14 +253,21 @@ otherwise. A listener receives about the same per speaker heard
 1. `BSFaceGenAnimationData::phenomeKeyFrame`, written under the data's `lock`,
    drives a remote actor's phonemes as the console's `mfg phoneme` does, and
    the face update blends it each frame.
-2. `NiCamera`'s world rotation has the camera's right vector in its third
-   column (`NiCamera::GetWorldRightVector`) for `RE::Main::WorldRootCamera()` in
-   first and third person.
+2. `NiCamera`'s world rotation has the camera's view vector in its first
+   column and its right vector in its third (`NiCamera::GetWorldRightVector`)
+   for `RE::Main::WorldRootCamera()` in first and third person.
 3. `bhkWorld::PickObject` between two heads, on the character controller layer
    with a collector accepting only static, animated static, terrain, ground,
    and prop layers, finds walls and terrain and passes characters, water, and
    clutter, as `GroundProbe`'s does.
 4. miniaudio's WASAPI backend works under Wine and Proton.
+5. `BSAudioManager::SetReverb` (ID 67711) calls `ApplyReverbType` on the
+   caller's thread, and the engine reaches it whenever the listener's reverb
+   changes: when an acoustic space activates, when it deactivates (which
+   applies the default object `kReverbType`, vanilla's silent `DefaultReverb`),
+   for the underwater reverb, and on loading a save. `ApplyReverbType`'s
+   last argument is milliseconds of `GetTickCount` over which the engine fades
+   to the type.
 
 ## Acceptance criteria
 
@@ -227,11 +286,24 @@ otherwise. A listener receives about the same per speaker heard
    and its character's mouth moves.
 8. Changing a device applies without a restart; a disconnected game holds no
    audio device open.
+9. Inside a reverberant interior, such as a cave or a stone hall, a voice
+   echoes with the room as NPC dialogue does, more so from farther away; it
+   rings on briefly after the speaker stops. Outdoors a voice is dry. Walking
+   between them fades the reverb as the game's does.
+10. A voice from behind is duller than the same voice from in front, and a far
+    voice is duller than a near one.
 
 ## Known limitations
 
 - No echo cancellation: a player on speakers may be heard twice.
 - Lip sync follows loudness, not phonemes.
+- The reverb is the listener's room, as for the game's own sounds: a speaker
+  in a cave is heard dry by a listener outside it.
+- The reverb's I3DL2 density is not used, since the line lengths stay fixed;
+  an HF ratio above 1 leaves the highs undamped rather than brightening the
+  tail.
+- Voices are stereo with a rear shelf, not binaural; they do not follow the
+  game's speaker layout.
 - A speaker whose cell or worldspace does not resolve locally (its plugin is
   not loaded) is not heard, since it has no actor or local space to place it.
 - The radius is horizontal like interest, so a player on another floor of a

@@ -17,6 +17,7 @@
 #include "forms/ItemForms.h"
 #include "network/ServerClient.h"
 #include "runtime/FurnitureActivationHook.h"
+#include "runtime/GameReverbHook.h"
 #include "runtime/MainLoopHook.h"
 #include "runtime/PlayerGraphEventHook.h"
 #include "runtime/RemoteActorActivation.h"
@@ -91,6 +92,7 @@ namespace PluginStartup
         FurnitureActivationHook::Install();
         RemoteActorActivation::InstallHooks();
         PlayerGraphEventHook::Install();
+        GameReverbHook::Install();
         UI::Overlay::Install();
 
         SKSE::GetMessagingInterface()->RegisterListener([](SKSE::MessagingInterface::Message* a_message) {

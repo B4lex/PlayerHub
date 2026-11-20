@@ -366,6 +366,11 @@ namespace Audio
         GetEngine().mixer.SetSpeakers(a_speakers);
     }
 
+    void SetReverb(const RoomReverb& a_reverb, float a_fadeSeconds)
+    {
+        GetEngine().mixer.SetReverb(a_reverb, a_fadeSeconds);
+    }
+
     void CopySpeakerLevels(std::vector<SpeakerLevel>& a_levels)
     {
         GetEngine().mixer.CopyLevels(a_levels);

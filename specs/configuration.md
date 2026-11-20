@@ -286,14 +286,14 @@ groups: Microphone (`Mode`, the input meter, `ActivationLevel`,
 | Key | Meaning | Default |
 | --- | --- | --- |
 | `Mode` | `PushToTalk`, heard while `[Controls] Microphone` is held, or `VoiceActivation`, heard while speaking ([Voice chat](voice-chat.md#activation)) | `PushToTalk` |
-| `ActivationLevel` | The input level at which voice activation opens, `0..100` on the meter's scale, 0 at -60 dBFS and 100 at full scale; the settings window shows it only with `VoiceActivation` | `35` |
+| `ActivationLevel` | The input level at which voice activation opens, `0..100` on the meter's scale, 0 at -60 dBFS and 100 at full scale; the settings window shows it only with `VoiceActivation` | `25` |
 | `InputDevice`, `OutputDevice` | The capture and playback devices by their system names, as the settings window lists them; empty is the system's default device. A name no device has logs a warning and uses the default | empty |
 | `InputVolume` | How loud the microphone is sent, `50..150` percent in steps of `5`; the gain is 1.4 times its square ([Voice chat](voice-chat.md#capture-and-encoding)) | `100` |
 | `NoiseSuppression` | Runs the microphone through RNNoise before encoding, and lets voice activation open only on speech | `true` |
-| `OutputVolume` | Gain on other players' voices in percent, `0..200` in steps of `5` | `100` |
+| `OutputVolume` | Gain on other players' voices in percent, `0..150` in steps of `5` | `100` |
 | `Indicator` | Shows the microphone on the screen while the player is heard ([UI overlay](ui-overlay.md#voice-chat)) | `true` |
 | `IndicatorPositionHorizontal` | Distance of the microphone's left edge from the screen's left edge in percent of the screen's width, `0..100` with any fraction; the microphone stays wholly on the screen. The settings window shows it only with `Indicator` on | `1` |
-| `IndicatorPositionVertical` | Distance of the microphone's bottom edge from the screen's bottom edge in percent of the screen's height, `0..100` with any fraction; the default is under the chat's default place. Shown as the horizontal position is | `5` |
+| `IndicatorPositionVertical` | Distance of the microphone's bottom edge from the screen's bottom edge in percent of the screen's height, `0..100` with any fraction; the default is under the chat's default place. Shown as the horizontal position is | `2` |
 
 ### `[Advanced]`
 
