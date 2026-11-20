@@ -38,11 +38,15 @@ namespace UI
 
         std::optional<Text::Id> GetRefusalNotice(Network::RefusalReason a_reason)
         {
-            if (a_reason == Network::RefusalReason::kAddressFull)
+            switch (a_reason)
             {
-                return Text::Id::kNoticeRefusedAddressFull;
+                case Network::RefusalReason::kAddressFull:
+                    return Text::Id::kNoticeRefusedAddressFull;
+                case Network::RefusalReason::kClientOutdated:
+                    return Text::Id::kNoticeRefusedClientOutdated;
+                default:
+                    return std::nullopt;
             }
-            return std::nullopt;
         }
 
         struct Toast

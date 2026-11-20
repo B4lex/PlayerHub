@@ -769,8 +769,12 @@ msgid "Disconnected from the server"
 msgstr "Disconnesso dal server"
 
 msgctxt "NoticeRefusedAddressFull"
-msgid "Not connected: too many players from your IP address are on this server"
-msgstr "Non connesso: troppi giocatori dal tuo indirizzo IP sono su questo server"
+msgid "Too many players from your IP address are on this server"
+msgstr "Troppi giocatori dal tuo indirizzo IP sono su questo server"
+
+msgctxt "NoticeRefusedClientOutdated"
+msgid "You are running an outdated version of PlayerHub and need to update it to connect"
+msgstr "Stai usando una versione obsoleta di PlayerHub e devi aggiornarla per connetterti"
 
 
 #. {} is a player's name

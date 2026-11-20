@@ -902,14 +902,17 @@ action on a notice. What answers the chat's own input is a
   `GameSession::IsInGame` does not hold, as when the player leaves for the
   main menu, is not announced.
 - `NoticeStack` also announces a `kAddressFull`
-  ([Network](network.md#admission)) refusal when
+  ([Network](network.md#admission)) or `kClientOutdated` refusal when
   `Network::GetConnectionRefusal` starts returning it (`GetRefusalNotice`),
-  since it can refuse a reconnect the player did not start, with the
-  settings window closed. Like every refusal it waits for Connect
-  ([Connection controls](#connection-controls)). Other refusals, `kBanned`
-  included, show only in the connection controls, and `kKicked` only as the
-  end of the connection. A refusal cleared and set again between two frames
-  the stack draws is announced once.
+  since either can refuse a connection while the settings window is closed:
+  `kAddressFull` a reconnect the player did not start, `kClientOutdated` the
+  connect at a game start (`[Connection] ConnectAutomatically`). The
+  `kClientOutdated` notice tells the player their version of the mod is
+  outdated and that they must update it to connect. Like every refusal it waits for Connect
+  ([Connection controls](#connection-controls)). Other refusals, `kBanned` and
+  `kServerOutdated` included, show only in the connection controls, and
+  `kKicked` only as the end of the connection. A refusal cleared and set again
+  between two frames the stack draws is announced once.
 - Every notice is its own toast, a repeat too. Notices, [notes](#notes), and
   a trade row's reason share their texts: a chat rejection is a note or a
   notice depending on whether the chat is open, and a reason is both the item
