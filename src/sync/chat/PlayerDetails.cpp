@@ -64,7 +64,7 @@ namespace PlayerDetails
             {
                 return;
             }
-            if (s_requestedSession != 0 && (a_details.level != 0 || a_details.place))
+            if (s_requestedSession != 0 && a_details.answered)
             {
                 auto& known = s_known[s_requestedSession];
                 known = a_details;
@@ -119,10 +119,13 @@ namespace PlayerDetails
             const auto& checkpoint = newest ? *newest : a_peer->playout.GetPlayed();
             logs::debug("Player details from the remote actor: player={} level={} location={}|{:06X}", a_playerID,
                 appearance.level, checkpoint.location.plugin, checkpoint.location.localFormID);
+            // A player with an actor is in the world.
+            auto place = GetPlaceName(checkpoint.interiorCell, checkpoint.worldspace, checkpoint.location);
             Publish(a_playerID,
                 Details{ .level = appearance.level,
-                    .place = GetPlaceName(checkpoint.interiorCell, checkpoint.worldspace, checkpoint.location),
-                    .inTradeRange = IsInTradeRange(*a_peer) });
+                    .place = std::move(place).value_or(""),
+                    .inTradeRange = IsInTradeRange(*a_peer),
+                    .answered = true });
             return;
         }
         const bool requested = Network::RequestInspection(a_playerID);
@@ -145,7 +148,8 @@ namespace PlayerDetails
                 inspection.level, inspection.location.plugin, inspection.location.localFormID);
             Publish(inspection.playerID,
                 Details{ .level = inspection.level,
-                    .place = GetPlaceName(inspection.interiorCell, inspection.worldspace, inspection.location) });
+                    .place = GetPlaceName(inspection.interiorCell, inspection.worldspace, inspection.location),
+                    .answered = true });
         }
     }
 }

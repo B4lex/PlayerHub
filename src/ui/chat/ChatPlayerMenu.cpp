@@ -35,9 +35,13 @@ namespace UI
 
         std::string FormatPlace(const PlayerDetails::Details& a_details)
         {
-            if (!a_details.place)
+            if (!a_details.answered)
             {
                 return {};
+            }
+            if (!a_details.place)
+            {
+                return std::string{ Text::Get(Id::kPlayerMenuOutOfWorld) };
             }
             return a_details.place->empty() ? std::string{ Text::Get(Id::kPlayerMenuUnknownPlace) } : *a_details.place;
         }
@@ -94,11 +98,11 @@ namespace UI
         {
             if (const auto found = PlayerDetails::Find(player.playerID))
             {
-                // An empty answer, such as one without a connection, keeps the known details.
-                if (auto text = FormatLevel(*found), where = FormatPlace(*found); !text.empty() || !where.empty())
+                // The empty answer given without a connection keeps the known details.
+                if (found->answered)
                 {
-                    level = std::move(text);
-                    place = std::move(where);
+                    level = FormatLevel(*found);
+                    place = FormatPlace(*found);
                 }
                 inTradeRange = found->inTradeRange;
                 pending = false;

@@ -17,10 +17,11 @@ namespace PlayerDetails
     {
         std::uint16_t level{ 0 };
         // Where the player is; empty when the place is not in the local load order, unset when
-        // the player has none.
+        // the player is out of the world.
         std::optional<std::string> place;
         // Whether the player's character is near enough in the local world to trade.
         bool inTradeRange{ false };
+        bool answered{ false };
     };
 
     void Request(Multiplayer::PeerSlot a_playerID, Multiplayer::SessionID a_session);

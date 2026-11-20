@@ -1560,9 +1560,9 @@ while the menu is open.
   secondary size (`kSecondaryTextScale`), none at level zero. Below come the
   player's [role](#roles) badge when it has one and a line naming the
   player's place after the [logo](#logo) font's location pin, or that the
-  place is unknown when it does not resolve locally; there is no place line
-  for a player outside the world. The items follow. Whisper is disabled for a
-  player without a slot, which only an offline row in the
+  place is unknown when it does not resolve locally, or that the player is
+  out of the world (`kPlayerMenuOutOfWorld`). The items follow. Whisper is
+  disabled for a player without a slot, which only an offline row in the
   [player manager](#player-manager) opens the menu for.
 - `Open` asks `PlayerDetails` (`sync/chat/`) for the player's slot,
   replacing any earlier request. The next pass serves it on the game thread
@@ -1571,7 +1571,8 @@ while the menu is open.
   appearance; any other player, the local player included, is asked of the
   server with `Network::RequestInspection`
   ([Network](network.md#inspection)), since an appearance kept after a peer
-  left range may be old. Without a connection the answer is empty.
+  left range may be old. Without a connection the answer is empty
+  (`Details::answered` false).
 - The level is `Appearance.level`, zero before the player sent an
   appearance.
 - The place (`Details::place`) comes from the player's latest context
@@ -1581,14 +1582,17 @@ while the menu is open.
   and the worldspace, each resolved with `FormLookup::ResolveForm` to its
   form type, so an exterior is named by its location and an unnamed
   interior or location falls back to the next. None resolving, as when the
-  player's plugins are not loaded, gives an empty name, shown as unknown;
-  no reference at all leaves `place` unset.
+  player's plugins are not loaded, gives an empty name, shown as unknown.
+  An `Inspection` without any reference, which the server sends for a
+  player outside the world, leaves `place` unset, shown as out of the world;
+  so is the answer for a slot the server no longer holds. A peer with an
+  actor is in the world, so its checkpoint never leaves `place` unset.
 - The local answer also says whether the player's character is near
   enough to trade (`Details::inTradeRange`, [Trade](trade.md#invitation)); a
   server answer never is, since a player without a character is not near.
 - `PlayerDetails` keeps only the latest request, with its slot and session,
   and its answer, under one lock; an answer for another slot is dropped. It
-  also keeps the level and place of each answer that has either, by the
+  also keeps the level and place of each non-empty answer, by the
   requested player's session (`FindKnown`), for the rest of the run. A
   session survives reconnects, so a reused slot never shows another
   player's details.

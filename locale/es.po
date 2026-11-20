@@ -933,6 +933,11 @@ msgctxt "PlayerMenuUnknownPlace"
 msgid "Unknown"
 msgstr "Desconocido"
 
+#. The player's place, when the player is not in the game world, as at the main menu or while loading
+msgctxt "PlayerMenuOutOfWorld"
+msgid "Out of world"
+msgstr "Fuera del mundo"
+
 msgctxt "PlayerMenuWhisper"
 msgid "Whisper"
 msgstr "Susurrar"
