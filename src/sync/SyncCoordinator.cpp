@@ -577,14 +577,14 @@ namespace SyncCoordinator
         ActorLifecycle::RefillSpawnAllowance(a_delta);
         if (!a_player)
         {
-            VoiceChatSync::UpdateLocal(false);
+            VoiceChatSync::UpdateLocal(nullptr, false);
             return;
         }
 
         YieldActivatedFurniture(s_peers, *a_player);
         OpenActivatedPlayerMenu(s_peers);
         const bool inWorld = PresenceSync::SyncPresence(LocalFrame{ .player = *a_player });
-        VoiceChatSync::UpdateLocal(inWorld);
+        VoiceChatSync::UpdateLocal(a_player, inWorld);
         if (inWorld)
         {
             SyncLocalPlayer(*a_player, a_delta);

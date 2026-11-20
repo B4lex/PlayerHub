@@ -1,4 +1,5 @@
 #include "audio/VoiceMixer.h"
+#include "audio/SpeechLevel.h"
 
 #include <opus/opus.h>
 
@@ -45,10 +46,6 @@ namespace Audio
         // Smoothing towards the game thread's parameters per sample, about 20 ms, so a step
         // does not click.
         constexpr float kParameterSmoothing = 1.0F / 960.0F;
-        constexpr float kLevelFloorDecibels = -50.0F;
-        constexpr float kLevelRangeDecibels = 40.0F;
-        constexpr float kLevelRelease = 0.75F;
-        constexpr float kSilentLevel = 0.01F;
         constexpr float kLimiterKnee = 0.9F;
 
         float CutoffCoefficient(float a_hertz)
@@ -304,24 +301,12 @@ namespace Audio
             }
             read = 0;
 
-            float sum = 0.0F;
-            for (const auto sample : pcm)
-            {
-                sum += sample * sample;
-            }
-            const auto decibels
-                = 10.0F * std::log10((std::max)(sum / static_cast<float>(pcm.size()), 1e-10F));
-            const auto frameLevel = std::clamp((decibels - kLevelFloorDecibels) / kLevelRangeDecibels, 0.0F, 1.0F);
-            playbackLevel = (std::max)(frameLevel, playbackLevel * kLevelRelease);
+            playbackLevel = SpeechLevel::Follow(playbackLevel, SpeechLevel::Measure(pcm));
         }
 
         void Release()
         {
-            playbackLevel *= kLevelRelease;
-            if (playbackLevel < kSilentLevel)
-            {
-                playbackLevel = 0.0F;
-            }
+            playbackLevel = SpeechLevel::Release(playbackLevel);
         }
 
         // Under the lock.

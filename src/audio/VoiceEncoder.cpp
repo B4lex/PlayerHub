@@ -1,4 +1,5 @@
 #include "audio/VoiceEncoder.h"
+#include "audio/SpeechLevel.h"
 
 #include <opus/opus.h>
 #include <rnnoise.h>
@@ -109,6 +110,8 @@ namespace Audio
         limiterGain = 1.0F;
         meter = 0.0F;
         level.store(0.0F, std::memory_order_relaxed);
+        sentLevel = 0.0F;
+        sentLevelShown.store(0.0F, std::memory_order_relaxed);
     }
 
     void VoiceEncoder::ProcessChunk(bool a_allowed, bool a_pushToTalk)
@@ -196,13 +199,20 @@ namespace Audio
                 }
             }
             Encode(frame, false);
+            sentLevel = SpeechLevel::Follow(sentLevel, SpeechLevel::Measure(frame));
         }
         else if (transmitting)
         {
             transmitting = false;
             Encode(frame, true);
+            sentLevel = SpeechLevel::Follow(sentLevel, SpeechLevel::Measure(frame));
+        }
+        else
+        {
+            sentLevel = SpeechLevel::Release(sentLevel);
         }
         transmittingShown.store(transmitting, std::memory_order_relaxed);
+        sentLevelShown.store(sentLevel, std::memory_order_relaxed);
         previous = frame;
         hasPrevious = true;
     }

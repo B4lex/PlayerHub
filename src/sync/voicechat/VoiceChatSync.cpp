@@ -47,6 +47,7 @@ namespace VoiceChatSync
         Audio::Settings s_settings;
         bool s_configured = false;
         bool s_inWorld = false;
+        bool s_localMouthOpen = false;
 
         std::vector<Audio::Speaker> s_speakers;
         std::vector<Audio::SpeakerLevel> s_levels;
@@ -146,9 +147,24 @@ namespace VoiceChatSync
             !settings.voiceActivation && KeyState::IsHeld(config->controls.microphoneKey));
     }
 
-    void UpdateLocal(bool a_inWorld)
+    void UpdateLocal(RE::PlayerCharacter* a_player, bool a_inWorld)
     {
         s_inWorld = a_inWorld;
+        if (!a_player)
+        {
+            return;
+        }
+        const auto level = a_inWorld ? Audio::GetSentLevel() : 0.0F;
+        if (level > kSpeakingLevel)
+        {
+            ActorLipSync::Apply(*a_player, level);
+            s_localMouthOpen = true;
+        }
+        else if (s_localMouthOpen)
+        {
+            ActorLipSync::Apply(*a_player, 0.0F);
+            s_localMouthOpen = false;
+        }
     }
 
     void UpdatePeers(std::unordered_map<Multiplayer::PeerSlot, PeerState>& a_peers, RE::PlayerCharacter& a_player,

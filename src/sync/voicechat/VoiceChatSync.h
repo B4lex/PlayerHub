@@ -50,10 +50,10 @@ namespace VoiceChatSync
     // the connection, and the microphone key's state reaches the capture thread.
     void Maintain();
 
-    // Each pass with a player.
-    void UpdateLocal(bool a_inWorld);
+    // Each pass: whether the player may be heard, and the player's lip sync.
+    void UpdateLocal(RE::PlayerCharacter* a_player, bool a_inWorld);
 
-    // Each pass, after every peer is synced: where each speaker is heard, occlusion, lip sync.
+    // Each pass, after every peer is synced: where each speaker is heard, occlusion, peers' lip sync.
     void UpdatePeers(std::unordered_map<Multiplayer::PeerSlot, PeerState>& a_peers, RE::PlayerCharacter& a_player,
         RE::TESObjectCELL& a_cell, float a_delta);
 

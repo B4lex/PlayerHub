@@ -106,11 +106,11 @@ ApplyNetworkChanges                       # the one drain; trade events queued
 ServePlayerDetails                        # the open player menu's level and place
 PlayCheckpoints                           # each peer's due checkpoints play
 ActorLifecycle::RefillSpawnAllowance
-if no player: VoiceChatSync::UpdateLocal(false), return
+if no player: VoiceChatSync::UpdateLocal(nullptr, false), return
 YieldActivatedFurniture                   # queued local furniture activations
 OpenActivatedPlayerMenu                   # the latest activated remote actor's player menu
 inWorld = PresenceSync::SyncPresence
-VoiceChatSync::UpdateLocal(inWorld)           # the player is heard only in the world
+VoiceChatSync::UpdateLocal(player, inWorld)   # heard only in the world; the player's lip sync
 if inWorld:
     ShapeshiftSync::ObserveLocalForm       # the local beast form, for the graph input hook
     CombatSync::CaptureLocalAttack         # dropped in a beast form

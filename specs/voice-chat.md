@@ -219,11 +219,19 @@ cave echoes as the cave's NPCs do, and outdoors stays dry.
 
 ## Speaking levels and lip sync
 
-- Each decoded frame's RMS, mapped from -50..-10 dBFS to 0..1, rises at once
-  and falls a quarter per frame. `VoiceChatSync` copies levels once per pass;
-  `IsSpeaking` is a level above 0.05, for nameplates and the player list.
+- `audio/SpeechLevel` maps a 20 ms frame's RMS from -50..-10 dBFS to 0..1; the
+  level rises at once and falls a quarter per frame. The mixer measures each
+  decoded frame. `VoiceChatSync` copies levels once per pass; `IsSpeaking` is a
+  level above 0.05, for nameplates and the player list.
 - A speaking peer's level opens its character's mouth through `ActorLipSync`;
   it closes when the peer stops. No phoneme analysis.
+- The player's own character moves its mouth the same way, so the player sees
+  it as peers do. `VoiceEncoder` measures each frame it sends on the same scale
+  and releases the level between spurts (`Audio::GetSentLevel`, 0 while the
+  microphone is closed). `VoiceChatSync::UpdateLocal` applies it to the player
+  each pass in the world and closes the mouth once when it falls to 0.05 or the
+  player leaves the world. A menu that pauses the game holds the mouth where it
+  was, since the pass does not run.
 
 ## Devices
 
@@ -283,7 +291,8 @@ otherwise. A listener receives about the same per speaker heard
 6. A player whose UDP is blocked is told in the settings window, holds no
    audio device open, and gets voice without reconnecting once datagrams pass.
 7. A speaker shows the speaking glyph on its nameplate and in the player list,
-   and its character's mouth moves.
+   and its character's mouth moves, on peers' screens and, in third person, on
+   the speaker's own.
 8. Changing a device applies without a restart; a disconnected game holds no
    audio device open.
 9. Inside a reverberant interior, such as a cave or a stone hall, a voice
@@ -297,6 +306,9 @@ otherwise. A listener receives about the same per speaker heard
 
 - No echo cancellation: a player on speakers may be heard twice.
 - Lip sync follows loudness, not phonemes.
+- Lip sync writes the `Aah` and `BigAah` phonemes every pass while the player
+  speaks and zeroes them after, overriding an expression mod that drives the
+  player's phonemes in that time.
 - The reverb is the listener's room, as for the game's own sounds: a speaker
   in a cave is heard dry by a listener outside it.
 - The reverb's I3DL2 density is not used, since the line lengths stay fixed;

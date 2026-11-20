@@ -388,6 +388,12 @@ namespace Audio
         return engine.inputOpen.load(std::memory_order_acquire) && engine.encoder.IsTransmitting();
     }
 
+    float GetSentLevel()
+    {
+        auto& engine = GetEngine();
+        return engine.inputOpen.load(std::memory_order_acquire) ? engine.encoder.GetSentLevel() : 0.0F;
+    }
+
     bool IsInputOpen()
     {
         return GetEngine().inputOpen.load(std::memory_order_acquire);

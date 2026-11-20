@@ -43,6 +43,8 @@ namespace Audio
         // suppression and before the gain.
         [[nodiscard]] float GetLevel() const { return level.load(std::memory_order_relaxed); }
         [[nodiscard]] bool IsTransmitting() const { return transmittingShown.load(std::memory_order_relaxed); }
+        // The sent frames' level as a receiver measures it (SpeechLevel), falling after the spurt.
+        [[nodiscard]] float GetSentLevel() const { return sentLevelShown.load(std::memory_order_relaxed); }
 
     private:
         static constexpr std::size_t kChunkSamples = 480;
@@ -58,6 +60,7 @@ namespace Audio
         std::atomic<float> activationLevel{ 0.35F };
         std::atomic<float> level{ 0.0F };
         std::atomic_bool transmittingShown{ false };
+        std::atomic<float> sentLevelShown{ 0.0F };
 
         OpusEncoder* encoder{ nullptr };
         DenoiseState* denoiser{ nullptr };
@@ -75,6 +78,7 @@ namespace Audio
         std::size_t activationHold{ 0 };
         std::size_t pushToTalkHold{ 0 };
         bool transmitting{ false };
+        float sentLevel{ 0.0F };
         std::uint16_t sequence{ 0 };
     };
 }

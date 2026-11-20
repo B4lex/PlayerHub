@@ -582,7 +582,8 @@ light budget` logs the limit and counts whenever they change.
 ## Voice
 
 [Voice chat](voice-chat.md) calls these on the game thread
-(`GameThread::Require`) from `VoiceChatSync::UpdatePeers`:
+(`GameThread::Require`) from `VoiceChatSync::UpdatePeers`, and `ActorLipSync`
+also on the player from `VoiceChatSync::UpdateLocal`:
 
 - `ActorLipSync::Apply` takes an openness from 0 to 1 and writes `Aah` (0.75 of
   it) and `BigAah` (0.45 of its square) in the actor's

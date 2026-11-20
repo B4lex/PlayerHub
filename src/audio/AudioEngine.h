@@ -49,6 +49,8 @@ namespace Audio
 
     [[nodiscard]] float GetInputLevel();
     [[nodiscard]] bool IsTransmitting();
+    // The level of the voice being sent, 0 to 1, on the scale of SpeakerLevel.
+    [[nodiscard]] float GetSentLevel();
     // Whether the active devices opened; false while inactive.
     [[nodiscard]] bool IsInputOpen();
     [[nodiscard]] bool IsOutputOpen();
