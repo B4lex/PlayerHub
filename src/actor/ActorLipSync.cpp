@@ -11,11 +11,12 @@ namespace ActorLipSync
 
         // Aah opens the jaw and BigAah the lips around it; together they read as speech at a distance
         // without a phoneme analysis of the voice.
-        constexpr float kAahWeight = 0.75F;
-        constexpr float kBigAahWeight = 0.45F;
+        constexpr float kAahWeight = 0.8F;
+        constexpr float kBigAahWeight = 0.5F;
+        constexpr float kGain = 1.2F;
     }
 
-    void Apply(RE::Actor& a_actor, float a_openness)
+    void Apply(RE::Actor& a_actor, float a_level)
     {
         if (!GameThread::Require("ActorLipSync::Apply"))
         {
@@ -26,7 +27,7 @@ namespace ActorLipSync
         {
             return;
         }
-        const auto openness = std::clamp(a_openness, 0.0F, 1.0F);
+        const auto openness = std::clamp(a_level * kGain, 0.0F, 1.0F);
         // The face update reads the keyframes under this lock on its own thread.
         RE::BSSpinLockGuard guard{ face->lock };
         auto& phonemes = face->phenomeKeyFrame;
