@@ -1,5 +1,6 @@
 #include "config/SettingsSchema.h"
 #include "protocol/Session.h"
+#include "runtime/KeyState.h"
 #include "text/AsciiCase.h"
 #include "text/Text.h"
 
@@ -16,6 +17,7 @@ namespace Config
     {
         using Multiplayer::FormReference;
         using KeyboardKey = RE::BSKeyboardDevice::Key;
+        using MouseKey = RE::BSWin32MouseDevice::Key;
         using Text::Id;
 
         // DIK_OEM_102, the key between left Shift and Z on ISO keyboards.
@@ -52,12 +54,12 @@ namespace Config
             std::string_view name;
             // Scan codes are physical positions; a label is what a US layout prints there.
             std::string_view label;
-            std::uint32_t scanCode;
+            std::uint32_t code;
             // Replaces the label for keys named by a word.
             Id word{ Id::kNone };
         };
 
-        constexpr std::array<BindableKey, 91> kBindableKeys{ {
+        constexpr std::array<BindableKey, 97> kBindableKeys{ {
             { "F1", "F1", KeyboardKey::kF1 },
             { "F2", "F2", KeyboardKey::kF2 },
             { "F3", "F3", KeyboardKey::kF3 },
@@ -149,11 +151,17 @@ namespace Config
             { "NumpadMultiply", "Num *", KeyboardKey::kKP_Multiply },
             { "NumpadDivide", "Num /", KeyboardKey::kKP_Divide },
             { "NumpadEnter", "Num Enter", KeyboardKey::kKP_Enter, Id::kKeyNumpadEnter },
+            { "Mouse3", "Middle Mouse", KeyState::FromMouse(MouseKey::kMiddleButton), Id::kKeyMouseMiddle },
+            { "Mouse4", "Mouse 4", KeyState::FromMouse(MouseKey::kButton3), Id::kKeyMouse4 },
+            { "Mouse5", "Mouse 5", KeyState::FromMouse(MouseKey::kButton4), Id::kKeyMouse5 },
+            { "Mouse6", "Mouse 6", KeyState::FromMouse(MouseKey::kButton5), Id::kKeyMouse6 },
+            { "Mouse7", "Mouse 7", KeyState::FromMouse(MouseKey::kButton6), Id::kKeyMouse7 },
+            { "Mouse8", "Mouse 8", KeyState::FromMouse(MouseKey::kButton7), Id::kKeyMouse8 },
         } };
 
-        const BindableKey* FindKey(std::uint32_t a_scanCode)
+        const BindableKey* FindKey(std::uint32_t a_key)
         {
-            const auto key = std::ranges::find(kBindableKeys, a_scanCode, &BindableKey::scanCode);
+            const auto key = std::ranges::find(kBindableKeys, a_key, &BindableKey::code);
             return key == kBindableKeys.end() ? nullptr : &*key;
         }
 
@@ -626,18 +634,18 @@ namespace Config
     {
         const auto key = std::ranges::find_if(
             kBindableKeys, [a_value](const BindableKey& a_key) { return AsciiCase::Equals(a_key.name, a_value); });
-        return key == kBindableKeys.end() ? std::nullopt : std::optional{ key->scanCode };
+        return key == kBindableKeys.end() ? std::nullopt : std::optional{ key->code };
     }
 
-    std::string_view FormatKey(std::uint32_t a_scanCode)
+    std::string_view FormatKey(std::uint32_t a_key)
     {
-        const auto* key = FindKey(a_scanCode);
+        const auto* key = FindKey(a_key);
         return key ? key->name : std::string_view{};
     }
 
-    std::string_view FormatKeyLabel(std::uint32_t a_scanCode)
+    std::string_view FormatKeyLabel(std::uint32_t a_key)
     {
-        const auto* key = FindKey(a_scanCode);
+        const auto* key = FindKey(a_key);
         if (!key)
         {
             return {};

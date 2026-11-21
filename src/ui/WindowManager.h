@@ -20,7 +20,7 @@ namespace UI::WindowManager
     [[nodiscard]] bool FocusedWindowUsesTab();
     [[nodiscard]] std::optional<ScreenPoint> GetFocusedCursorStart();
 
-    [[nodiscard]] bool FocusByKey(std::uint32_t a_scanCode);
+    [[nodiscard]] bool FocusByKey(std::uint32_t a_key);
 
     [[nodiscard]] bool Focus(const Window& a_window);
 
@@ -34,9 +34,9 @@ namespace UI::WindowManager
     // Takes focus from any other window, as a window the player must see now does.
     bool TakeFocus(const Window& a_window);
 
-    [[nodiscard]] bool ReleaseFocusByKey(std::uint32_t a_scanCode);
+    [[nodiscard]] bool ReleaseFocusByKey(std::uint32_t a_key);
 
-    [[nodiscard]] bool CaptureKey(std::uint32_t a_scanCode);
+    [[nodiscard]] bool CaptureKey(std::uint32_t a_key);
 
     void ReleaseFocus(const Window& a_window);
 

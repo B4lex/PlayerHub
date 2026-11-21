@@ -114,7 +114,7 @@ namespace Config
 
     struct ControlsSettings
     {
-        // DirectInput scan codes.
+        // KeyState key codes.
         std::uint32_t settingsKey{ 0 };
         std::uint32_t chatKey{ 0 };
         std::uint32_t playersKey{ 0 };

@@ -83,22 +83,22 @@ namespace UI::WindowManager
         return focused ? focused->GetCursorStart() : std::nullopt;
     }
 
-    bool FocusByKey(std::uint32_t a_scanCode)
+    bool FocusByKey(std::uint32_t a_key)
     {
         for (const auto& window : s_windows)
         {
-            if (!window->IsFocusKey(a_scanCode))
+            if (!window->IsFocusKey(a_key))
             {
                 continue;
             }
             const std::scoped_lock lock{ s_focusLock };
             const auto* focused = s_focused.load(std::memory_order_acquire);
-            if (focused && !(focused->LendsFocus() && window->IsBorrowKey(a_scanCode)))
+            if (focused && !(focused->LendsFocus() && window->IsBorrowKey(a_key)))
             {
                 return false;
             }
             // Before focus is published, so the window never draws focused without its key.
-            window->OnFocusKey(a_scanCode);
+            window->OnFocusKey(a_key);
             Publish(window.get(), focused);
             return true;
         }
@@ -142,11 +142,11 @@ namespace UI::WindowManager
             || s_lender.load(std::memory_order_acquire) == &a_window;
     }
 
-    bool ReleaseFocusByKey(std::uint32_t a_scanCode)
+    bool ReleaseFocusByKey(std::uint32_t a_key)
     {
         const std::scoped_lock lock{ s_focusLock };
         const auto* focused = s_focused.load(std::memory_order_acquire);
-        if (!focused || !focused->IsReleaseKey(a_scanCode))
+        if (!focused || !focused->IsReleaseKey(a_key))
         {
             return false;
         }
@@ -154,7 +154,7 @@ namespace UI::WindowManager
         return true;
     }
 
-    bool CaptureKey(std::uint32_t a_scanCode)
+    bool CaptureKey(std::uint32_t a_key)
     {
         const auto* focused = s_focused.load(std::memory_order_acquire);
         if (!focused || !focused->CapturesKeys())
@@ -165,7 +165,7 @@ namespace UI::WindowManager
         {
             if (window.get() == focused)
             {
-                window->OnCapturedKey(a_scanCode);
+                window->OnCapturedKey(a_key);
                 return true;
             }
         }

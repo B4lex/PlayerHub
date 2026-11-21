@@ -586,6 +586,30 @@ msgctxt "KeyNumpadEnter"
 msgid "Num Enter"
 msgstr "Num Entrée"
 
+msgctxt "KeyMouseMiddle"
+msgid "Middle Mouse"
+msgstr "Bouton central"
+
+msgctxt "KeyMouse4"
+msgid "Mouse 4"
+msgstr "Souris 4"
+
+msgctxt "KeyMouse5"
+msgid "Mouse 5"
+msgstr "Souris 5"
+
+msgctxt "KeyMouse6"
+msgid "Mouse 6"
+msgstr "Souris 6"
+
+msgctxt "KeyMouse7"
+msgid "Mouse 7"
+msgstr "Souris 7"
+
+msgctxt "KeyMouse8"
+msgid "Mouse 8"
+msgstr "Souris 8"
+
 msgctxt "SettingsBrand"
 msgid "Multiplayer"
 msgstr "Multijoueur"

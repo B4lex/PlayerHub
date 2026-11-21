@@ -263,11 +263,11 @@ namespace UI
 
             [[nodiscard]] bool CapturesKeys() const { return keyCapture.active.load(std::memory_order_acquire); }
 
-            void OnCapturedKey(std::uint32_t a_scanCode)
+            void OnCapturedKey(std::uint32_t a_key)
             {
                 // Keeps the first key until the overlay takes it; later ones are dropped.
                 std::uint32_t none = 0;
-                keyCapture.pressed.compare_exchange_strong(none, a_scanCode, std::memory_order_acq_rel);
+                keyCapture.pressed.compare_exchange_strong(none, a_key, std::memory_order_acq_rel);
             }
 
             void DrawNavigation()
@@ -743,8 +743,7 @@ namespace UI
 
             static bool IsAnyMouseClicked()
             {
-                return ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right)
-                    || ImGui::IsMouseClicked(ImGuiMouseButton_Middle);
+                return ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right);
             }
 
             bool DrawKeyButton(std::string_view a_text, bool a_capturing)
@@ -801,18 +800,18 @@ namespace UI
                 {
                     return;
                 }
-                const auto scanCode = keyCapture.pressed.exchange(0, std::memory_order_acq_rel);
-                if (scanCode == 0)
+                const auto pressed = keyCapture.pressed.exchange(0, std::memory_order_acq_rel);
+                if (pressed == 0)
                 {
                     return;
                 }
                 const auto binding = std::ranges::find(bindings, capturingKey, &KeyBinding::name);
-                if (scanCode == kEscapeScanCode || binding == bindings.end())
+                if (pressed == kEscapeScanCode || binding == bindings.end())
                 {
                     StopKeyCapture();
                     return;
                 }
-                const auto key = scanCode == kBackspaceScanCode ? binding->cleared : scanCode;
+                const auto key = pressed == kBackspaceScanCode ? binding->cleared : pressed;
                 if (*binding->value == key)
                 {
                     StopKeyCapture();
@@ -1098,16 +1097,16 @@ namespace UI
             {
             }
 
-            [[nodiscard]] bool IsFocusKey(std::uint32_t a_scanCode) const override
+            [[nodiscard]] bool IsFocusKey(std::uint32_t a_key) const override
             {
-                return a_scanCode == Config::Get()->controls.settingsKey;
+                return a_key == Config::Get()->controls.settingsKey;
             }
 
-            [[nodiscard]] bool IsReleaseKey(std::uint32_t a_scanCode) const override { return IsFocusKey(a_scanCode); }
+            [[nodiscard]] bool IsReleaseKey(std::uint32_t a_key) const override { return IsFocusKey(a_key); }
 
             [[nodiscard]] bool CapturesKeys() const override { return editor.CapturesKeys(); }
 
-            void OnCapturedKey(std::uint32_t a_scanCode) override { editor.OnCapturedKey(a_scanCode); }
+            void OnCapturedKey(std::uint32_t a_key) override { editor.OnCapturedKey(a_key); }
 
             [[nodiscard]] bool UsesMouse() const override { return true; }
 

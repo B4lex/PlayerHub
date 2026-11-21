@@ -555,8 +555,11 @@ as glyphs of the [logo font](#logo).
 At most one window holds input focus. While one does, ImGui receives the
 keyboard and the game receives no keyboard or mouse input.
 
-- A window names its focus keys with `Window::IsFocusKey` (DirectInput scan
-  codes). `InputCapture` gives it focus when such a key is pressed during
+- A window names its focus keys with `Window::IsFocusKey` (`KeyState` key
+  codes, [Configuration](configuration.md#controls)). The middle and side
+  mouse buttons (`kMiddleButton` to `kButton7`) act as keys for focus,
+  release, and capture, the same as keyboard keys; left, right, and the wheel
+  never do. `InputCapture` gives it focus when such a key is pressed during
   gameplay with no window focused, and the game never sees that press. The key
   is inert until the overlay has drawn once.
 - Gameplay means the game is not paused and `kGameplay` is the active input
@@ -603,16 +606,16 @@ keyboard and the game receives no keyboard or mouse input.
   punctuation, Space, the numpad), goes to a text field instead while one is
   active (`io.WantTextInput` as of the overlay's latest frame), so it still
   edits.
-- Every keyboard press and release the dispatch routes is also recorded in
-  `KeyState` ([Sync pipeline](sync-pipeline.md#components)), whoever owns the
-  key, for [voice chat](voice-chat.md#activation)'s microphone key; a press
-  that edits an active text field is not, and a release always is. Nothing is
-  taken from the game or a window by it.
+- Every keyboard and mouse button press and release the dispatch routes is
+  also recorded in `KeyState` ([Sync pipeline](sync-pipeline.md#components)),
+  whoever owns the key, for [voice chat](voice-chat.md#activation)'s
+  microphone key; a key press that edits an active text field is not, and a
+  release always is. Nothing is taken from the game or a window by it.
 - While the focused window returns true from `Window::CapturesKeys`, each
-  keyboard key pressed goes to its `Window::OnCapturedKey`, on the input
-  thread, ahead of release keys, and neither ImGui nor the game sees the
-  press. The [settings window](#key-bindings) so binds its own release key
-  and Escape.
+  key pressed, mouse buttons included, goes to its `Window::OnCapturedKey`,
+  on the input thread, ahead of release keys, and neither ImGui nor the game
+  sees the press. The [settings window](#key-bindings) so binds its own
+  release key and Escape.
 - `InputCapture` replaces the `call` at `+0x7B` in
   `BSInputDeviceManager::PollInputDevices` (IDs 67315/68617), which is
   `BSTEventSource<InputEvent*>::SendEvent(this, &head)` on 1.7.104 and feeds the
@@ -2044,9 +2047,10 @@ by pressing it, as games' control menus do.
 - A row's button shows its key's label, or that it is unbound. A click on
   it, on the press, makes it listen, which the button shows in the accent.
   Nothing is added under it, so the rows below stay in place.
-- The next key pressed is bound and applied at once, and listening ends.
-  Escape, the key it already has, and any mouse click end it without a
-  change; a click on another key's button makes that one listen instead.
+- The next key or middle or side mouse button pressed is bound and applied
+  at once, and listening ends. Escape, the key it already has, and a left or
+  right click end it without a change; a click on another key's button makes
+  that one listen instead.
 - Backspace unbinds the action and applies at once; on an unbound action it
   ends listening without a change. `OpenSettings` and `OpenChat` are the only
   ways to open their windows, so Backspace there restores the default,

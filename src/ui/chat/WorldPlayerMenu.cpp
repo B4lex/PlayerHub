@@ -18,16 +18,16 @@ namespace UI
         class WorldPlayerMenu final : public Window
         {
         public:
-            [[nodiscard]] bool IsReleaseKey(std::uint32_t a_scanCode) const override
+            [[nodiscard]] bool IsReleaseKey(std::uint32_t a_key) const override
             {
-                if (a_scanCode == RE::BSKeyboardDevice::Key::kEscape)
+                if (a_key == RE::BSKeyboardDevice::Key::kEscape)
                 {
                     return true;
                 }
                 const auto* controlMap = RE::ControlMap::GetSingleton();
                 const auto* userEvents = RE::UserEvents::GetSingleton();
                 return controlMap && userEvents
-                    && controlMap->GetMappedKey(userEvents->activate, RE::INPUT_DEVICE::kKeyboard) == a_scanCode;
+                    && controlMap->GetMappedKey(userEvents->activate, RE::INPUT_DEVICE::kKeyboard) == a_key;
             }
 
             [[nodiscard]] bool UsesMouse() const override { return true; }

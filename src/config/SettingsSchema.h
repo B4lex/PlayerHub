@@ -81,8 +81,8 @@ namespace Config
     [[nodiscard]] std::optional<std::uint32_t> ParseColor(std::string_view a_value);
     [[nodiscard]] std::string FormatColor(std::uint32_t a_color);
     [[nodiscard]] std::optional<std::uint32_t> ParseKey(std::string_view a_value);
-    [[nodiscard]] std::string_view FormatKey(std::uint32_t a_scanCode);
-    [[nodiscard]] std::string_view FormatKeyLabel(std::uint32_t a_scanCode);
+    [[nodiscard]] std::string_view FormatKey(std::uint32_t a_key);
+    [[nodiscard]] std::string_view FormatKeyLabel(std::uint32_t a_key);
 
     [[nodiscard]] std::string_view GetLookArmorKey(std::size_t a_slotIndex);
     [[nodiscard]] std::string_view GetLookWeaponKey(std::size_t a_weaponType);

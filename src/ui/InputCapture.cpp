@@ -168,6 +168,11 @@ namespace UI::InputCapture
             }
         }
 
+        bool IsKeyLikeMouseButton(std::uint32_t a_code)
+        {
+            return a_code >= MouseKey::kMiddleButton && a_code < KeyState::kMouseButtons;
+        }
+
         void Capture(const CapturedEvent& a_event)
         {
             const std::scoped_lock lock{ s_capturedLock };
@@ -237,6 +242,10 @@ namespace UI::InputCapture
             else if (device == RE::INPUT_DEVICE::kMouse && code < s_mouseOwners.size())
             {
                 owner = &s_mouseOwners[code];
+                if (code < KeyState::kMouseButtons)
+                {
+                    KeyState::Record(KeyState::FromMouse(code), a_button.IsPressed());
+                }
             }
             else
             {
@@ -246,28 +255,33 @@ namespace UI::InputCapture
 
             if (a_button.IsDown())
             {
+                const bool keyboard = device == RE::INPUT_DEVICE::kKeyboard;
+                const bool keyLike = keyboard || IsKeyLikeMouseButton(code);
+                const auto key = keyboard ? code : KeyState::FromMouse(code);
                 // Also while focused, for a borrow key over a window that lends focus.
-                if (a_state.gameplay && !s_inputHeldElsewhere && device == RE::INPUT_DEVICE::kKeyboard
-                    && s_overlayActive.load(std::memory_order_acquire) && WindowManager::FocusByKey(code))
+                if (a_state.gameplay && !s_inputHeldElsewhere && keyLike
+                    && s_overlayActive.load(std::memory_order_acquire) && WindowManager::FocusByKey(key))
                 {
-                    logs::debug("UI input: a window took focus with scan code {:#04x}", code);
+                    logs::debug("UI input: a window took focus with key code {:#05x}", key);
                     a_state.focused = true;
-                    s_focusKeyCharacter = code;
+                    if (keyboard)
+                    {
+                        s_focusKeyCharacter = code;
+                    }
                     *owner = Owner::kWindow;
                     return false;
                 }
-                if (a_state.focused && device == RE::INPUT_DEVICE::kKeyboard && WindowManager::CaptureKey(code))
+                if (a_state.focused && keyLike && WindowManager::CaptureKey(key))
                 {
-                    logs::debug("UI input: a window captured scan code {:#04x}", code);
+                    logs::debug("UI input: a window captured key code {:#05x}", key);
                     *owner = Owner::kWindow;
                     return false;
                 }
-                const bool editsText = s_textFieldActive.load(std::memory_order_acquire)
+                const bool editsText = keyboard && s_textFieldActive.load(std::memory_order_acquire)
                     && (ToImGuiKey(code) != ImGuiKey_None || TypesCharacter(code));
-                if (a_state.focused && device == RE::INPUT_DEVICE::kKeyboard && !editsText
-                    && WindowManager::ReleaseFocusByKey(code))
+                if (a_state.focused && keyLike && !editsText && WindowManager::ReleaseFocusByKey(key))
                 {
-                    logs::debug("UI input: a window released focus with scan code {:#04x}", code);
+                    logs::debug("UI input: a window released focus with key code {:#05x}", key);
                     a_state.focused = false;
                     *owner = Owner::kWindow;
                     return false;

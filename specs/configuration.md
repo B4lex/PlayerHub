@@ -221,11 +221,13 @@ Four groups: Display (`Language`, `Scale`, `AccentColor`, `BorderColor`,
 
 ### `[Controls]`
 
-Keyboard keys, each a DirectInput scan code stored by name
-(`Config::FormatKey`, `ParseKey`, case-insensitive). The settings window binds
-them by a key press ([UI overlay](ui-overlay.md#key-bindings)) and shows each
-key's US-layout label (`FormatKeyLabel`), word keys such as Space in the game's
-language.
+Keyboard keys and mouse buttons, each a `KeyState` key code stored by name
+(`Config::FormatKey`, `ParseKey`, case-insensitive): a DirectInput scan code
+for a key, or `KeyState::kMouseBase` (256) plus the `BSWin32MouseDevice::Key`
+for a button, the numbering SKSE and MCM use. The settings window binds them
+by a press ([UI overlay](ui-overlay.md#key-bindings)) and shows each key's
+US-layout label (`FormatKeyLabel`), word keys such as Space and the mouse
+buttons in the game's language.
 
 | Key | Meaning | Default |
 | --- | --- | --- |
@@ -243,13 +245,16 @@ language.
   `Delete`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`,
   `Right`, `Pause`, `ScrollLock`, `NumLock`, `Numpad0`–`Numpad9`,
   `NumpadDecimal`, `NumpadPlus`, `NumpadMinus`, `NumpadMultiply`,
-  `NumpadDivide`, or `NumpadEnter`. Enter and keypad Enter can be bound to
-  any action; inside a focused window they still reach Dear ImGui.
+  `NumpadDivide`, `NumpadEnter`, or a mouse button: `Mouse3` (middle) or
+  `Mouse4`–`Mouse8` (the side buttons, `kButton3`–`kButton7`). Enter, keypad
+  Enter, and the middle button can be bound to any action; inside a focused
+  window that does not take them they still reach Dear ImGui.
 - Reserved keys have no name, so neither the file nor the window takes them:
   Escape (cancels and closes), Tab (the chat's), the console key left of `1`,
   Backspace and the modifiers (text editing and shortcuts; Backspace also
-  clears a binding in the window), and the Windows, context-menu, and Print
-  Screen keys.
+  clears a binding in the window), the Windows, context-menu, and Print
+  Screen keys, the left and right mouse buttons (the overlay's cursor, and a
+  click cancels listening), and the wheel, which has no held state.
 - An empty value leaves `ManagePlayers`, `AcceptTrade`, `DeclineTrade`, or
   `Microphone` unbound (scan code 0, stored as `AcceptTrade =`); the prompt
   leaves an unbound key out. An empty `OpenSettings` is `F4` and an empty

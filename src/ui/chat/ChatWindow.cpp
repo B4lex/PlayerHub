@@ -152,20 +152,20 @@ namespace UI
         class ChatWindow final : public Window
         {
         public:
-            [[nodiscard]] bool IsFocusKey(std::uint32_t a_scanCode) const override
+            [[nodiscard]] bool IsFocusKey(std::uint32_t a_key) const override
             {
                 const auto& controls = Config::Get()->controls;
-                return a_scanCode != 0 && (a_scanCode == controls.chatKey || a_scanCode == controls.playersKey);
+                return a_key != 0 && (a_key == controls.chatKey || a_key == controls.playersKey);
             }
 
-            void OnFocusKey(std::uint32_t a_scanCode) override
+            void OnFocusKey(std::uint32_t a_key) override
             {
-                managerOnly.store(a_scanCode != Config::Get()->controls.chatKey, std::memory_order_release);
+                managerOnly.store(a_key != Config::Get()->controls.chatKey, std::memory_order_release);
             }
 
-            [[nodiscard]] bool IsBorrowKey(std::uint32_t a_scanCode) const override
+            [[nodiscard]] bool IsBorrowKey(std::uint32_t a_key) const override
             {
-                return a_scanCode != 0 && a_scanCode == Config::Get()->controls.chatKey;
+                return a_key != 0 && a_key == Config::Get()->controls.chatKey;
             }
 
             [[nodiscard]] bool UsesMouse() const override { return true; }

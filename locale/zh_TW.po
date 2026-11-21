@@ -555,6 +555,30 @@ msgctxt "KeyNumpadEnter"
 msgid "Num Enter"
 msgstr "Num Enter"
 
+msgctxt "KeyMouseMiddle"
+msgid "Middle Mouse"
+msgstr "滑鼠中鍵"
+
+msgctxt "KeyMouse4"
+msgid "Mouse 4"
+msgstr "滑鼠按鍵 4"
+
+msgctxt "KeyMouse5"
+msgid "Mouse 5"
+msgstr "滑鼠按鍵 5"
+
+msgctxt "KeyMouse6"
+msgid "Mouse 6"
+msgstr "滑鼠按鍵 6"
+
+msgctxt "KeyMouse7"
+msgid "Mouse 7"
+msgstr "滑鼠按鍵 7"
+
+msgctxt "KeyMouse8"
+msgid "Mouse 8"
+msgstr "滑鼠按鍵 8"
+
 msgctxt "SettingsBrand"
 msgid "Multiplayer"
 msgstr "多人遊戲"

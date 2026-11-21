@@ -28,16 +28,16 @@ namespace UI
         class TradePrompt final : public Window
         {
         public:
-            [[nodiscard]] bool IsFocusKey(std::uint32_t a_scanCode) const override
+            [[nodiscard]] bool IsFocusKey(std::uint32_t a_key) const override
             {
                 const auto phase = TradeSync::GetPhase();
                 const auto& controls = Config::Get()->controls;
-                return (phase == Phase::kInvited && a_scanCode == controls.tradeAcceptKey)
+                return (phase == Phase::kInvited && a_key == controls.tradeAcceptKey)
                     || ((phase == Phase::kInvited || phase == Phase::kInviting)
-                        && a_scanCode == controls.tradeDeclineKey);
+                        && a_key == controls.tradeDeclineKey);
             }
 
-            void OnFocusKey(std::uint32_t a_scanCode) override { pressedKey.store(a_scanCode, std::memory_order_release); }
+            void OnFocusKey(std::uint32_t a_key) override { pressedKey.store(a_key, std::memory_order_release); }
 
             void Draw(const WindowInput& a_input) override
             {
@@ -214,9 +214,9 @@ namespace UI
                 }
             }
 
-            static void AddKey(Line& a_line, std::uint32_t a_scanCode, std::string_view a_action)
+            static void AddKey(Line& a_line, std::uint32_t a_key, std::string_view a_action)
             {
-                const auto key = Config::FormatKeyLabel(a_scanCode);
+                const auto key = Config::FormatKeyLabel(a_key);
                 if (key.empty())
                 {
                     return;
