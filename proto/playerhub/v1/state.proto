@@ -246,6 +246,21 @@ message Appearance {
   repeated Tint tints = 14;
   FormRef default_race = 15;
   repeated Overlay overlays = 16;
+  // 17 is kept for body morphs. Set only with default_race.
+  DefaultFace default_face = 18;
+}
+
+// A RaceMenu preset's face for the sender's default race.
+message DefaultFace {
+  bool female = 1;
+  repeated HeadPart head_parts = 2;
+  Color hair_color = 3;
+  FormRef face_details = 4;
+  Color body_tint = 5;
+  repeated float face_morphs = 6;
+  repeated sint32 face_parts = 7;
+  // Race tint layers by index and type, without a texture.
+  repeated Tint tints = 8;
 }
 
 enum HandKind {

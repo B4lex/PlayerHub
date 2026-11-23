@@ -292,7 +292,99 @@ namespace Network::Wire
             return result;
         }
 
-        const char* ReadAppearance(const playerhub_v1_Appearance& a_appearance, Multiplayer::PlayerAppearance& a_result)
+        bool ReadDefaultFace(const playerhub_v1_DefaultFace& a_face, Multiplayer::AppearanceDefaultFace& a_result)
+        {
+            using Multiplayer::AppearanceDefaultFace;
+            a_result.female = a_face.female;
+            for (pb_size_t i = 0; i < a_face.head_parts_count; ++i)
+            {
+                const auto& part = a_face.head_parts[i];
+                auto& result = a_result.headParts.emplace_back();
+                if (!part.has_form || !ReadFormReference(part.form, result.form))
+                {
+                    return false;
+                }
+                result.type = part.type;
+            }
+            if (a_face.has_hair_color && !ReadColor(a_face.hair_color, a_result.hairColor.emplace()))
+            {
+                return false;
+            }
+            if (!ReadOptionalFormReference(a_face.has_face_details, a_face.face_details, a_result.faceDetails)
+                || !a_face.has_body_tint || !ReadColor(a_face.body_tint, a_result.bodyTint)
+                || a_face.face_morphs_count != AppearanceDefaultFace::kFaceMorphCount
+                || a_face.face_parts_count != AppearanceDefaultFace::kFacePartCount)
+            {
+                return false;
+            }
+            std::copy_n(a_face.face_morphs, AppearanceDefaultFace::kFaceMorphCount, a_result.faceMorphs.begin());
+            for (std::size_t i = 0; i < AppearanceDefaultFace::kFacePartCount; ++i)
+            {
+                a_result.faceParts[i] = Multiplayer::ClampFacePart(a_face.face_parts[i]);
+            }
+            for (pb_size_t i = 0; i < a_face.tints_count; ++i)
+            {
+                const auto& tint = a_face.tints[i];
+                auto& result = a_result.tints.emplace_back();
+                if (tint.index > (std::numeric_limits<std::uint16_t>::max)()
+                    || tint.type > Multiplayer::PlayerAppearance::kMaximumTintType || !tint.has_color
+                    || !ReadColor(tint.color, result.color) || tint.texture[0] != '\0')
+                {
+                    return false;
+                }
+                result.index = static_cast<std::uint16_t>(tint.index);
+                result.type = static_cast<std::uint8_t>(tint.type);
+                result.alpha = tint.alpha;
+            }
+            return Multiplayer::IsValidDefaultFace(a_result);
+        }
+
+        bool WriteDefaultFace(const Multiplayer::AppearanceDefaultFace& a_face, playerhub_v1_DefaultFace& a_result)
+        {
+            using Multiplayer::AppearanceDefaultFace;
+            static_assert(std::extent_v<decltype(playerhub_v1_DefaultFace::head_parts)> >= AppearanceDefaultFace::kMaximumHeadParts);
+            static_assert(std::extent_v<decltype(playerhub_v1_DefaultFace::tints)> >= AppearanceDefaultFace::kMaximumTints);
+            if (a_face.headParts.size() > AppearanceDefaultFace::kMaximumHeadParts
+                || a_face.tints.size() > AppearanceDefaultFace::kMaximumTints)
+            {
+                return false;
+            }
+            a_result = playerhub_v1_DefaultFace_init_zero;
+            a_result.female = a_face.female;
+            bool written = WriteOptionalFormReference(a_face.faceDetails, a_result.has_face_details, a_result.face_details);
+            for (const auto& headPart : a_face.headParts)
+            {
+                auto& part = a_result.head_parts[a_result.head_parts_count++];
+                part.has_form = true;
+                part.type = headPart.type;
+                written = written && WriteFormReference(headPart.form, part.form);
+            }
+            if (a_face.hairColor)
+            {
+                a_result.has_hair_color = true;
+                a_result.hair_color = WriteColor(*a_face.hairColor);
+            }
+            a_result.has_body_tint = true;
+            a_result.body_tint = WriteColor(a_face.bodyTint);
+            a_result.face_morphs_count = AppearanceDefaultFace::kFaceMorphCount;
+            std::ranges::copy(a_face.faceMorphs, a_result.face_morphs);
+            a_result.face_parts_count = AppearanceDefaultFace::kFacePartCount;
+            std::ranges::copy(a_face.faceParts, a_result.face_parts);
+            for (const auto& tint : a_face.tints)
+            {
+                auto& result = a_result.tints[a_result.tints_count++];
+                result.index = tint.index;
+                result.type = tint.type;
+                result.has_color = true;
+                result.color = WriteColor(tint.color);
+                result.alpha = tint.alpha;
+            }
+            return written;
+        }
+
+        // a_defaultFace is the decoded default_face callback field, or null without one.
+        const char* ReadAppearance(const playerhub_v1_Appearance& a_appearance,
+            const playerhub_v1_DefaultFace* a_defaultFace, Multiplayer::PlayerAppearance& a_result)
         {
             using Multiplayer::PlayerAppearance;
             a_result.revision = a_appearance.revision;
@@ -391,6 +483,11 @@ namespace Network::Wire
             if (a_appearance.has_default_race && !ReadFormReference(a_appearance.default_race, a_result.defaultRace.emplace()))
             {
                 return "defaultRace";
+            }
+            a_result.defaultFace.reset();
+            if (a_defaultFace && !ReadDefaultFace(*a_defaultFace, a_result.defaultFace.emplace()))
+            {
+                return "defaultFace";
             }
             return Multiplayer::IsValidAppearance(a_result) ? nullptr : "value ranges";
         }
@@ -1211,6 +1308,18 @@ namespace Network::Wire
             appearance->has_default_race = true;
             written = written && WriteFormReference(*a_appearance.defaultRace, appearance->default_race);
         }
+        std::unique_ptr<playerhub_v1_DefaultFace> defaultFace;
+        if (a_appearance.defaultFace)
+        {
+            defaultFace = std::make_unique<playerhub_v1_DefaultFace>();
+            written = written && WriteDefaultFace(*a_appearance.defaultFace, *defaultFace);
+            appearance->default_face.arg = defaultFace.get();
+            appearance->default_face.funcs.encode = [](pb_ostream_t* a_stream, const pb_field_t* a_field,
+                                                        void* const* a_arg) {
+                return pb_encode_tag_for_field(a_stream, a_field)
+                    && pb_encode_submessage(a_stream, playerhub_v1_DefaultFace_fields, *a_arg);
+            };
+        }
         if (!written)
         {
             return {};
@@ -1470,6 +1579,42 @@ namespace Network::Wire
     struct Decoder::Buffer
     {
         playerhub_v1_ServerMessage message;
+        playerhub_v1_DefaultFace defaultFace;
+        bool hasDefaultFace{ false };
+
+        [[nodiscard]] const playerhub_v1_DefaultFace* GetDefaultFace() const
+        {
+            return hasDefaultFace ? &defaultFace : nullptr;
+        }
+
+        static bool DecodeDefaultFace(pb_istream_t* a_stream, const pb_field_t*, void** a_arg)
+        {
+            auto* buffer = static_cast<Buffer*>(*a_arg);
+            buffer->defaultFace = playerhub_v1_DefaultFace_init_zero;
+            buffer->hasDefaultFace = pb_decode(a_stream, playerhub_v1_DefaultFace_fields, &buffer->defaultFace);
+            return buffer->hasDefaultFace;
+        }
+
+        // nanopb calls this once a oneof member is cleared and before it is decoded,
+        // so the callback fields inside it can be set.
+        static bool SetMemberCallbacks(pb_istream_t*, const pb_field_t* a_field, void** a_arg)
+        {
+            pb_callback_t* defaultFace = nullptr;
+            if (a_field->tag == playerhub_v1_ServerMessage_peer_enter_tag)
+            {
+                defaultFace = &static_cast<playerhub_v1_PeerEnter*>(a_field->pData)->appearance.default_face;
+            }
+            else if (a_field->tag == playerhub_v1_ServerMessage_peer_appearance_tag)
+            {
+                defaultFace = &static_cast<playerhub_v1_PeerAppearance*>(a_field->pData)->appearance.default_face;
+            }
+            if (defaultFace)
+            {
+                defaultFace->funcs.decode = DecodeDefaultFace;
+                defaultFace->arg = *a_arg;
+            }
+            return true;
+        }
     };
 
     Decoder::Decoder() :
@@ -1549,6 +1694,9 @@ namespace Network::Wire
         }
 
         auto& message = buffer->message;
+        buffer->hasDefaultFace = false;
+        message.cb_message.funcs.decode = Buffer::SetMemberCallbacks;
+        message.cb_message.arg = buffer.get();
         pb_istream_t stream = pb_istream_from_buffer(bytes, a_data.size());
         if (!pb_decode(&stream, playerhub_v1_ServerMessage_fields, &message))
         {
@@ -1642,7 +1790,8 @@ namespace Network::Wire
                 }
                 if (enter.has_appearance)
                 {
-                    if (const auto* field = ReadAppearance(enter.appearance, result.appearance.emplace()))
+                    if (const auto* field
+                        = ReadAppearance(enter.appearance, buffer->GetDefaultFace(), result.appearance.emplace()))
                     {
                         return std::unexpected(std::string{ "peer enter appearance " } + field);
                     }
@@ -1720,7 +1869,8 @@ namespace Network::Wire
                 {
                     return std::unexpected("peer appearance");
                 }
-                if (const auto* field = ReadAppearance(appearance.appearance, result.appearance))
+                if (const auto* field
+                    = ReadAppearance(appearance.appearance, buffer->GetDefaultFace(), result.appearance))
                 {
                     return std::unexpected(std::string{ "peer appearance " } + field);
                 }

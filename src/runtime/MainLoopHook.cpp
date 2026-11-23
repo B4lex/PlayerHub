@@ -5,6 +5,7 @@
 #include "runtime/Profiling.h"
 #include "runtime/VanillaIntro.h"
 #include "sync/SyncCoordinator.h"
+#include "sync/look/DefaultLook.h"
 #include "sync/voicechat/VoiceChatSync.h"
 
 #include <cmath>
@@ -46,8 +47,8 @@ namespace MainLoopHook
                     SyncCoordinator::OnFrame(RE::PlayerCharacter::GetSingleton(), delta);
                 }
                 Network::UpdateConnectionMonitor(advancing ? delta : 0.0F);
-                // Also paused: players talk with a menu open.
                 VoiceChatSync::Maintain();
+                DefaultLook::ServeRequests();
             }
 
             static inline REL::Relocation<decltype(Thunk)> _original;

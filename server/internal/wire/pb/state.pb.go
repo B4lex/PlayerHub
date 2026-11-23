@@ -1504,23 +1504,25 @@ func (x *Overlay) GetGlowStrength() float32 {
 }
 
 type Appearance struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Revision      uint64                 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Level         uint32                 `protobuf:"varint,3,opt,name=level,proto3" json:"level,omitempty"`
-	Race          *FormRef               `protobuf:"bytes,4,opt,name=race,proto3" json:"race,omitempty"`
-	Female        bool                   `protobuf:"varint,5,opt,name=female,proto3" json:"female,omitempty"`
-	Weight        float32                `protobuf:"fixed32,6,opt,name=weight,proto3" json:"weight,omitempty"`
-	Height        float32                `protobuf:"fixed32,7,opt,name=height,proto3" json:"height,omitempty"`
-	HeadParts     []*HeadPart            `protobuf:"bytes,8,rep,name=head_parts,json=headParts,proto3" json:"head_parts,omitempty"`
-	HairColor     *Color                 `protobuf:"bytes,9,opt,name=hair_color,json=hairColor,proto3" json:"hair_color,omitempty"`
-	FaceDetails   *FormRef               `protobuf:"bytes,10,opt,name=face_details,json=faceDetails,proto3" json:"face_details,omitempty"`
-	BodyTint      *Color                 `protobuf:"bytes,11,opt,name=body_tint,json=bodyTint,proto3" json:"body_tint,omitempty"`
-	FaceMorphs    []float32              `protobuf:"fixed32,12,rep,packed,name=face_morphs,json=faceMorphs,proto3" json:"face_morphs,omitempty"`
-	FaceParts     []int32                `protobuf:"zigzag32,13,rep,packed,name=face_parts,json=faceParts,proto3" json:"face_parts,omitempty"`
-	Tints         []*Tint                `protobuf:"bytes,14,rep,name=tints,proto3" json:"tints,omitempty"`
-	DefaultRace   *FormRef               `protobuf:"bytes,15,opt,name=default_race,json=defaultRace,proto3" json:"default_race,omitempty"`
-	Overlays      []*Overlay             `protobuf:"bytes,16,rep,name=overlays,proto3" json:"overlays,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Revision    uint64                 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	Name        string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Level       uint32                 `protobuf:"varint,3,opt,name=level,proto3" json:"level,omitempty"`
+	Race        *FormRef               `protobuf:"bytes,4,opt,name=race,proto3" json:"race,omitempty"`
+	Female      bool                   `protobuf:"varint,5,opt,name=female,proto3" json:"female,omitempty"`
+	Weight      float32                `protobuf:"fixed32,6,opt,name=weight,proto3" json:"weight,omitempty"`
+	Height      float32                `protobuf:"fixed32,7,opt,name=height,proto3" json:"height,omitempty"`
+	HeadParts   []*HeadPart            `protobuf:"bytes,8,rep,name=head_parts,json=headParts,proto3" json:"head_parts,omitempty"`
+	HairColor   *Color                 `protobuf:"bytes,9,opt,name=hair_color,json=hairColor,proto3" json:"hair_color,omitempty"`
+	FaceDetails *FormRef               `protobuf:"bytes,10,opt,name=face_details,json=faceDetails,proto3" json:"face_details,omitempty"`
+	BodyTint    *Color                 `protobuf:"bytes,11,opt,name=body_tint,json=bodyTint,proto3" json:"body_tint,omitempty"`
+	FaceMorphs  []float32              `protobuf:"fixed32,12,rep,packed,name=face_morphs,json=faceMorphs,proto3" json:"face_morphs,omitempty"`
+	FaceParts   []int32                `protobuf:"zigzag32,13,rep,packed,name=face_parts,json=faceParts,proto3" json:"face_parts,omitempty"`
+	Tints       []*Tint                `protobuf:"bytes,14,rep,name=tints,proto3" json:"tints,omitempty"`
+	DefaultRace *FormRef               `protobuf:"bytes,15,opt,name=default_race,json=defaultRace,proto3" json:"default_race,omitempty"`
+	Overlays    []*Overlay             `protobuf:"bytes,16,rep,name=overlays,proto3" json:"overlays,omitempty"`
+	// 17 is kept for body morphs. Set only with default_race.
+	DefaultFace   *DefaultFace `protobuf:"bytes,18,opt,name=default_face,json=defaultFace,proto3" json:"default_face,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1667,6 +1669,115 @@ func (x *Appearance) GetOverlays() []*Overlay {
 	return nil
 }
 
+func (x *Appearance) GetDefaultFace() *DefaultFace {
+	if x != nil {
+		return x.DefaultFace
+	}
+	return nil
+}
+
+// A RaceMenu preset's face for the sender's default race.
+type DefaultFace struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Female      bool                   `protobuf:"varint,1,opt,name=female,proto3" json:"female,omitempty"`
+	HeadParts   []*HeadPart            `protobuf:"bytes,2,rep,name=head_parts,json=headParts,proto3" json:"head_parts,omitempty"`
+	HairColor   *Color                 `protobuf:"bytes,3,opt,name=hair_color,json=hairColor,proto3" json:"hair_color,omitempty"`
+	FaceDetails *FormRef               `protobuf:"bytes,4,opt,name=face_details,json=faceDetails,proto3" json:"face_details,omitempty"`
+	BodyTint    *Color                 `protobuf:"bytes,5,opt,name=body_tint,json=bodyTint,proto3" json:"body_tint,omitempty"`
+	FaceMorphs  []float32              `protobuf:"fixed32,6,rep,packed,name=face_morphs,json=faceMorphs,proto3" json:"face_morphs,omitempty"`
+	FaceParts   []int32                `protobuf:"zigzag32,7,rep,packed,name=face_parts,json=faceParts,proto3" json:"face_parts,omitempty"`
+	// Race tint layers by index and type, without a texture.
+	Tints         []*Tint `protobuf:"bytes,8,rep,name=tints,proto3" json:"tints,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DefaultFace) Reset() {
+	*x = DefaultFace{}
+	mi := &file_playerhub_v1_state_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DefaultFace) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DefaultFace) ProtoMessage() {}
+
+func (x *DefaultFace) ProtoReflect() protoreflect.Message {
+	mi := &file_playerhub_v1_state_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DefaultFace.ProtoReflect.Descriptor instead.
+func (*DefaultFace) Descriptor() ([]byte, []int) {
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *DefaultFace) GetFemale() bool {
+	if x != nil {
+		return x.Female
+	}
+	return false
+}
+
+func (x *DefaultFace) GetHeadParts() []*HeadPart {
+	if x != nil {
+		return x.HeadParts
+	}
+	return nil
+}
+
+func (x *DefaultFace) GetHairColor() *Color {
+	if x != nil {
+		return x.HairColor
+	}
+	return nil
+}
+
+func (x *DefaultFace) GetFaceDetails() *FormRef {
+	if x != nil {
+		return x.FaceDetails
+	}
+	return nil
+}
+
+func (x *DefaultFace) GetBodyTint() *Color {
+	if x != nil {
+		return x.BodyTint
+	}
+	return nil
+}
+
+func (x *DefaultFace) GetFaceMorphs() []float32 {
+	if x != nil {
+		return x.FaceMorphs
+	}
+	return nil
+}
+
+func (x *DefaultFace) GetFaceParts() []int32 {
+	if x != nil {
+		return x.FaceParts
+	}
+	return nil
+}
+
+func (x *DefaultFace) GetTints() []*Tint {
+	if x != nil {
+		return x.Tints
+	}
+	return nil
+}
+
 type Armor struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Form          *FormRef               `protobuf:"bytes,1,opt,name=form,proto3" json:"form,omitempty"`
@@ -1677,7 +1788,7 @@ type Armor struct {
 
 func (x *Armor) Reset() {
 	*x = Armor{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[10]
+	mi := &file_playerhub_v1_state_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1689,7 +1800,7 @@ func (x *Armor) String() string {
 func (*Armor) ProtoMessage() {}
 
 func (x *Armor) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[10]
+	mi := &file_playerhub_v1_state_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1702,7 +1813,7 @@ func (x *Armor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Armor.ProtoReflect.Descriptor instead.
 func (*Armor) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{10}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *Armor) GetForm() *FormRef {
@@ -1735,7 +1846,7 @@ type Hand struct {
 
 func (x *Hand) Reset() {
 	*x = Hand{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[11]
+	mi := &file_playerhub_v1_state_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1747,7 +1858,7 @@ func (x *Hand) String() string {
 func (*Hand) ProtoMessage() {}
 
 func (x *Hand) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[11]
+	mi := &file_playerhub_v1_state_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1760,7 +1871,7 @@ func (x *Hand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Hand.ProtoReflect.Descriptor instead.
 func (*Hand) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{11}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Hand) GetKind() HandKind {
@@ -1816,7 +1927,7 @@ type DefaultOutfit struct {
 
 func (x *DefaultOutfit) Reset() {
 	*x = DefaultOutfit{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[12]
+	mi := &file_playerhub_v1_state_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1828,7 +1939,7 @@ func (x *DefaultOutfit) String() string {
 func (*DefaultOutfit) ProtoMessage() {}
 
 func (x *DefaultOutfit) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[12]
+	mi := &file_playerhub_v1_state_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1841,7 +1952,7 @@ func (x *DefaultOutfit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DefaultOutfit.ProtoReflect.Descriptor instead.
 func (*DefaultOutfit) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{12}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DefaultOutfit) GetArmor() []*Armor {
@@ -1886,7 +1997,7 @@ type Equipment struct {
 
 func (x *Equipment) Reset() {
 	*x = Equipment{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[13]
+	mi := &file_playerhub_v1_state_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1898,7 +2009,7 @@ func (x *Equipment) String() string {
 func (*Equipment) ProtoMessage() {}
 
 func (x *Equipment) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[13]
+	mi := &file_playerhub_v1_state_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1911,7 +2022,7 @@ func (x *Equipment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Equipment.ProtoReflect.Descriptor instead.
 func (*Equipment) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{13}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *Equipment) GetRevision() uint64 {
@@ -1995,7 +2106,7 @@ type ActiveEffect struct {
 
 func (x *ActiveEffect) Reset() {
 	*x = ActiveEffect{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[14]
+	mi := &file_playerhub_v1_state_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2007,7 +2118,7 @@ func (x *ActiveEffect) String() string {
 func (*ActiveEffect) ProtoMessage() {}
 
 func (x *ActiveEffect) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[14]
+	mi := &file_playerhub_v1_state_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2020,7 +2131,7 @@ func (x *ActiveEffect) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActiveEffect.ProtoReflect.Descriptor instead.
 func (*ActiveEffect) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{14}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ActiveEffect) GetEffect() *FormRef {
@@ -2047,7 +2158,7 @@ type Effects struct {
 
 func (x *Effects) Reset() {
 	*x = Effects{}
-	mi := &file_playerhub_v1_state_proto_msgTypes[15]
+	mi := &file_playerhub_v1_state_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2059,7 +2170,7 @@ func (x *Effects) String() string {
 func (*Effects) ProtoMessage() {}
 
 func (x *Effects) ProtoReflect() protoreflect.Message {
-	mi := &file_playerhub_v1_state_proto_msgTypes[15]
+	mi := &file_playerhub_v1_state_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2072,7 +2183,7 @@ func (x *Effects) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Effects.ProtoReflect.Descriptor instead.
 func (*Effects) Descriptor() ([]byte, []int) {
-	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{15}
+	return file_playerhub_v1_state_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Effects) GetRevision() uint64 {
@@ -2160,7 +2271,7 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x05alpha\x18\x04 \x01(\x02R\x05alpha\x122\n" +
 	"\n" +
 	"glow_color\x18\x05 \x01(\v2\x13.playerhub.v1.ColorR\tglowColor\x12#\n" +
-	"\rglow_strength\x18\x06 \x01(\x02R\fglowStrength\"\xf3\x04\n" +
+	"\rglow_strength\x18\x06 \x01(\x02R\fglowStrength\"\xb1\x05\n" +
 	"\n" +
 	"Appearance\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x12\x12\n" +
@@ -2183,7 +2294,21 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"face_parts\x18\r \x03(\x11R\tfaceParts\x12(\n" +
 	"\x05tints\x18\x0e \x03(\v2\x12.playerhub.v1.TintR\x05tints\x128\n" +
 	"\fdefault_race\x18\x0f \x01(\v2\x15.playerhub.v1.FormRefR\vdefaultRace\x121\n" +
-	"\boverlays\x18\x10 \x03(\v2\x15.playerhub.v1.OverlayR\boverlays\"O\n" +
+	"\boverlays\x18\x10 \x03(\v2\x15.playerhub.v1.OverlayR\boverlays\x12<\n" +
+	"\fdefault_face\x18\x12 \x01(\v2\x19.playerhub.v1.DefaultFaceR\vdefaultFace\"\xe6\x02\n" +
+	"\vDefaultFace\x12\x16\n" +
+	"\x06female\x18\x01 \x01(\bR\x06female\x125\n" +
+	"\n" +
+	"head_parts\x18\x02 \x03(\v2\x16.playerhub.v1.HeadPartR\theadParts\x122\n" +
+	"\n" +
+	"hair_color\x18\x03 \x01(\v2\x13.playerhub.v1.ColorR\thairColor\x128\n" +
+	"\fface_details\x18\x04 \x01(\v2\x15.playerhub.v1.FormRefR\vfaceDetails\x120\n" +
+	"\tbody_tint\x18\x05 \x01(\v2\x13.playerhub.v1.ColorR\bbodyTint\x12\x1f\n" +
+	"\vface_morphs\x18\x06 \x03(\x02R\n" +
+	"faceMorphs\x12\x1d\n" +
+	"\n" +
+	"face_parts\x18\a \x03(\x11R\tfaceParts\x12(\n" +
+	"\x05tints\x18\b \x03(\v2\x12.playerhub.v1.TintR\x05tints\"O\n" +
 	"\x05Armor\x12)\n" +
 	"\x04form\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\x04form\x12\x1b\n" +
 	"\tslot_mask\x18\x02 \x01(\rR\bslotMask\"\xab\x02\n" +
@@ -2351,7 +2476,7 @@ func file_playerhub_v1_state_proto_rawDescGZIP() []byte {
 }
 
 var file_playerhub_v1_state_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_playerhub_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_playerhub_v1_state_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_playerhub_v1_state_proto_goTypes = []any{
 	(MovementState)(0),    // 0: playerhub.v1.MovementState
 	(CheckpointFlag)(0),   // 1: playerhub.v1.CheckpointFlag
@@ -2373,12 +2498,13 @@ var file_playerhub_v1_state_proto_goTypes = []any{
 	(*Tint)(nil),          // 17: playerhub.v1.Tint
 	(*Overlay)(nil),       // 18: playerhub.v1.Overlay
 	(*Appearance)(nil),    // 19: playerhub.v1.Appearance
-	(*Armor)(nil),         // 20: playerhub.v1.Armor
-	(*Hand)(nil),          // 21: playerhub.v1.Hand
-	(*DefaultOutfit)(nil), // 22: playerhub.v1.DefaultOutfit
-	(*Equipment)(nil),     // 23: playerhub.v1.Equipment
-	(*ActiveEffect)(nil),  // 24: playerhub.v1.ActiveEffect
-	(*Effects)(nil),       // 25: playerhub.v1.Effects
+	(*DefaultFace)(nil),   // 20: playerhub.v1.DefaultFace
+	(*Armor)(nil),         // 21: playerhub.v1.Armor
+	(*Hand)(nil),          // 22: playerhub.v1.Hand
+	(*DefaultOutfit)(nil), // 23: playerhub.v1.DefaultOutfit
+	(*Equipment)(nil),     // 24: playerhub.v1.Equipment
+	(*ActiveEffect)(nil),  // 25: playerhub.v1.ActiveEffect
+	(*Effects)(nil),       // 26: playerhub.v1.Effects
 }
 var file_playerhub_v1_state_proto_depIdxs = []int32{
 	10, // 0: playerhub.v1.Context.interior_cell:type_name -> playerhub.v1.FormRef
@@ -2404,31 +2530,37 @@ var file_playerhub_v1_state_proto_depIdxs = []int32{
 	17, // 20: playerhub.v1.Appearance.tints:type_name -> playerhub.v1.Tint
 	10, // 21: playerhub.v1.Appearance.default_race:type_name -> playerhub.v1.FormRef
 	18, // 22: playerhub.v1.Appearance.overlays:type_name -> playerhub.v1.Overlay
-	10, // 23: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
-	9,  // 24: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
-	10, // 25: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
-	10, // 26: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
-	10, // 27: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
-	10, // 28: playerhub.v1.Hand.enchantment:type_name -> playerhub.v1.FormRef
-	20, // 29: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
-	21, // 30: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
-	10, // 31: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
-	20, // 32: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
-	21, // 33: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
-	21, // 34: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
-	10, // 35: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
-	22, // 36: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
-	21, // 37: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
-	21, // 38: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
-	20, // 39: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
-	10, // 40: playerhub.v1.Equipment.shout:type_name -> playerhub.v1.FormRef
-	10, // 41: playerhub.v1.ActiveEffect.effect:type_name -> playerhub.v1.FormRef
-	24, // 42: playerhub.v1.Effects.effects:type_name -> playerhub.v1.ActiveEffect
-	43, // [43:43] is the sub-list for method output_type
-	43, // [43:43] is the sub-list for method input_type
-	43, // [43:43] is the sub-list for extension type_name
-	43, // [43:43] is the sub-list for extension extendee
-	0,  // [0:43] is the sub-list for field type_name
+	20, // 23: playerhub.v1.Appearance.default_face:type_name -> playerhub.v1.DefaultFace
+	16, // 24: playerhub.v1.DefaultFace.head_parts:type_name -> playerhub.v1.HeadPart
+	15, // 25: playerhub.v1.DefaultFace.hair_color:type_name -> playerhub.v1.Color
+	10, // 26: playerhub.v1.DefaultFace.face_details:type_name -> playerhub.v1.FormRef
+	15, // 27: playerhub.v1.DefaultFace.body_tint:type_name -> playerhub.v1.Color
+	17, // 28: playerhub.v1.DefaultFace.tints:type_name -> playerhub.v1.Tint
+	10, // 29: playerhub.v1.Armor.form:type_name -> playerhub.v1.FormRef
+	9,  // 30: playerhub.v1.Hand.kind:type_name -> playerhub.v1.HandKind
+	10, // 31: playerhub.v1.Hand.form:type_name -> playerhub.v1.FormRef
+	10, // 32: playerhub.v1.Hand.casting_art:type_name -> playerhub.v1.FormRef
+	10, // 33: playerhub.v1.Hand.casting_light:type_name -> playerhub.v1.FormRef
+	10, // 34: playerhub.v1.Hand.enchantment:type_name -> playerhub.v1.FormRef
+	21, // 35: playerhub.v1.DefaultOutfit.armor:type_name -> playerhub.v1.Armor
+	22, // 36: playerhub.v1.DefaultOutfit.hands:type_name -> playerhub.v1.Hand
+	10, // 37: playerhub.v1.DefaultOutfit.ammo:type_name -> playerhub.v1.FormRef
+	21, // 38: playerhub.v1.Equipment.armor:type_name -> playerhub.v1.Armor
+	22, // 39: playerhub.v1.Equipment.right_hand:type_name -> playerhub.v1.Hand
+	22, // 40: playerhub.v1.Equipment.left_hand:type_name -> playerhub.v1.Hand
+	10, // 41: playerhub.v1.Equipment.ammo:type_name -> playerhub.v1.FormRef
+	23, // 42: playerhub.v1.Equipment.default_outfit:type_name -> playerhub.v1.DefaultOutfit
+	22, // 43: playerhub.v1.Equipment.beast_right_hand:type_name -> playerhub.v1.Hand
+	22, // 44: playerhub.v1.Equipment.beast_left_hand:type_name -> playerhub.v1.Hand
+	21, // 45: playerhub.v1.Equipment.beast_armor:type_name -> playerhub.v1.Armor
+	10, // 46: playerhub.v1.Equipment.shout:type_name -> playerhub.v1.FormRef
+	10, // 47: playerhub.v1.ActiveEffect.effect:type_name -> playerhub.v1.FormRef
+	25, // 48: playerhub.v1.Effects.effects:type_name -> playerhub.v1.ActiveEffect
+	49, // [49:49] is the sub-list for method output_type
+	49, // [49:49] is the sub-list for method input_type
+	49, // [49:49] is the sub-list for extension type_name
+	49, // [49:49] is the sub-list for extension extendee
+	0,  // [0:49] is the sub-list for field type_name
 }
 
 func init() { file_playerhub_v1_state_proto_init() }
@@ -2448,7 +2580,7 @@ func file_playerhub_v1_state_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_playerhub_v1_state_proto_rawDesc), len(file_playerhub_v1_state_proto_rawDesc)),
 			NumEnums:      10,
-			NumMessages:   16,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -11,6 +11,12 @@ playerhub.v1.Appearance.tints max_count:64
 playerhub.v1.Tint.texture max_size:261
 playerhub.v1.Appearance.overlays max_count:32
 playerhub.v1.Overlay.texture max_size:261
+# A static DefaultFace would push PeerEnter past nanopb's 16-bit field offsets.
+playerhub.v1.Appearance.default_face type:FT_CALLBACK
+playerhub.v1.DefaultFace.head_parts max_count:8
+playerhub.v1.DefaultFace.face_morphs max_count:19
+playerhub.v1.DefaultFace.face_parts max_count:4
+playerhub.v1.DefaultFace.tints max_count:16
 playerhub.v1.Equipment.armor max_count:32
 playerhub.v1.Equipment.beast_armor max_count:8
 playerhub.v1.DefaultOutfit.armor max_count:8

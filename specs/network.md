@@ -92,7 +92,8 @@ compatibility shims; a version mismatch is refused at the handshake.
   WebSocket pings; its ping interval is -1, since IXWebSocket polls with the
   interval as timeout and 0 spins its thread.
 - Boundary limits: 48 KiB per message (the largest valid `ClientMessage`, an
-  `Appearance` with every tint and overlay path at full length, is about 44 KB); `limits.messages_per_second` (120, burst 240) per connection,
+  `Appearance` with every tint and overlay path at full length and a full
+  `default_face`, is about 45 KB); `limits.messages_per_second` (120, burst 240) per connection,
   over which the connection is closed with 4003, counting every message; a recipient whose unsent
   ordered messages exceed `limits.ordered_backlog` (4096) is closed with 4002.
   Compression is off on both ends.
@@ -380,10 +381,37 @@ only the overriding file (Skyrim.esm's `000DDFB3` lists `Update.esm`).
 | `face_parts` | exactly 4 `sint32`, each `-1..255` (`-1` for none); the plugin clamps to this range when capturing and parsing |
 | `tints` | at most 64; `index` `0..65535`, `type` `0..14`, a color, `alpha` `0..1`, a [texture path](#texture-paths) |
 | `overlays` | at most 32; `area` `BODY`, `HANDS`, `FEET`, or `FACE`; a [texture path](#texture-paths); `color` and `glow_color` RGB `0..255`, both required; `alpha` `0..1`; `glow_strength` `0..100` |
-| `default_race` | a base-game race, unset for none; the fallback race keeps the appearance's `female` |
+| `default_race` | a base-game race, unset for none; the fallback race keeps the appearance's `female` unless `default_face` is set |
+| `default_face` | a [`DefaultFace`](#defaultface), only with `default_race` |
 
 Hair color is RGB rather than a form, because character editors commonly
 create dynamic color forms.
+
+#### `DefaultFace`
+
+The [preset face](appearance-and-equipment.md#preset-face) a receiver shows
+with `default_race` when it falls back to that race. Every form is from a
+base-game plugin, so any receiver can build it.
+
+| Field | Validation |
+| --- | --- |
+| `female` | boolean: the face's sex, which the fallback race takes |
+| `head_parts` | at most 8, each a base-game form with `type` `0..6`, at most one per type |
+| `hair_color` | RGB `0..255`, unset for the race's default |
+| `face_details` | a base-game form reference, unset for the race's default |
+| `body_tint` | required, RGB `0..255` |
+| `face_morphs` | exactly 19 finite floats |
+| `face_parts` | exactly 4 `sint32`, each `-1..255`; the plugin clamps when parsing |
+| `tints` | at most 16 (the engine's tint render blends at most 16 non-zero layers); `index` `0..65535`, `type` `0..14`, a color, `alpha` `0..1`, and no `texture`: the receiver takes the texture of the race layer the index and type name |
+
+`Appearance.default_face` (field 18) is additive, so the protocol stays 16:
+clients that predate it skip the field and show the race's default face, and
+servers that predate it relay it unvalidated. Field 17 is kept for body
+morphs. In nanopb it is an `FT_CALLBACK` field, since a static `DefaultFace`
+(about 7.5 KB) would push `PeerEnter` past the 16-bit field offsets; the
+`ServerMessage` oneof has `submsg_callback`, whose callback sets the
+`default_face` decoder of a `peer_enter` or `peer_appearance` member before it
+is decoded, and the face is decoded into the decoder's own buffer.
 
 #### Texture paths
 

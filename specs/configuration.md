@@ -165,6 +165,7 @@ every piece but the backpack.
 | --- | --- |
 | `AlwaysUse` | boolean, default `false`: peers show the configured race and items for every worn item, not only for those they cannot resolve |
 | `Race` | a playable race; base-game plugins define only the 10 vanilla ones |
+| `Preset` | a RaceMenu preset's file stem in `Data\SKSE\Plugins\CharGen\Presets` (without `.jslot`), default empty for the race's default face: the look's face ([Preset face](appearance-and-equipment.md#preset-face)). At most 200 UTF-8 bytes, without control characters, `\ / : * ? " < > \| ;`, or a leading or trailing space and no trailing dot (`DefaultLookSettings::IsValidPresetName`); a preset that is missing or unreadable leaves the race's face |
 | `<Slot>` | armor for that biped slot; `Head` also stands in for `Hair` |
 | `OneHandSword` … `Crossbow` | the weapon for that Creation Kit weapon type |
 | `Arrow`, `Bolt` | ammunition |

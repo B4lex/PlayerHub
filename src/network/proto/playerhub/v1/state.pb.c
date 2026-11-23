@@ -36,6 +36,9 @@ PB_BIND(playerhub_v1_Overlay, playerhub_v1_Overlay, 2)
 PB_BIND(playerhub_v1_Appearance, playerhub_v1_Appearance, 4)
 
 
+PB_BIND(playerhub_v1_DefaultFace, playerhub_v1_DefaultFace, 4)
+
+
 PB_BIND(playerhub_v1_Armor, playerhub_v1_Armor, 2)
 
 

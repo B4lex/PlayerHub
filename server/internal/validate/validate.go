@@ -60,6 +60,10 @@ const (
 	MaximumTexturePathBytes = 260
 	MaximumGlowStrength     = 100
 
+	MaximumDefaultFaceHeadParts    = 8
+	MaximumDefaultFaceHeadPartType = 6
+	MaximumDefaultFaceTints        = 16
+
 	MaximumArmor        = 32
 	MaximumOutfitArmor  = 8
 	MaximumBeastArmor   = 8
@@ -397,7 +401,50 @@ func Appearance(a *pb.Appearance) error {
 	if a.DefaultRace != nil && !baseGameFormRef(a.DefaultRace) {
 		return ErrAppearance
 	}
+	if a.DefaultFace != nil && (a.DefaultRace == nil || !defaultFace(a.DefaultFace)) {
+		return ErrAppearance
+	}
 	return nil
+}
+
+// defaultFace accepts base-game forms only, one head part per vanilla type, and
+// tints that name a race layer without a texture.
+func defaultFace(f *pb.DefaultFace) bool {
+	if len(f.GetHeadParts()) > MaximumDefaultFaceHeadParts || len(f.GetTints()) > MaximumDefaultFaceTints {
+		return false
+	}
+	var types uint32
+	for _, part := range f.GetHeadParts() {
+		if part.GetType() > MaximumDefaultFaceHeadPartType || types&(1<<part.GetType()) != 0 ||
+			part.Form == nil || !baseGameFormRef(part.Form) {
+			return false
+		}
+		types |= 1 << part.GetType()
+	}
+	if (f.HairColor != nil && !color(f.HairColor)) || (f.FaceDetails != nil && !baseGameFormRef(f.FaceDetails)) ||
+		f.BodyTint == nil || !color(f.BodyTint) {
+		return false
+	}
+	if len(f.GetFaceMorphs()) != FaceMorphCount || len(f.GetFaceParts()) != FacePartCount {
+		return false
+	}
+	for _, morph := range f.GetFaceMorphs() {
+		if !finite(morph) {
+			return false
+		}
+	}
+	for _, part := range f.GetFaceParts() {
+		if part < MinimumFacePart || part > MaximumFacePart {
+			return false
+		}
+	}
+	for _, tint := range f.GetTints() {
+		if tint.GetIndex() > MaximumTintIndex || tint.GetType() > MaximumTintType || tint.Color == nil ||
+			!color(tint.Color) || !between(tint.GetAlpha(), 0, 1) || tint.GetTexture() != "" {
+			return false
+		}
+	}
+	return true
 }
 
 func Equipment(e *pb.Equipment) error {

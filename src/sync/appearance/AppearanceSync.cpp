@@ -51,6 +51,8 @@ namespace AppearanceSync
         using AppearanceData = Multiplayer::PlayerAppearance;
         using FormLookup::MakeFormReference;
         using FormLookup::ResolveForm;
+        using Forms::FindDefaultHeadPart;
+        using Forms::GetFaceRelatedData;
         using Forms::IsPlayableRace;
         using HeadPartType = RE::BGSHeadPart::HeadPartType;
         using FaceRelatedData = RE::TESRace::FaceRelatedData;
@@ -59,11 +61,6 @@ namespace AppearanceSync
         constexpr AppearanceColor ToAppearanceColor(const RE::Color& a_color) noexcept
         {
             return AppearanceColor{ .red = a_color.red, .green = a_color.green, .blue = a_color.blue };
-        }
-
-        FaceRelatedData* GetFaceRelatedData(RE::TESRace* a_race, bool a_female)
-        {
-            return a_race ? a_race->faceRelatedData[a_female ? RE::SEXES::kFemale : RE::SEXES::kMale] : nullptr;
         }
 
         const TintAsset* FindTintAsset(const FaceRelatedData* a_faceData, const RE::TintMask& a_mask)
@@ -280,6 +277,10 @@ namespace AppearanceSync
             {
                 add("defaultRace");
             }
+            if (a_previous.defaultFace != a_current.defaultFace)
+            {
+                add("defaultFace");
+            }
             if (a_previous.level != a_current.level)
             {
                 add(std::format("level {} -> {}", a_previous.level, a_current.level));
@@ -334,6 +335,12 @@ namespace AppearanceSync
                 && (!IsValidFormReference(*defaultRace, false) || !Multiplayer::IsBaseGamePlugin(defaultRace->plugin)))
             {
                 return std::format("defaultRace {}", formatForm(*defaultRace));
+            }
+            if (const auto& face = a_appearance.defaultFace;
+                face && (!a_appearance.defaultRace || !Multiplayer::IsValidDefaultFace(*face)))
+            {
+                return std::format("defaultFace headParts={} tints={} defaultRace={}", face->headParts.size(),
+                    face->tints.size(), a_appearance.defaultRace.has_value());
             }
             for (std::size_t i = 0; i < a_appearance.headParts.size(); ++i)
             {
@@ -397,6 +404,7 @@ namespace AppearanceSync
         }
 
         AppearanceData MakeDefaultAppearance(RE::TESRace& a_race, bool a_female);
+        AppearanceData MakeFaceAppearance(RE::TESRace& a_race, const Multiplayer::AppearanceDefaultFace& a_face);
 
         std::optional<AppearanceData> CaptureLocalAppearance(RE::PlayerCharacter& a_player)
         {
@@ -541,7 +549,9 @@ namespace AppearanceSync
             {
                 if (auto* defaultRace = ResolveForm<RE::TESRace>(*alwaysRace); IsPlayableRace(defaultRace))
                 {
-                    auto look = MakeDefaultAppearance(*defaultRace, appearance.female);
+                    const auto& face = DefaultLook::GetDefaultFace();
+                    auto look = face ? MakeFaceAppearance(*defaultRace, *face)
+                                     : MakeDefaultAppearance(*defaultRace, appearance.female);
                     look.level = appearance.level;
                     look.weight = appearance.weight;
                     look.height = appearance.height;
@@ -564,6 +574,7 @@ namespace AppearanceSync
         {
             RE::TESRace* race{ nullptr };
             bool own{ false };
+            bool defaultRace{ false };
         };
 
         ResolvedRace ResolveRace(Multiplayer::PeerSlot a_playerID, const Multiplayer::AppearanceFormReference& a_race,
@@ -585,28 +596,12 @@ namespace AppearanceSync
                 a_defaultRace ? std::format("{}|{:06X}", a_defaultRace->plugin, a_defaultRace->localFormID)
                               : std::string{ "none" },
                 useDefault ? "default" : "NordRace");
-            return ResolvedRace{ .race = useDefault ? fallback : LookupFallbackRace() };
+            return ResolvedRace{ .race = useDefault ? fallback : LookupFallbackRace(), .defaultRace = useDefault };
         }
 
         ResolvedRace ResolveRace(Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance)
         {
             return ResolveRace(a_playerID, a_appearance.race, a_appearance.defaultRace, a_appearance.revision);
-        }
-
-        RE::BGSHeadPart* FindDefaultHeadPart(FaceRelatedData* a_faceData, std::uint32_t a_type)
-        {
-            if (!a_faceData || !a_faceData->headParts)
-            {
-                return nullptr;
-            }
-            for (auto* headPart : *a_faceData->headParts)
-            {
-                if (headPart && headPart->type.underlying() == a_type)
-                {
-                    return headPart;
-                }
-            }
-            return nullptr;
         }
 
         // The engine's head part visitor (ID 23632) allows one part of each of these types.
@@ -930,6 +925,32 @@ namespace AppearanceSync
             return appearance;
         }
 
+        // A face's tints name race layers by index and type, so the race's own texture
+        // fills in each path.
+        AppearanceData MakeFaceAppearance(RE::TESRace& a_race, const Multiplayer::AppearanceDefaultFace& a_face)
+        {
+            AppearanceData appearance{ .race = MakeFormReference(&a_race).value_or(AppearanceFormReference{}),
+                .female = a_face.female,
+                .headParts = a_face.headParts,
+                .hairColor = a_face.hairColor,
+                .faceDetails = a_face.faceDetails,
+                .bodyTint = a_face.bodyTint,
+                .faceMorphs = a_face.faceMorphs,
+                .faceParts = a_face.faceParts };
+            const auto* faceData = GetFaceRelatedData(&a_race, a_face.female);
+            for (const auto& tint : a_face.tints)
+            {
+                const auto* asset = FindTintAsset(faceData, tint.index, tint.type);
+                const char* path = asset ? asset->texture.file.textureName.c_str() : nullptr;
+                if (path && Multiplayer::IsValidTexturePath(path))
+                {
+                    auto& result = appearance.tints.emplace_back(tint);
+                    result.texture = path;
+                }
+            }
+            return appearance;
+        }
+
         RE::TESNPC* CreateActorBase(Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance,
             std::vector<RE::BSFixedString>& a_tintTextures)
         {
@@ -945,7 +966,9 @@ namespace AppearanceSync
                 return BuildActorBase(a_playerID, a_appearance, *resolved.race, a_tintTextures);
             }
 
-            auto look = MakeDefaultAppearance(*resolved.race, a_appearance.female);
+            const auto& face = a_appearance.defaultFace;
+            auto look = resolved.defaultRace && face ? MakeFaceAppearance(*resolved.race, *face)
+                                                     : MakeDefaultAppearance(*resolved.race, a_appearance.female);
             look.name = a_appearance.name;
             look.level = a_appearance.level;
             look.weight = a_appearance.weight;

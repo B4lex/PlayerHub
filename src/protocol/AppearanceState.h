@@ -70,10 +70,34 @@ namespace Multiplayer
         bool operator==(const AppearanceOverlay&) const = default;
     };
 
-    struct PlayerAppearance
+    // The face of a RaceMenu preset for the sender's default race, which a receiver
+    // that cannot resolve the sender's race shows.
+    struct AppearanceDefaultFace
     {
         static constexpr std::size_t kFaceMorphCount = 19;
         static constexpr std::size_t kFacePartCount = 4;
+        static constexpr std::size_t kMaximumHeadParts = 8;
+        static constexpr std::uint32_t kMaximumHeadPartType = 6;
+        // The engine's tint render blends at most 16 non-zero layers.
+        static constexpr std::size_t kMaximumTints = 16;
+
+        bool female{ false };
+        std::vector<AppearanceHeadPart> headParts;
+        std::optional<AppearanceColor> hairColor;
+        AppearanceFormReference faceDetails;
+        AppearanceColor bodyTint{};
+        std::array<float, kFaceMorphCount> faceMorphs{};
+        std::array<std::int32_t, kFacePartCount> faceParts{};
+        // Race tint layers by index and type; the texture stays empty.
+        std::vector<AppearanceTint> tints;
+
+        bool operator==(const AppearanceDefaultFace&) const = default;
+    };
+
+    struct PlayerAppearance
+    {
+        static constexpr std::size_t kFaceMorphCount = AppearanceDefaultFace::kFaceMorphCount;
+        static constexpr std::size_t kFacePartCount = AppearanceDefaultFace::kFacePartCount;
         static constexpr std::size_t kMaximumHeadParts = 32;
         static constexpr std::size_t kMaximumTints = 64;
         static constexpr std::size_t kMaximumOverlays = 32;
@@ -106,6 +130,8 @@ namespace Multiplayer
         std::vector<AppearanceTint> tints;
         std::vector<AppearanceOverlay> overlays;
         std::optional<AppearanceFormReference> defaultRace;
+        // Set only with defaultRace.
+        std::optional<AppearanceDefaultFace> defaultFace;
         std::uint64_t revision{ 0 };
 
         [[nodiscard]] bool HasSameLook(const PlayerAppearance& a_other) const
@@ -114,7 +140,8 @@ namespace Multiplayer
                 && height == a_other.height && headParts == a_other.headParts && hairColor == a_other.hairColor
                 && faceDetails == a_other.faceDetails && bodyTint == a_other.bodyTint
                 && faceMorphs == a_other.faceMorphs && faceParts == a_other.faceParts && tints == a_other.tints
-                && overlays == a_other.overlays && defaultRace == a_other.defaultRace;
+                && overlays == a_other.overlays && defaultRace == a_other.defaultRace
+                && defaultFace == a_other.defaultFace;
         }
 
         [[nodiscard]] bool HasSameLabel(const PlayerAppearance& a_other) const
@@ -178,6 +205,50 @@ namespace Multiplayer
     static_assert(!IsValidTexturePath("..\\x.dds") && !IsValidTexturePath("a/../x.dds") && !IsValidTexturePath("C:x.dds"));
     static_assert(!IsValidTexturePath("\\x.dds") && !IsValidTexturePath("x.png") && !IsValidTexturePath(""));
 
+    [[nodiscard]] inline bool IsValidDefaultFace(const AppearanceDefaultFace& a_face)
+    {
+        if (a_face.headParts.size() > AppearanceDefaultFace::kMaximumHeadParts
+            || a_face.tints.size() > AppearanceDefaultFace::kMaximumTints
+            || !IsValidFormReference(a_face.faceDetails, true)
+            || (!a_face.faceDetails.IsEmpty() && !IsBaseGamePlugin(a_face.faceDetails.plugin)))
+        {
+            return false;
+        }
+        std::uint32_t types = 0;
+        for (const auto& headPart : a_face.headParts)
+        {
+            if (headPart.type > AppearanceDefaultFace::kMaximumHeadPartType || (types & (1U << headPart.type)) != 0
+                || !IsValidFormReference(headPart.form, false) || !IsBaseGamePlugin(headPart.form.plugin))
+            {
+                return false;
+            }
+            types |= 1U << headPart.type;
+        }
+        for (const auto morph : a_face.faceMorphs)
+        {
+            if (!std::isfinite(morph))
+            {
+                return false;
+            }
+        }
+        for (const auto part : a_face.faceParts)
+        {
+            if (part < PlayerAppearance::kMinimumFacePart || part > PlayerAppearance::kMaximumFacePart)
+            {
+                return false;
+            }
+        }
+        for (const auto& tint : a_face.tints)
+        {
+            if (tint.type > PlayerAppearance::kMaximumTintType || !std::isfinite(tint.alpha) || tint.alpha < 0.0F
+                || tint.alpha > 1.0F || !tint.texture.empty())
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     [[nodiscard]] inline bool IsValidAppearance(const PlayerAppearance& a_appearance)
     {
         if (a_appearance.revision == 0 || !IsValidAppearanceName(a_appearance.name)
@@ -196,6 +267,10 @@ namespace Multiplayer
         if (a_appearance.defaultRace
             && (!IsValidFormReference(*a_appearance.defaultRace, false)
                 || !IsBaseGamePlugin(a_appearance.defaultRace->plugin)))
+        {
+            return false;
+        }
+        if (a_appearance.defaultFace && (!a_appearance.defaultRace || !IsValidDefaultFace(*a_appearance.defaultFace)))
         {
             return false;
         }

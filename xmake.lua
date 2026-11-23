@@ -155,6 +155,9 @@ add_requires("rnnoise 0.2")
 add_requireconfs("ixwebsocket-patched.mbedtls", { version = "v3.6.7", override = true })
 add_requires("imgui v1.92.9", { configs = { dx11 = true, win32 = true } })
 add_requires("simpleini v4.25", { configs = { convert = "none" } })
+-- Reads RaceMenu presets (src/sync/look/LookPreset); the version CommonLib's
+-- optional JSON support pins.
+add_requires("nlohmann_json v3.12.0")
 if has_config("tracy") then
     -- Tracy 0.14 defaults its CMake TRACY_ENABLE option to OFF, and the xmake-repo
     -- recipe does not set it, which leaves TracyClient empty. It also removed the
@@ -186,7 +189,7 @@ target("PlayerHub")
     add_files("lib/nanopb/*.c")
     add_headerfiles("src/**.h")
     add_includedirs("src", "src/network/proto", "lib/nanopb")
-    add_packages("ixwebsocket-patched", "imgui", "simpleini", "libopus-dnn", "miniaudio", "rnnoise")
+    add_packages("ixwebsocket-patched", "imgui", "simpleini", "libopus-dnn", "miniaudio", "rnnoise", "nlohmann_json")
     add_syslinks("ws2_32")
     on_config(function (target)
         local address = get_config("server_address") or ""

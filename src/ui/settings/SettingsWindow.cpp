@@ -2,6 +2,8 @@
 #include "config/PluginConfig.h"
 #include "config/SettingsSchema.h"
 #include "protocol/Session.h"
+#include "sync/look/DefaultLook.h"
+#include "sync/look/LookPreset.h"
 #include "sync/voicechat/VoiceChatSync.h"
 #include "text/Text.h"
 #include "text/Utf8Case.h"
@@ -678,6 +680,54 @@ namespace UI
                 EndRow();
             }
 
+            void Preset(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment) override
+            {
+                if (!BeginRow(a_key, a_label, a_comment))
+                {
+                    return;
+                }
+                const auto outcome = DefaultLook::GetPresetOutcome();
+                const bool checked = !a_value.empty() && outcome.preset == a_value;
+                const auto* none = Text::GetCString(Text::Id::kLookPresetNone);
+                if (ImGui::BeginCombo("##value", a_value.empty() ? none : a_value.c_str()))
+                {
+                    if (ImGui::IsWindowAppearing())
+                    {
+                        // A preset saved in RaceMenu since the last opening is listed.
+                        presetNames = LookPreset::List();
+                    }
+                    if (ImGui::Selectable(none, a_value.empty()))
+                    {
+                        a_value.clear();
+                    }
+                    // A saved preset that was deleted stays listed, so the combo shows what is set.
+                    if (!a_value.empty() && !std::ranges::contains(presetNames, a_value))
+                    {
+                        presetNames.push_back(a_value);
+                    }
+                    for (std::size_t index = 0; index < presetNames.size(); ++index)
+                    {
+                        const bool selected = presetNames[index] == a_value;
+                        ImGui::PushID(static_cast<int>(index));
+                        if (ImGui::Selectable(presetNames[index].c_str(), selected))
+                        {
+                            a_value = presetNames[index];
+                        }
+                        ImGui::PopID();
+                        if (selected)
+                        {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+                if (checked)
+                {
+                    DrawPresetOutcome(outcome);
+                }
+                EndRow();
+            }
+
             void InputMeter(Text::Id a_label, std::uint32_t a_threshold) override
             {
                 if (!BeginRow(kInputMeterKey, a_label, Text::Id::kVoiceInputLevelComment))
@@ -719,6 +769,7 @@ namespace UI
             };
 
             std::vector<std::string> deviceNames;
+            std::vector<std::string> presetNames;
 
             struct SectionEntry
             {
@@ -985,6 +1036,33 @@ namespace UI
             }
 
             void EndRow() { ImGui::PopID(); }
+
+            void DrawPresetOutcome(const DefaultLook::PresetOutcome& a_outcome)
+            {
+                const auto drawLine = [this](std::string_view a_text) {
+                    ImGui::SetCursorPosX(controlLeft);
+                    ImGui::PushTextWrapPos(controlLeft + controlWidth);
+                    DrawMutedText(a_text);
+                    ImGui::PopTextWrapPos();
+                };
+                if (a_outcome.unreadable)
+                {
+                    drawLine(Text::Get(Text::Id::kLookPresetUnreadable));
+                    return;
+                }
+                if (a_outcome.moddedParts != 0)
+                {
+                    drawLine(Text::FormatPlural(Text::Id::kLookPresetModdedParts, a_outcome.moddedParts));
+                }
+                if (a_outcome.unfitParts != 0)
+                {
+                    drawLine(Text::FormatPlural(Text::Id::kLookPresetUnfitParts, a_outcome.unfitParts));
+                }
+                if (a_outcome.droppedTints != 0)
+                {
+                    drawLine(Text::FormatPlural(Text::Id::kLookPresetDroppedTints, a_outcome.droppedTints));
+                }
+            }
 
             void FormatNote(std::string_view a_text)
             {
@@ -1403,6 +1481,7 @@ namespace UI
 
             void DrawStagedFooter(float a_inset)
             {
+                DefaultLook::RequestPresetOutcome(draft.defaultLook.preset, draft.defaultLook.race);
                 const bool changed = draft.defaultLook != live->defaultLook;
                 if (changed)
                 {

@@ -267,6 +267,7 @@ namespace Config
 
             a_visitor.Comment(Id::kLookGroupCharacter);
             a_visitor.Form("Race", Id::kLookRace, a_settings.race, defaults.race, kLookRaceFilter, false);
+            a_visitor.Preset("Preset", Id::kLookPreset, a_settings.preset, Id::kLookPresetComment);
 
             a_visitor.Comment(Id::kLookGroupApparel);
             for (std::size_t slot = 0; slot < a_settings.armor.size(); ++slot)
@@ -482,6 +483,11 @@ namespace Config
             && std::ranges::none_of(a_value, [](char a_character) {
                    return a_character == '\n' || a_character == '\r' || a_character == ';';
                });
+    }
+
+    bool SettingsVisitor::IsValidPreset(std::string_view a_value)
+    {
+        return a_value.empty() || DefaultLookSettings::IsValidPresetName(a_value);
     }
 
     const PluginConfig& GetDefaultConfig()

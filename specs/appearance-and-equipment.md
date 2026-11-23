@@ -31,9 +31,10 @@ the settings in [Configuration](configuration.md#settings).
 | `sync/equipment/EquipmentSync` | Capture and publish; receive, resolve, reconcile the actor's inventory and a vampire lord actor's spells and armor; hand readiness |
 | `sync/equipment/SpellStandIn` | Capture a spell hand's spell and look; resolve it to the receiver's own spell or a runtime stand-in spell ([Combat presentation](combat-presentation.md#spell-look)) |
 | `sync/equipment/FakeLight` | A shadow-casting light's runtime copy without its shadow flags |
-| `sync/look/DefaultLook` | Resolve `[DefaultLook]` and select the pieces for a capture |
+| `sync/look/DefaultLook` | Resolve `[DefaultLook]`, including the preset face, and select the pieces for a capture |
+| `sync/look/LookPreset` | List RaceMenu presets and parse one into its vanilla face data, without engine access ([Preset face](#preset-face)) |
 | `sync/PlayerLabel.h` | `PlayerLabel::Format` |
-| `forms/RaceForms` | `IsPlayableRace`; `GetPlayableRace`, the playable race a capture sends for a race ([Playable race](#playable-race)) |
+| `forms/RaceForms` | `IsPlayableRace`; `GetPlayableRace`, the playable race a capture sends for a race ([Playable race](#playable-race)); a race's face data and default head part per type |
 | `forms/BeastForms` | The vanilla beast races and their forms, including the vampire lord's armor |
 | `sync/shapeshift/ShapeshiftSync` | The local form and levitation; beast actions both ways ([Combat presentation](combat-presentation.md#beast-actions)) |
 | `protocol/AppearanceState.h`, `EquipmentState.h`, `FormReference.h` | Plain data and validators shared by capture and the network parser |
@@ -61,9 +62,11 @@ On the game thread, once per second:
 - `level`: `Actor::GetLevel`, shown only in the
   [player menu](ui-overlay.md#player-menu). `name` is left empty: the server
   sets the [display name](#display-name).
-- `defaultRace`: the configured `[DefaultLook]` race when `race` is not from
-  a base-game plugin, else unset. With `AlwaysUse` the capture is the race's
-  default look instead ([Always use](#always-use)).
+- `defaultRace`: `[DefaultLook] Race` when `race` is not from a base-game
+  plugin, else unset; `defaultFace`, the
+  [preset face](#preset-face), is set with it when a preset is configured.
+  With `AlwaysUse` the capture is the default look instead
+  ([Always use](#always-use)).
 - `height`: `TESNPC::height` × the reference scale (`refScale / 100`) × the
   local scale of the third-person skeleton's `NPC` node rounded to 0.01,
   clamped to `0.25..4`. RaceMenu's height slider scales that node
@@ -173,10 +176,15 @@ that cannot be built keeps the previous base.
 | Tint layer | no race tint asset with that index and type, or a `texture` other than the asset's that `TextureExists` does not find | dropped |
 | Overlay | no SKEE, no free overlay slot of its area, or a texture `TextureExists` does not find | dropped |
 
-A fallback race keeps the source's sex and takes the race's default look for
-it. The source's head parts, tints, morphs, presets, face details, and hair
-color belong to its own race and are dropped; display name, level, weight, and
-height are kept. Each fallback is logged once per revision.
+A fallback race takes the race's default look in the source's sex, or, when
+the race is the sent `defaultRace` and `defaultFace` is set, that face in its
+own sex (`MakeFaceAppearance`, each tint taking the texture of the race layer
+its index and type name). `NordRace` never takes the face, since it was built
+for another race. The source's head parts, tints, morphs, presets, face
+details, and hair color belong to its own race and are dropped; display name,
+level, weight, and height are kept. The base is then built as for an own race,
+so the table above applies to the face's head parts and tints too. Each
+fallback is logged once per revision.
 
 ### Spawn and respawn
 
@@ -561,8 +569,61 @@ plugins (for every item with [`AlwaysUse`](#always-use)):
 - `ammo`: the `Bolt` or `Arrow` piece for modded bolts or arrows.
 
 An all-base-game player sends an empty outfit. A changed outfit publishes a
-new equipment revision, a changed default race a new appearance revision
-(every receiver then respawns the player once).
+new equipment revision, a changed default race or preset face a new appearance
+revision (every receiver then respawns the player once).
+
+#### Preset face
+
+`[DefaultLook] Preset` names a RaceMenu preset (`.jslot`) in
+`Data\SKSE\Plugins\CharGen\Presets`, whose face the default look shows on
+`[DefaultLook] Race` in place of the race's default face, both
+with [`AlwaysUse`](#always-use) and on
+a receiver that falls back to `defaultRace`. RaceMenu itself is not used: its
+menu edits only the player (Skyrim has no looks menu for other actors), and
+putting the default look on the player would change the race and every SKEE
+layer. A preset is a file SKEE applies to any actor, so reading it leaves the
+game untouched.
+
+`LookPreset::Parse` reads the file ([format](#engine-assumptions)) into a
+`PresetFace`: head parts by plugin and local form ID, hair color, face details,
+the 19 face morphs, the 4 face presets (255 or `0xFFFFFFFF` is unset, -1), and
+the tint layers with a non-zero alpha. A file that is not JSON, whose
+signature is not SKEE's, or whose `formatVersion` is 0 is unreadable. Custom
+slider and sculpt morphs, transforms, overrides, skin overrides, and body
+morphs only set `raceMenuData`.
+
+`DefaultLook` resolves it on the game thread, with the other forms:
+
+- Race: `[DefaultLook] Race`. The preset stores none, since SKEE applies it
+  to the target's own race, and the dropdown stays the one place that sets the
+  look's race.
+- Sex: the preset stores none, since SKEE applies it to the target's own sex.
+  The face part's `kMale`/`kFemale` flag decides, else the majority of the
+  other parts flagged for one sex, else the player's sex at resolve time
+  (logged).
+  So the default look can have another sex than the character.
+- Head parts: extra parts are skipped, since their parent lists them. A part
+  that is missing, not from a base-game plugin, or of a type above 6 counts as
+  modded; one whose valid races reject the race, or that is flagged only for
+  the other sex, as unfit. Either is replaced by the race's default part of its
+  type for the sex when it is base-game. Of two parts of one type the first is
+  kept, so at most one part of each type 0..6 remains.
+- Face details: kept when base-game and a texture set, else counted as modded.
+- Tints: each layer is matched to the race's tint asset for the sex by its
+  texture path, case-insensitively, which gives the index and type. A layer
+  matching none (an add-on war paint) or past 16 is dropped. The skin tone
+  layer's color is the body tint, else the race's default skin tone.
+- Weight, height, and level stay the character's.
+
+The applied preset's result is logged once (`Default look preset loaded:
+preset=... race= female= headParts= modded= wrongRace= wrongSex=
+duplicate= replaced= ... tints= droppedTints=`); an unreadable preset, or a
+race that does not resolve, leaves the default look with the race's face.
+For the [Default Look tab](ui-overlay.md#settings-window),
+`RequestPresetOutcome` asks for a staged preset and race, which `ServeRequests`
+resolves the same way without logging on the next main-loop pass, paused
+included. `GetPresetOutcome` returns the latest outcome (unreadable, and the
+counts), keyed by preset and race.
 
 #### Always use
 
@@ -571,12 +632,14 @@ look, so every receiver shows it whatever mods it has, and a receiver needs no
 knowledge of the setting. The selection above runs for every worn item,
 base-game or not, and the capture then keeps only its result:
 
-- Appearance: `DefaultLook::GetAlwaysUseRace` gives the configured race and
-  `CaptureLocalAppearance` publishes `MakeDefaultAppearance` for it (the look
-  a receiver builds for a race it cannot resolve) with the player's sex, level,
-  weight, and height. Head parts, tints, hair color, face data, and RaceMenu
-  overlays are those of the race, not the character's. `defaultRace` is unset,
-  since `race` is already base-game.
+- Appearance: `DefaultLook::GetAlwaysUseRace` gives the default look's race and
+  `CaptureLocalAppearance` publishes, with the player's level, weight, and
+  height, the [preset face](#preset-face) for it in the face's sex
+  (`MakeFaceAppearance`), or without a preset `MakeDefaultAppearance` in the
+  player's sex: the look a receiver builds for a race it cannot resolve.
+  Head parts, tints, hair color, face data, and RaceMenu overlays are not the
+  character's. `defaultRace` and `defaultFace` are unset, since `race` is
+  already base-game.
 - Equipment: `armor` holds only the outfit pieces, each with its resolved
   item's own slot mask, so an item covering only slots without a piece, or
   whose slot is set to none, is hidden. Each weapon and torch hand takes the
@@ -737,6 +800,18 @@ at runtime from the base's head parts and face data.
     ([Saves](sync-pipeline.md#saves)).
 17. A path `TextureExists` finds, with or without a leading `textures\`, loads
     the same file in the tint render and in SKEE.
+18. The RaceMenu preset format, from SKEE's `PresetInterface` (`formatVersion`
+    3) and a preset saved by RaceMenu Anniversary Edition: `version.signature`
+    is `0x45534B53`; `headParts[].formIdentifier` is `Plugin|XXXXXX`, the form
+    ID without the plugin's load order bits in hexadecimal, and `type` is the
+    part's index in the player's head part list with extra parts left out, not
+    `BGSHeadPart::type`; `actor.hairColor` is `0xRRGGBB`; `actor.headTexture`
+    is the face details texture set's identifier; race and sex are not stored; `tintInfo[].color` is ARGB
+    with the mask's alpha in the top byte and `index` the position in the
+    player's tint mask list; `morphs.default.morphs` holds the 19 morphs and
+    `morphs.default.presets` the 4 presets. `faceTextures` repeats the face
+    part's texture set when nothing replaced it, so it does not count as
+    RaceMenu data.
 
 ## Acceptance criteria
 
@@ -754,7 +829,8 @@ at runtime from the base's head parts and face data.
    inventory, and equipment never change because of a remote actor, also while
    the local player edits tints in RaceMenu and a remote face is built.
 4. A peer missing a race or head part plugin sees a vanilla fallback, or the
-   source's default race in the source's sex with the race's default look, and
+   source's default race in the source's sex with the race's default look, or
+   with the preset face in the preset's sex when the source configured one, and
    no crash.
 5. Armor from a missing plugin shows the source's outfit armor in the covered
    slots without displacing resolved items of the same or a higher slot in
@@ -798,6 +874,12 @@ at runtime from the base's head parts and face data.
     have RaceMenu and the textures, with the same color, transparency, and
     glow, also after a cell change and a respawn. A peer without RaceMenu or a
     texture sees the player without that overlay, and nothing else changes.
+19. A player who picks a RaceMenu preset for the default look appears with its
+    hair, eyes, brows, beard, scars, hair color, face sliders and presets, and
+    vanilla tints, in the preset's sex, to every peer that shows the default
+    look, whatever mods that peer has, as `[DefaultLook] Race`. A modded part,
+    or one that does not fit that race or sex, shows as the race's default of
+    that type, and the rest of the preset is still used.
 
 ## Known limitations
 
@@ -817,6 +899,14 @@ at runtime from the base's head parts and face data.
 - Enchantments, tempering, poison, charge, player-given names, and SMP/CBPC
   physics are not shown, except the spell a staff casts.
 - An outfit piece stands in only for its slot and weapon type, not for the
-  missing item's look. A default race shows its own default face.
+  missing item's look. A default race without a preset shows its own default
+  face.
+- The preset face carries vanilla data only, since every receiver must render
+  it from base-game forms: RaceMenu's custom sliders, sculpting, transforms,
+  overrides, skin and face textures, and body morphs are left out, so a
+  heavily sculpted face looks simpler to peers. Add-on war paints, modded hair
+  and other modded parts are replaced or dropped. The preset is not edited in
+  game; RaceMenu stays the editor, and a preset saved again under the same name
+  is read when `[DefaultLook]` next changes.
 - Lights built into a mesh (an `NiLight` in the model, not a `TESObjectLIGH`),
   such as some modded armor or weapons, keep their shadows.

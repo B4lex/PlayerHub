@@ -58,11 +58,17 @@ namespace Config
             (void)a_capture;
             String(a_key, a_label, a_value, a_comment, IsValidAudioDeviceName);
         }
+        // A RaceMenu preset's file stem, or empty for none.
+        virtual void Preset(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment)
+        {
+            String(a_key, a_label, a_value, a_comment, IsValidPreset);
+        }
         // The microphone's level against a_threshold, which the next setting holds; the settings
         // window alone draws it.
         virtual void InputMeter(Text::Id, std::uint32_t) {}
 
         [[nodiscard]] static bool IsValidAudioDeviceName(std::string_view a_value);
+        [[nodiscard]] static bool IsValidPreset(std::string_view a_value);
     };
 
     void Describe(PluginConfig& a_config, SettingsVisitor& a_visitor);

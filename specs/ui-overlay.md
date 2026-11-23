@@ -1998,6 +1998,17 @@ peers keep seeing the player.
   [key binding](#key-bindings) stops listening, as on any click. `[UI]` keeps
   the chat's [size](#size), which the page does not show. `[Connection]` has
   no footer.
+- `[DefaultLook] Preset` (`SettingsVisitor::Preset`) is a combo of a none row
+  for the race's default face, then the presets `LookPreset::List` finds, with
+  a saved preset that is gone kept in the list; opening it lists the folder
+  again, so a preset saved in RaceMenu meanwhile appears. The footer requests
+  `DefaultLook::RequestPresetOutcome` for the staged preset and race every
+  frame, and lines under the combo report `GetPresetOutcome` once it matches
+  the staged preset. Muted lines say that the preset could not be read, or how
+  many face parts came from mods, how many did not fit the race or sex, and
+  how many tint
+  layers were left out, each only when it applies. Left-out RaceMenu data is
+  not reported there, only in the load log line.
 - `[DefaultLook]` keeps its edits until Apply, since a look is put
   together from several picks and each apply can publish new equipment and
   appearance revisions to peers. Its footer has Defaults, enabled while the

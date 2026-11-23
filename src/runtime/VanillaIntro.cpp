@@ -147,7 +147,6 @@ namespace VanillaIntro
 
     bool IsPlaying()
     {
-        // The last game's hold stays set in the main menu until the next game checks again.
-        return s_playing.load(std::memory_order_acquire) && GameSession::IsInGame();
+       return s_playing.load(std::memory_order_acquire) && GameSession::IsInGame();
     }
 }

@@ -369,6 +369,7 @@ typedef struct _playerhub_v1_TradeClose {
 } playerhub_v1_TradeClose;
 
 typedef struct _playerhub_v1_ServerMessage {
+    pb_callback_t cb_message;
     pb_size_t which_message;
     union {
         playerhub_v1_Welcome welcome;
@@ -523,7 +524,7 @@ extern "C" {
 #define playerhub_v1_TradeOpen_init_default      {0}
 #define playerhub_v1_TradeCommit_init_default    {0, 0, 0}
 #define playerhub_v1_TradeClose_init_default     {0, _playerhub_v1_TradeCloseReason_MIN}
-#define playerhub_v1_ServerMessage_init_default  {0, {playerhub_v1_Welcome_init_default}}
+#define playerhub_v1_ServerMessage_init_default  {{{NULL}, NULL}, 0, {playerhub_v1_Welcome_init_default}}
 #define playerhub_v1_Hello_init_zero             {0, 0, {0, {0}}, "", {{NULL}, NULL}}
 #define playerhub_v1_Enter_init_zero             {0}
 #define playerhub_v1_Exit_init_zero              {0}
@@ -566,7 +567,7 @@ extern "C" {
 #define playerhub_v1_TradeOpen_init_zero         {0}
 #define playerhub_v1_TradeCommit_init_zero       {0, 0, 0}
 #define playerhub_v1_TradeClose_init_zero        {0, _playerhub_v1_TradeCloseReason_MIN}
-#define playerhub_v1_ServerMessage_init_zero     {0, {playerhub_v1_Welcome_init_zero}}
+#define playerhub_v1_ServerMessage_init_zero     {{{NULL}, NULL}, 0, {playerhub_v1_Welcome_init_zero}}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define playerhub_v1_Hello_protocol_version_tag  1
@@ -1074,31 +1075,31 @@ X(a, STATIC,   SINGULAR, UENUM,    reason,            2)
 #define playerhub_v1_TradeClose_DEFAULT NULL
 
 #define playerhub_v1_ServerMessage_FIELDLIST(X, a) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,welcome,message.welcome),   1) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,chat_result,message.chat_result),   2) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,peer_states,message.peer_states),   3) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,peer_enter,message.peer_enter),   4) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,peer_context,message.peer_context),   5) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,peer_leave,message.peer_leave),   6) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,peer_action,message.peer_action),   7) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,peer_appearance,message.peer_appearance),   8) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,peer_equipment,message.peer_equipment),   9) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,chat_message,message.chat_message),  10) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,roster,message.roster),  11) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,inspection,message.inspection),  12) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_invite,message.trade_invite),  13) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_open,message.trade_open),  14) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_offer,message.trade_offer),  15) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_report,message.trade_report),  16) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_accept,message.trade_accept),  17) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_commit,message.trade_commit),  18) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_close,message.trade_close),  19) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,nearby_players,message.nearby_players),  20) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_plugin_query,message.trade_plugin_query),  21) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,trade_plugin_reply,message.trade_plugin_reply),  22) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,pong,message.pong),  23) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,peer_effects,message.peer_effects),  24) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (message,roles,message.roles),  25)
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,welcome,message.welcome),   1) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,chat_result,message.chat_result),   2) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,peer_states,message.peer_states),   3) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,peer_enter,message.peer_enter),   4) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,peer_context,message.peer_context),   5) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,peer_leave,message.peer_leave),   6) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,peer_action,message.peer_action),   7) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,peer_appearance,message.peer_appearance),   8) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,peer_equipment,message.peer_equipment),   9) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,chat_message,message.chat_message),  10) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,roster,message.roster),  11) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,inspection,message.inspection),  12) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,trade_invite,message.trade_invite),  13) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,trade_open,message.trade_open),  14) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,trade_offer,message.trade_offer),  15) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,trade_report,message.trade_report),  16) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,trade_accept,message.trade_accept),  17) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,trade_commit,message.trade_commit),  18) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,trade_close,message.trade_close),  19) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,nearby_players,message.nearby_players),  20) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,trade_plugin_query,message.trade_plugin_query),  21) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,trade_plugin_reply,message.trade_plugin_reply),  22) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,pong,message.pong),  23) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,peer_effects,message.peer_effects),  24) \
+X(a, STATIC,   ONEOF,    MSG_W_CB, (message,roles,message.roles),  25)
 #define playerhub_v1_ServerMessage_CALLBACK NULL
 #define playerhub_v1_ServerMessage_DEFAULT NULL
 #define playerhub_v1_ServerMessage_message_welcome_MSGTYPE playerhub_v1_Welcome
@@ -1226,7 +1227,6 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 /* playerhub_v1_Roster_size depends on runtime parameters */
 /* playerhub_v1_NearbyPlayers_size depends on runtime parameters */
 /* playerhub_v1_ServerMessage_size depends on runtime parameters */
-#define PLAYERHUB_V1_PLAYERHUB_V1_MESSAGES_PB_H_MAX_SIZE playerhub_v1_PeerEnter_size
 #define playerhub_v1_ChatMessage_size            2367
 #define playerhub_v1_ChatResult_size             8
 #define playerhub_v1_ChatSend_size               2065
@@ -1235,10 +1235,8 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_Inspect_size                6
 #define playerhub_v1_Inspection_size             828
 #define playerhub_v1_PeerAction_size             314
-#define playerhub_v1_PeerAppearance_size         39737
 #define playerhub_v1_PeerContext_size            1176
 #define playerhub_v1_PeerEffects_size            8980
-#define playerhub_v1_PeerEnter_size              62125
 #define playerhub_v1_PeerEquipment_size          20922
 #define playerhub_v1_PeerLeave_size              8
 #define playerhub_v1_Ping_size                   6
@@ -1261,6 +1259,11 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #define playerhub_v1_Vanish_size                 13
 #define playerhub_v1_VoiceAccess_size            308
 #define playerhub_v1_Welcome_size                379
+#if defined(playerhub_v1_Appearance_size)
+#define PLAYERHUB_V1_PLAYERHUB_V1_MESSAGES_PB_H_MAX_SIZE playerhub_v1_PeerEnter_size
+#define playerhub_v1_PeerAppearance_size         (12 + playerhub_v1_Appearance_size)
+#define playerhub_v1_PeerEnter_size              (22400 + playerhub_v1_Appearance_size)
+#endif
 
 #ifdef __cplusplus
 } /* extern "C" */

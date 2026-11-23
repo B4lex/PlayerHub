@@ -100,6 +100,49 @@ msgctxt "LookRace"
 msgid "Race"
 msgstr "Раса"
 
+msgctxt "LookPreset"
+msgid "RaceMenu preset"
+msgstr "Пресет RaceMenu"
+
+msgctxt "LookPresetComment"
+msgid "A RaceMenu preset shown to other players as your default look."
+msgstr "Пресет RaceMenu, который другие игроки видят как вашу базовую внешность."
+
+msgctxt "LookPresetNone"
+msgid "Race default"
+msgstr "По умолчанию для расы"
+
+msgctxt "LookPresetUnreadable"
+msgid "This preset could not be read"
+msgstr "Не удалось прочитать этот пресет"
+
+#. {} is a number of head parts
+#, c++-format
+msgctxt "LookPresetModdedParts"
+msgid "{} part of the face is from a mod and shows as the race's default"
+msgid_plural "{} parts of the face are from mods and show as the race's defaults"
+msgstr[0] "Части лица из модов заменены стандартными для расы: {}"
+msgstr[1] "Части лица из модов заменены стандартными для расы: {}"
+msgstr[2] "Части лица из модов заменены стандартными для расы: {}"
+
+#. {} is a number of head parts
+#, c++-format
+msgctxt "LookPresetUnfitParts"
+msgid "{} part of the face does not fit this race or sex and shows as the race's default"
+msgid_plural "{} parts of the face do not fit this race or sex and show as the race's defaults"
+msgstr[0] "Части лица, не подходящие этой расе или полу, заменены стандартными для расы: {}"
+msgstr[1] "Части лица, не подходящие этой расе или полу, заменены стандартными для расы: {}"
+msgstr[2] "Части лица, не подходящие этой расе или полу, заменены стандартными для расы: {}"
+
+#. {} is a number of tint layers
+#, c++-format
+msgctxt "LookPresetDroppedTints"
+msgid "{} paint or makeup layer is not the race's and is left out"
+msgid_plural "{} paint or makeup layers are not the race's and are left out"
+msgstr[0] "Пропущены слои раскраски или макияжа не от этой расы: {}"
+msgstr[1] "Пропущены слои раскраски или макияжа не от этой расы: {}"
+msgstr[2] "Пропущены слои раскраски или макияжа не от этой расы: {}"
+
 msgctxt "LookGroupApparel"
 msgid "Apparel"
 msgstr "Одежда"

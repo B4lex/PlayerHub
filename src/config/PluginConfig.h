@@ -44,8 +44,33 @@ namespace Config
         static constexpr std::array<std::size_t, kArmorSlotCount> kArmorSlotPrecedence{ 1, 0, 2, 4, 5, 3, 6, 7 };
         static_assert(kArmorSlotCount <= Multiplayer::DefaultOutfit::kMaximumArmor);
 
+        static constexpr std::size_t kMaximumPresetNameBytes = 200;
+
+        // A RaceMenu preset's file stem in UTF-8 that a Windows file name and an INI value
+        // can hold: SimpleIni would read a ';' as a trailing comment.
+        [[nodiscard]] static constexpr bool IsValidPresetName(std::string_view a_name) noexcept
+        {
+            if (a_name.empty() || a_name.size() > kMaximumPresetNameBytes || a_name.front() == ' '
+                || a_name.back() == ' ' || a_name.back() == '.')
+            {
+                return false;
+            }
+            constexpr std::string_view kReserved = "\\/:*?\"<>|;";
+            for (const auto character : a_name)
+            {
+                const auto byte = static_cast<unsigned char>(character);
+                if (byte < 0x20 || byte == 0x7F || kReserved.contains(character))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         bool alwaysUse{ false };
         Multiplayer::FormReference race;
+        // A RaceMenu preset's file stem, or empty for the race's default face.
+        std::string preset;
         std::array<Multiplayer::FormReference, kArmorSlotCount> armor;
         // Indexed by RE::WEAPON_TYPE.
         std::array<Multiplayer::FormReference, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> weapons;

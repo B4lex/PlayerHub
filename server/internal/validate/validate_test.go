@@ -284,6 +284,16 @@ func validAppearance() *pb.Appearance {
 		Overlays: []*pb.Overlay{{Area: pb.OverlayArea_OVERLAY_AREA_HANDS, Texture: "Actors/Character/Overlays/Ink.dds",
 			Color: &pb.Color{R: 255}, Alpha: 1, GlowColor: &pb.Color{}, GlowStrength: 25.5}},
 		DefaultRace: ref("skyrim.ESM", 1),
+		DefaultFace: &pb.DefaultFace{
+			Female:      true,
+			HeadParts:   []*pb.HeadPart{{Form: ref("Skyrim.esm", 0x05162F), Type: 1}, {Form: ref("Dawnguard.esm", 2), Type: 3}},
+			HairColor:   &pb.Color{R: 56, G: 59, B: 44},
+			FaceDetails: ref("Skyrim.esm", 0x03B521),
+			BodyTint:    &pb.Color{R: 200},
+			FaceMorphs:  make([]float32, FaceMorphCount),
+			FaceParts:   []int32{1, -1, 1, 19},
+			Tints:       []*pb.Tint{{Index: 44, Type: 6, Color: &pb.Color{R: 1}, Alpha: 1}},
+		},
 	}
 }
 
@@ -342,6 +352,27 @@ func TestAppearance(t *testing.T) {
 		"overlay glow":           func(a *pb.Appearance) { a.Overlays[0].GlowStrength = 100.5 },
 		"modded default race":    func(a *pb.Appearance) { a.DefaultRace = ref("Mod.esp", 1) },
 		"default race no plugin": func(a *pb.Appearance) { a.DefaultRace.Plugin = "" },
+		"face without race":      func(a *pb.Appearance) { a.DefaultRace = nil },
+		"face too many parts": func(a *pb.Appearance) {
+			a.DefaultFace.HeadParts = make([]*pb.HeadPart, MaximumDefaultFaceHeadParts+1)
+		},
+		"face part type":         func(a *pb.Appearance) { a.DefaultFace.HeadParts[1].Type = 7 },
+		"face part repeats type": func(a *pb.Appearance) { a.DefaultFace.HeadParts[1].Type = 1 },
+		"face part modded":       func(a *pb.Appearance) { a.DefaultFace.HeadParts[1].Form = ref("Mod.esp", 2) },
+		"face part no form":      func(a *pb.Appearance) { a.DefaultFace.HeadParts[0].Form = nil },
+		"face hair channel":      func(a *pb.Appearance) { a.DefaultFace.HairColor.B = 256 },
+		"face details modded":    func(a *pb.Appearance) { a.DefaultFace.FaceDetails = ref("Mod.esp", 1) },
+		"face no body tint":      func(a *pb.Appearance) { a.DefaultFace.BodyTint = nil },
+		"face 20 morphs":         func(a *pb.Appearance) { a.DefaultFace.FaceMorphs = make([]float32, 20) },
+		"face NaN morph":         func(a *pb.Appearance) { a.DefaultFace.FaceMorphs[0] = float32(math.NaN()) },
+		"face 5 parts":           func(a *pb.Appearance) { a.DefaultFace.FaceParts = append(a.DefaultFace.FaceParts, 0) },
+		"face preset above 255":  func(a *pb.Appearance) { a.DefaultFace.FaceParts[0] = 256 },
+		"face too many tints":    func(a *pb.Appearance) { a.DefaultFace.Tints = make([]*pb.Tint, 17) },
+		"face tint texture": func(a *pb.Appearance) {
+			a.DefaultFace.Tints[0].Texture = `Actors\Character\Character Assets\TintMasks\SkinTone.dds`
+		},
+		"face tint type":  func(a *pb.Appearance) { a.DefaultFace.Tints[0].Type = 15 },
+		"face tint alpha": func(a *pb.Appearance) { a.DefaultFace.Tints[0].Alpha = -0.1 },
 	}
 	for name, mutate := range cases {
 		a := validAppearance()

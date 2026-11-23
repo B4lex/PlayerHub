@@ -97,6 +97,43 @@ msgctxt "LookRace"
 msgid "Race"
 msgstr "種族"
 
+msgctxt "LookPreset"
+msgid "RaceMenu preset"
+msgstr "RaceMenu 預設"
+
+msgctxt "LookPresetComment"
+msgid "A RaceMenu preset shown to other players as your default look."
+msgstr "作為你的預設外觀顯示給其他玩家的 RaceMenu 預設。"
+
+msgctxt "LookPresetNone"
+msgid "Race default"
+msgstr "種族預設"
+
+msgctxt "LookPresetUnreadable"
+msgid "This preset could not be read"
+msgstr "無法讀取此預設"
+
+#. {} is a number of head parts
+#, c++-format
+msgctxt "LookPresetModdedParts"
+msgid "{} part of the face is from a mod and shows as the race's default"
+msgid_plural "{} parts of the face are from mods and show as the race's defaults"
+msgstr[0] "{} 個臉部部位來自模組，改以種族預設顯示"
+
+#. {} is a number of head parts
+#, c++-format
+msgctxt "LookPresetUnfitParts"
+msgid "{} part of the face does not fit this race or sex and shows as the race's default"
+msgid_plural "{} parts of the face do not fit this race or sex and show as the race's defaults"
+msgstr[0] "{} 個臉部部位不符合此種族或性別，改以種族預設顯示"
+
+#. {} is a number of tint layers
+#, c++-format
+msgctxt "LookPresetDroppedTints"
+msgid "{} paint or makeup layer is not the race's and is left out"
+msgid_plural "{} paint or makeup layers are not the race's and are left out"
+msgstr[0] "省略 {} 個不屬於此種族的彩繪或妝容圖層"
+
 msgctxt "LookGroupApparel"
 msgid "Apparel"
 msgstr "服裝"
