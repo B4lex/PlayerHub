@@ -297,6 +297,8 @@ func validAppearance() *pb.Appearance {
 		},
 		BodyMorphs: []*pb.BodyMorph{{Name: "Breasts", Value: 750}, {Name: "Butt", Value: -10000},
 			{Name: "Waist", Value: MaximumBodyMorphValue}},
+		FaceSliders: []*pb.FaceSlider{{Name: "CME_EarUpDown", Value: -400}, {Name: "ECE_EarShape", Value: 3000},
+			{Name: "NSK_LipThickness", Value: MaximumFaceSliderValue}},
 	}
 }
 
@@ -325,6 +327,18 @@ func TestAppearance(t *testing.T) {
 	full.BodyMorphs = nil
 	if err := Appearance(full); err != nil {
 		t.Fatalf("no body morphs: %v", err)
+	}
+	full.FaceSliders = nil
+	for i := range MaximumFaceSliders {
+		name := fmt.Sprintf("%03d%s", i, strings.Repeat("~", MaximumFaceSliderNameBytes-3))
+		full.FaceSliders = append(full.FaceSliders, &pb.FaceSlider{Name: name, Value: -MaximumFaceSliderValue})
+	}
+	if err := Appearance(full); err != nil {
+		t.Fatalf("%d face sliders: %v", MaximumFaceSliders, err)
+	}
+	full.FaceSliders = nil
+	if err := Appearance(full); err != nil {
+		t.Fatalf("no face sliders: %v", err)
 	}
 	cases := map[string]func(*pb.Appearance){
 		"zero revision":          func(a *pb.Appearance) { a.Revision = 0 },
@@ -401,8 +415,22 @@ func TestAppearance(t *testing.T) {
 		"zero morph":          func(a *pb.Appearance) { a.BodyMorphs[1].Value = 0 },
 		"morph above range":   func(a *pb.Appearance) { a.BodyMorphs[2].Value = MaximumBodyMorphValue + 1 },
 		"morph below range":   func(a *pb.Appearance) { a.BodyMorphs[1].Value = -MaximumBodyMorphValue - 1 },
-		"face tint type":      func(a *pb.Appearance) { a.DefaultFace.Tints[0].Type = 15 },
-		"face tint alpha":     func(a *pb.Appearance) { a.DefaultFace.Tints[0].Alpha = -0.1 },
+		"too many sliders": func(a *pb.Appearance) {
+			a.FaceSliders = nil
+			for i := range MaximumFaceSliders + 1 {
+				a.FaceSliders = append(a.FaceSliders, &pb.FaceSlider{Name: fmt.Sprintf("Slider%03d", i), Value: 1})
+			}
+		},
+		"empty slider name":    func(a *pb.Appearance) { a.FaceSliders[0].Name = "" },
+		"long slider name":     func(a *pb.Appearance) { a.FaceSliders[0].Name = strings.Repeat("A", 65) },
+		"control in slider":    func(a *pb.Appearance) { a.FaceSliders[0].Name = "CME_EarUpDown\t" },
+		"sliders out of order": func(a *pb.Appearance) { a.FaceSliders[0].Name = "Zeta" },
+		"slider repeated":      func(a *pb.Appearance) { a.FaceSliders[1].Name = "CME_EarUpDown" },
+		"zero slider":          func(a *pb.Appearance) { a.FaceSliders[1].Value = 0 },
+		"slider above range":   func(a *pb.Appearance) { a.FaceSliders[2].Value = MaximumFaceSliderValue + 1 },
+		"slider below range":   func(a *pb.Appearance) { a.FaceSliders[0].Value = -MaximumFaceSliderValue - 1 },
+		"face tint type":       func(a *pb.Appearance) { a.DefaultFace.Tints[0].Type = 15 },
+		"face tint alpha":      func(a *pb.Appearance) { a.DefaultFace.Tints[0].Alpha = -0.1 },
 	}
 	for name, mutate := range cases {
 		a := validAppearance()

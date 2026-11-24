@@ -22,6 +22,8 @@ namespace AppearanceSync
         RE::TESNPC* base{ nullptr };
         // The texture each of base's tint layers renders.
         std::vector<RE::BSFixedString> baseTintTextures;
+        // The RaceMenu face sliders base shows.
+        std::vector<Multiplayer::AppearanceFaceSlider> baseFaceSliders;
         std::uint64_t baseRevision{ 0 };
         std::optional<std::uint64_t> failedRevision;
         RE::TESNPC* beastBase{ nullptr };
@@ -55,6 +57,8 @@ namespace AppearanceSync
     [[nodiscard]] SpawnBase GetSpawnBase(
         RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, Multiplayer::Shapeshift a_form);
 
+    // Before the actor of a_spawning is placed, so its head loads with the base's sliders.
+    void OnActorSpawning(const RemoteState& a_remote, const SpawnBase& a_spawning);
     void OnActorSpawned(RemoteState& a_remote, const SpawnBase& a_spawned);
 
     [[nodiscard]] bool RequiresRespawn(const RemoteState& a_remote);

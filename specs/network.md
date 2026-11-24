@@ -91,9 +91,10 @@ compatibility shims; a version mismatch is refused at the handshake.
   on its own thread, so a paused game stays connected. The client sends no
   WebSocket pings; its ping interval is -1, since IXWebSocket polls with the
   interval as timeout and 0 spins its thread.
-- Boundary limits: 48 KiB per message (the largest valid `ClientMessage`, an
+- Boundary limits: 72 KiB per message (the largest valid `ClientMessage`, an
   `Appearance` with every tint and overlay path at full length, a full
-  `default_face`, and 128 body morphs with 64-byte names, is 48,013 bytes);
+  `default_face`, 128 body morphs, and 256 face sliders with 64-byte names, is
+  66,701 bytes, checked by `TestLargestAppearanceFitsTheReadLimit`);
   `limits.messages_per_second` (120, burst 240) per connection,
   over which the connection is closed with 4003, counting every message; a recipient whose unsent
   ordered messages exceed `limits.ordered_backlog` (4096) is closed with 4002.
@@ -385,6 +386,7 @@ only the overriding file (Skyrim.esm's `000DDFB3` lists `Update.esm`).
 | `default_race` | a base-game race, unset for none; the fallback race keeps the appearance's `female` unless `default_face` is set |
 | `default_face` | a [`DefaultFace`](#defaultface), only with `default_race` |
 | `body_morphs` | at most 128 [`BodyMorph`](#bodymorph)s, names unique and sorted ascending by byte value, so equal sets compare and encode equally (`MaximumBodyMorphs`, `IsValidBodyMorphs`) |
+| `face_sliders` | at most 256 [`FaceSlider`](#faceslider)s, names unique and sorted as `body_morphs` (`MaximumFaceSliders`, `IsValidFaceSliders`) |
 
 Hair color is RGB rather than a form, because character editors commonly
 create dynamic color forms.
@@ -436,6 +438,25 @@ oneof callback that sets the `default_face` decoder sets the morph decoder
 too, which decodes each element into the decoder's own buffer, reserved for
 128 morphs. A 129th sets an overflow flag, and a list that fails a rule
 rejects the message (`peer appearance bodyMorphs`).
+
+#### `FaceSlider`
+
+A [face slider](appearance-and-equipment.md#face-sliders): one RaceMenu slider
+name and its value. Body morphs and face sliders share the list rules
+(`namedValues`, `IsValidNamedValues`).
+
+| Field | Validation |
+| --- | --- |
+| `name` | 1..64 bytes of printable ASCII (`MaximumFaceSliderNameBytes`, `IsValidFaceSliderName`) |
+| `value` | thousandths, non-zero, within `±255000` (`MaximumFaceSliderValue`): a preset slider's value is a preset index, and SKEE caps a slider at 255 presets |
+
+`Appearance.face_sliders` (field 19) is additive like `body_morphs`, so the
+protocol stays 16: a client that predates it skips the field and shows the
+face without the sliders, and a server that predates it relays it as an
+unknown field. In nanopb it is an `FT_CALLBACK` field decoded into the
+decoder's own buffer, reserved for 256 sliders; a 257th sets an overflow flag,
+and a list that fails a rule rejects the message (`peer appearance
+faceSliders`).
 
 #### Texture paths
 
@@ -1315,6 +1336,8 @@ window, and are empty after a long gap. The status panel shows them.
   resends the whole appearance, and clients that predate them respawn the
   actor for it. At the next protocol change they move to a message of their
   own with its own revision, like `Effects`, and the callback field goes.
+  Face sliders also ride inside `Appearance` as a callback field; they change
+  the actor base, so they stay there, and only the callback goes.
 - The roster tells every client the display name of every connected player,
   wherever they are, and its session ID. It carries no level.
 - Form references, spaces included, match only between peers that load the

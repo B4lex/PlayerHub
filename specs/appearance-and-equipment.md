@@ -7,7 +7,9 @@ SE 1.5.97 (ID 26454); head parts of mod-added types and the extra parts listed
 on the receiver ([Actor base](#actor-base)); tint textures that differ from
 the receiver's race asset; RaceMenu [overlays](#overlays);
 [body morphs](#body-morphs) with OBody NG or BodyGen on the viewer, and on the
-SE 1.5.97 build of SKEE.
+SE 1.5.97 build of SKEE. [Face sliders](#face-sliders) are off with a SKEE
+build whose `BodyMorph` interface is older than version 5, which may include
+the SE build ([SKEE face sliders](#engine-assumptions)).
 
 ## Scope
 
@@ -31,6 +33,8 @@ the settings in [Configuration](configuration.md#settings).
 | `actor/SkeeInterfaces` | RaceMenu's SKEE interfaces: the exchange at `kPostPostLoad`, the local declarations, and a version check per interface |
 | `actor/RaceMenuOverlays` | SKEE's overlay and override interfaces: capture the player's overlays, apply them to a remote actor, and release them ([Overlays](#overlays)) |
 | `actor/RaceMenuBodyMorphs` | SKEE's body morph interface: capture the player's morphs, replace a remote actor's with the source's, keep them after a 3D rebuild, and release them ([Body morphs](#body-morphs)) |
+| `actor/RaceMenuSliderCatalog` | The value sliders RaceMenu's `FaceGenMorphs` folders give each race and sex ([Face sliders](#face-sliders)) |
+| `actor/RaceMenuFaceSliders` | SKEE's face morph interface: capture the player's slider values and give them to a remote actor base before it spawns ([Face sliders](#face-sliders)) |
 | `forms/TextureFiles` | `TextureExists`: whether the receiver's loose files or archives hold a texture, cached per path |
 | `sync/equipment/EquipmentSync` | Capture and publish; receive, resolve, reconcile the actor's inventory and a vampire lord actor's spells and armor; hand readiness |
 | `sync/equipment/SpellStandIn` | Capture a spell hand's spell and look; resolve it to the receiver's own spell or a runtime stand-in spell ([Combat presentation](combat-presentation.md#spell-look)) |
@@ -52,7 +56,7 @@ The actor shows the source's race, sex, body weight, height, head parts (face,
 eyes, hair, beard, brows, scars), hair color, face morph sliders and presets,
 face detail texture, skin tone, face tint layers (war paint, dirt, lip and
 cheek color) with their textures, RaceMenu overlays (body, hand, feet, and
-face paint), and RaceMenu body morphs.
+face paint), RaceMenu body morphs, and RaceMenu face sliders.
 
 ### Capture
 
@@ -103,6 +107,8 @@ On the game thread, once per second:
 - `overlays`: `RaceMenuOverlays::Capture` ([Overlays](#overlays)).
 - `bodyMorphs`: the settled set of `RaceMenuBodyMorphs::Capture`
   ([Body morphs](#body-morphs)).
+- `faceSliders`: `RaceMenuFaceSliders::Capture` for `race` and `female`
+  ([Face sliders](#face-sliders)).
 
 A changed capture must repeat in two consecutive captures, so dragging an
 editor slider does not stream updates. A look that keeps changing for 10 s
@@ -154,6 +160,9 @@ The base then gets:
   (`interpolationValue = alpha × 100`, with the matching preset). Each layer's
   texture is kept beside the base in `RemoteState::baseTintTextures`: the race
   asset's path when `texture` names the same file, else the sent path.
+  The face sliders it shows are kept in `RemoteState::baseFaceSliders`: the
+  source's on its own race, none on a fallback race
+  ([Face sliders](#face-sliders)).
 
 `TESNPC::InitItemImpl` lists a plugin NPC's extra parts after their parent, and
 the head build attaches only listed parts ([head parts](#engine-assumptions)).
@@ -182,13 +191,14 @@ that cannot be built keeps the previous base.
 | Tint layer | no race tint asset with that index and type, or a `texture` other than the asset's that `TextureExists` does not find | dropped |
 | Overlay | no SKEE, no free overlay slot of its area, or a texture `TextureExists` does not find | dropped |
 | Body morph | no SKEE, or a name the receiver's body meshes have no morph data for | does nothing; the rest of the body still morphs |
+| Face slider | no usable SKEE face morph interface, or no slider of that name for the race and sex in the receiver's RaceMenu morph folders | does nothing; the rest of the face still shows |
 
 A fallback race takes the race's default look in the source's sex, or, when
 the race is the sent `defaultRace` and `defaultFace` is set, that face in its
 own sex (`MakeFaceAppearance`, each tint taking the texture of the race layer
 its index and type name). `NordRace` never takes the face, since it was built
 for another race. The source's head parts, tints, morphs, presets, face
-details, and hair color belong to its own race and are dropped; display name,
+details, hair color, and face sliders belong to its own race and are dropped; display name,
 level, weight, height, and body morphs are kept. The base is then built as for an own race,
 so the table above applies to the face's head parts and tints too. Each
 fallback is logged once per revision.
@@ -205,7 +215,11 @@ fallback is logged once per revision.
 - A change of only display name, level, or body morphs adopts the revision
   without a new base or respawn (`HasSameBase`); the built base's full name is
   rewritten in place, and changed morphs are applied to the spawned actor
-  ([Body morphs](#body-morphs)).
+  ([Body morphs](#body-morphs)). A face slider change respawns, as any other
+  face change.
+- Right before each spawn, `AppearanceSync::OnActorSpawning` gives the base its
+  face sliders, so the head the actor loads shows them
+  ([Face sliders](#face-sliders)).
 - Once the respawned actor is ready with 3D, `Actor::UpdateHairColor` and
   `UpdateSkinColor` run once.
 - The face tint: `PrepareHeadPartForShaders` (ID 26838, SE 26259) gives a
@@ -240,8 +254,8 @@ texture, with the source's color, transparency, and glow. Other NiOverride data
 - **Interfaces:** `SkeeInterfaces::Initialize` runs at SKSE's
   `kPostPostLoad`. It dispatches SKEE's interface exchange
   (`0x9E3779B9`) to `skee` and queries `Overlay` and `Override` from the
-  returned map, both at version 2 or later, and `BodyMorph`; one line logs
-  each interface found, or missing or too old. Without both overlay
+  returned map, both at version 2 or later, `BodyMorph`, and `FaceMorph`; one
+  line logs each interface found, or missing or too old. Without both overlay
   interfaces no overlay is captured or applied. The interfaces are declared
   locally after RaceMenu's `ModderResource/IPluginInterface.h`.
 - **Capture:** for each area, slots `0..GetOverlayCount(Normal, area)` of the
@@ -335,6 +349,58 @@ settled set is published.
   thread, when morphs are applied: once per spawn, per settled change, and per
   3D rebuild, never per frame. Applying has a Tracy zone; a crowd spawn has not
   been measured.
+
+### Face sliders
+
+Goal: a remote player's face shows the source's RaceMenu face sliders, the
+extra morphs RaceMenu's `FaceGenMorphs` packs add (ears, lips, mouth, nose,
+eyes, expressions), for a viewer whose RaceMenu has the same sliders for the
+race. Any other viewer sees the face without them. The vanilla face sliders
+travel in `faceMorphs` and `faceParts`.
+
+Non-goals: sculpting (per-vertex offsets on each head part, far larger than a
+slider value), node transforms, and the [preset face](#preset-face)'s sliders,
+since a fallback face must render from base-game data.
+
+- **Interface:** SKEE's `FaceMorph`, used only when `BodyMorph` is version 5
+  or later, since older builds put two more functions in the same vtable under
+  the same version ([SKEE face sliders](#engine-assumptions)). Without it no
+  slider is captured or applied.
+- **Catalog:** `RaceMenuSliderCatalog` reads what SKEE reads at startup, on the
+  first capture, through the game's file system (loose files and archives):
+  `Meshes\actors\character\FaceGenMorphs\<plugin>\races.ini` for each loaded
+  plugin, whose lines name a race by editor ID and its slider files, relative
+  to the plugin's folder, or to `FaceGenMorphs` after a leading `:`. A slider
+  file line is `Name = category, type, ...` under an optional `[Male]` or
+  `[Female]` section (male before one). Only `Slider` and `Preset` types with
+  SKEE's categories and at least four fields are kept; `HeadPart` sliders pick
+  head parts, which sync on their own. Names are compared without case, as
+  SKEE does, the first spelling kept and the list sorted by name. A name the
+  [validation](network.md#faceslider) rejects is skipped and logged once (at
+  most 32 names). One line logs the counts.
+- **Capture:** `GetMorphValueByName` on the player's base for each catalog
+  slider of `race` and `female`, rounded to thousandths; zero is left out, and
+  a value out of range or not finite is left out and logged once per name.
+  Over 256 sliders the largest by magnitude are kept, logged once. Face
+  sliders follow the look's two-capture rule like the vanilla sliders; [Always
+  use](#always-use) sends none.
+- **Name holding:** SKEE frees a name from its string table once nothing
+  holds it, so looking up a name that no value uses would allocate an entry and
+  scan the whole table to free it, for every unused slider every second. Before
+  each capture, a marker value tells whether a runtime base that no actor uses
+  still holds every catalog name with a zero value; SKEE reverts all values
+  when a save loads, and the next capture sets them again.
+- **Apply:** `RaceMenuFaceSliders::Apply` calls `SetMorphValue(base, name,
+  value / 1000)` for each of `baseFaceSliders` right before every spawn of the
+  base, because SKEE drops every base's values when a save loads. SKEE applies
+  them while the engine builds the head at runtime
+  ([SKEE face sliders](#engine-assumptions)), also after a 3D reset, using the
+  receiver's own slider definition and morph files for the race and sex. One
+  debug line counts the sliders.
+- **Cost:** a capture is one hash lookup per catalog slider of the race and
+  sex once per second (about 270 for RaceMenu's human races); applying is one
+  lookup per sent slider per spawn. The catalog is read once, the first time
+  the player's look is captured. Both have a Tracy zone.
 
 ### Shapeshifts
 
@@ -909,6 +975,23 @@ at runtime from the base's head parts and face data.
     evaluates on `TESObjectLoadedEvent` for an actor without morphs, but picks
     templates by the NPC base pointers listed when its morph files load, so a
     runtime-built base never matches.
+21. SKEE face sliders, from `skee64.dll` of RaceMenu for 1.7.104 and SKEE's
+    source: the `FaceMorphInterface` vtable (found through its RTTI) holds five
+    slots, the destructor, `GetVersion` (returns 2), `Revert` (clears the value
+    map and sculpt data), `GetMorphValueByName` at 3, and `SetMorphValue` at 4,
+    both `(TESNPC*, const SKEEFixedString&, ...)`. Builds before SKEE's 2023
+    interface update (BodyMorph version 4) have `Load` and `Save` before
+    `Revert`, also at version 2. `SKEEFixedString` is an MSVC `std::string`
+    followed by FNV-1a over its lower-cased bytes, which the string table and
+    value maps look names up by. Values are kept per `TESNPC*` and slider name.
+    The hook on `UpdateNPCMorphs` applies them to a head the engine builds at
+    runtime when `bEnableExtendedMorphs` is on, looking each name up in the
+    sliders of the base's race and sex: a `Slider` value moves its lower morph
+    (negative) or upper morph (positive) by the magnitude, whole units applied
+    one by one, and a `Preset` value applies `<lower morph><value>`. The
+    co-save writes only the player's values, and every value is reverted when a
+    save loads. The string table frees an entry when its last holder goes,
+    scanning its list of entries to remove it.
 
 ## Acceptance criteria
 
@@ -985,14 +1068,26 @@ at runtime from the base's head parts and face data.
     look, whatever mods that peer has, as `[DefaultLook] Race`. A modded part,
     or one that does not fit that race or sex, shows as the race's default of
     that type, and the rest of the preset is still used.
+21. A player who edits RaceMenu's extra face sliders (ears, lips, mouth
+    position, nose and eye shapes) appears with that face to peers whose
+    RaceMenu has the same sliders for the race, also after a cell change, a
+    save load on the peer, and a respawn; a peer without them, or that shows a
+    fallback race, sees the face without the sliders and no error. A slider
+    change reaches peers like any other face change, with one respawn.
 
 ## Known limitations
 
 - Voice type (the actor speaks with its race's player voice, or the even-toned
   one of its sex), actor values, mod-added transformation races, and
-  RaceMenu/NiOverride data other than overlays and body morphs (node
-  transforms, scaled bones, armor and skin overrides) are not synchronized,
-  except the `NPC` node scale, which travels in [`height`](#capture).
+  RaceMenu/NiOverride data other than overlays, body morphs, and face sliders
+  (sculpting, node transforms, scaled bones, armor and skin overrides) are not
+  synchronized, except the `NPC` node scale, which travels in
+  [`height`](#capture).
+- Face sliders show only for a viewer whose RaceMenu morph packs define the
+  same slider names for the race and sex; a pack that gives a name other
+  morphs shows those. A face shaped mostly by sculpting looks simpler to peers.
+  Clients that predate face sliders ignore them, and sliders ride inside
+  `Appearance` until the next protocol change ([Network](network.md#faceslider)).
 - Body morphs show only for a viewer whose body and armor meshes were built
   with morph data for the same names; shapes baked into meshes by BodySlide are
   each peer's own. Morphs that mods change at runtime reach peers only when

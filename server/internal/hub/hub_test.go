@@ -888,7 +888,7 @@ func TestAppearanceCarriesTheSessionDisplayName(t *testing.T) {
 }
 
 // A server that predates an Appearance field relays it as an unknown field, which is
-// how body morphs pass a 3.0.0 server. A field number this schema does not know stands
+// how body morphs and face sliders pass a 3.0.0 server. A field number this schema does not know stands
 // in for it.
 func TestAppearanceRelaysUnknownFields(t *testing.T) {
 	unknown := protowire.AppendTag(nil, 1000, protowire.BytesType)

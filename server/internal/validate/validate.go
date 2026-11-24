@@ -68,6 +68,10 @@ const (
 	MaximumBodyMorphNameBytes = 64
 	MaximumBodyMorphValue     = 10000 // thousandths
 
+	MaximumFaceSliders         = 256
+	MaximumFaceSliderNameBytes = 64
+	MaximumFaceSliderValue     = 255000 // thousandths
+
 	MaximumArmor        = 32
 	MaximumOutfitArmor  = 8
 	MaximumBeastArmor   = 8
@@ -408,25 +412,31 @@ func Appearance(a *pb.Appearance) error {
 	if a.DefaultFace != nil && (a.DefaultRace == nil || !defaultFace(a.DefaultFace)) {
 		return ErrAppearance
 	}
-	if !bodyMorphs(a.GetBodyMorphs()) {
+	if !namedValues(a.GetBodyMorphs(), MaximumBodyMorphs, MaximumBodyMorphNameBytes, MaximumBodyMorphValue) ||
+		!namedValues(a.GetFaceSliders(), MaximumFaceSliders, MaximumFaceSliderNameBytes, MaximumFaceSliderValue) {
 		return ErrAppearance
 	}
 	return nil
 }
 
-// bodyMorphs accepts names sorted by byte value without repeats, so equal sets encode
+type namedValue interface {
+	GetName() string
+	GetValue() int32
+}
+
+// namedValues accepts names sorted by byte value without repeats, so equal sets encode
 // equally, and non-zero values.
-func bodyMorphs(morphs []*pb.BodyMorph) bool {
-	if len(morphs) > MaximumBodyMorphs {
+func namedValues[T namedValue](values []T, maximumCount, maximumNameBytes int, maximumValue int32) bool {
+	if len(values) > maximumCount {
 		return false
 	}
 	previous := ""
-	for i, morph := range morphs {
-		name := morph.GetName()
-		if !bodyMorphName(name) || (i > 0 && name <= previous) {
+	for i, entry := range values {
+		name := entry.GetName()
+		if !printableName(name, maximumNameBytes) || (i > 0 && name <= previous) {
 			return false
 		}
-		if value := morph.GetValue(); value == 0 || value < -MaximumBodyMorphValue || value > MaximumBodyMorphValue {
+		if value := entry.GetValue(); value == 0 || value < -maximumValue || value > maximumValue {
 			return false
 		}
 		previous = name
@@ -434,8 +444,8 @@ func bodyMorphs(morphs []*pb.BodyMorph) bool {
 	return true
 }
 
-func bodyMorphName(name string) bool {
-	if len(name) == 0 || len(name) > MaximumBodyMorphNameBytes {
+func printableName(name string, maximumBytes int) bool {
+	if len(name) == 0 || len(name) > maximumBytes {
 		return false
 	}
 	for i := 0; i < len(name); i++ {

@@ -382,24 +382,18 @@ namespace Network::Wire
             return written;
         }
 
-        bool WriteBodyMorph(const Multiplayer::AppearanceBodyMorph& a_morph, playerhub_v1_BodyMorph& a_result)
+        // A body morph or face slider list: Message is its nanopb element, Value the plain one.
+        template <class Message, class Value>
+        bool EncodeNamedValues(pb_ostream_t* a_stream, const pb_field_t* a_field, const std::vector<Value>& a_values,
+            const pb_msgdesc_t* a_fields)
         {
-            static_assert(
-                std::extent_v<
-                    decltype(playerhub_v1_BodyMorph::name)> > Multiplayer::AppearanceBodyMorph::kMaximumNameLength);
-            a_result = playerhub_v1_BodyMorph_init_zero;
-            a_result.value = a_morph.value;
-            return CopyString(a_result.name, a_morph.name);
-        }
-
-        // The arg is a std::vector<Multiplayer::AppearanceBodyMorph>.
-        bool EncodeBodyMorphs(pb_ostream_t* a_stream, const pb_field_t* a_field, void* const* a_arg)
-        {
-            for (const auto& morph : *static_cast<const std::vector<Multiplayer::AppearanceBodyMorph>*>(*a_arg))
+            static_assert(std::extent_v<decltype(Message::name)> > Value::kMaximumNameLength);
+            for (const auto& entry : a_values)
             {
-                playerhub_v1_BodyMorph result;
-                if (!WriteBodyMorph(morph, result) || !pb_encode_tag_for_field(a_stream, a_field)
-                    || !pb_encode_submessage(a_stream, playerhub_v1_BodyMorph_fields, &result))
+                Message result{};
+                result.value = entry.value;
+                if (!CopyString(result.name, entry.name) || !pb_encode_tag_for_field(a_stream, a_field)
+                    || !pb_encode_submessage(a_stream, a_fields, &result))
                 {
                     return false;
                 }
@@ -407,13 +401,31 @@ namespace Network::Wire
             return true;
         }
 
+        // The arg is a std::vector<Multiplayer::AppearanceBodyMorph>.
+        bool EncodeBodyMorphs(pb_ostream_t* a_stream, const pb_field_t* a_field, void* const* a_arg)
+        {
+            return EncodeNamedValues<playerhub_v1_BodyMorph>(a_stream, a_field,
+                *static_cast<const std::vector<Multiplayer::AppearanceBodyMorph>*>(*a_arg),
+                playerhub_v1_BodyMorph_fields);
+        }
+
+        // The arg is a std::vector<Multiplayer::AppearanceFaceSlider>.
+        bool EncodeFaceSliders(pb_ostream_t* a_stream, const pb_field_t* a_field, void* const* a_arg)
+        {
+            return EncodeNamedValues<playerhub_v1_FaceSlider>(a_stream, a_field,
+                *static_cast<const std::vector<Multiplayer::AppearanceFaceSlider>*>(*a_arg),
+                playerhub_v1_FaceSlider_fields);
+        }
+
         // The callback fields as the decoder collected them. a_defaultFace is null
-        // without one; a_bodyMorphsOverflow is set when more than the maximum arrived.
+        // without one; an overflow flag is set when more than a list's maximum arrived.
         struct AppearanceCallbackFields
         {
             const playerhub_v1_DefaultFace* defaultFace{ nullptr };
             std::span<const Multiplayer::AppearanceBodyMorph> bodyMorphs;
             bool bodyMorphsOverflow{ false };
+            std::span<const Multiplayer::AppearanceFaceSlider> faceSliders;
+            bool faceSlidersOverflow{ false };
         };
 
         const char* ReadAppearance(const playerhub_v1_Appearance& a_appearance,
@@ -526,6 +538,11 @@ namespace Network::Wire
             if (a_callbacks.bodyMorphsOverflow || !Multiplayer::IsValidBodyMorphs(a_result.bodyMorphs))
             {
                 return "bodyMorphs";
+            }
+            a_result.faceSliders.assign(a_callbacks.faceSliders.begin(), a_callbacks.faceSliders.end());
+            if (a_callbacks.faceSlidersOverflow || !Multiplayer::IsValidFaceSliders(a_result.faceSliders))
+            {
+                return "faceSliders";
             }
             return Multiplayer::IsValidAppearance(a_result) ? nullptr : "value ranges";
         }
@@ -1277,7 +1294,8 @@ namespace Network::Wire
         if (a_appearance.headParts.size() > PlayerAppearance::kMaximumHeadParts
             || a_appearance.tints.size() > PlayerAppearance::kMaximumTints
             || a_appearance.overlays.size() > PlayerAppearance::kMaximumOverlays
-            || a_appearance.bodyMorphs.size() > PlayerAppearance::kMaximumBodyMorphs)
+            || a_appearance.bodyMorphs.size() > PlayerAppearance::kMaximumBodyMorphs
+            || a_appearance.faceSliders.size() > PlayerAppearance::kMaximumFaceSliders)
         {
             return {};
         }
@@ -1369,6 +1387,12 @@ namespace Network::Wire
             appearance->body_morphs.arg
                 = const_cast<std::vector<Multiplayer::AppearanceBodyMorph>*>(std::addressof(a_appearance.bodyMorphs));
             appearance->body_morphs.funcs.encode = EncodeBodyMorphs;
+        }
+        if (!a_appearance.faceSliders.empty())
+        {
+            appearance->face_sliders.arg = const_cast<std::vector<Multiplayer::AppearanceFaceSlider>*>(
+                std::addressof(a_appearance.faceSliders));
+            appearance->face_sliders.funcs.encode = EncodeFaceSliders;
         }
         return EncodeClientMessage(
             playerhub_v1_ClientMessage_appearance_tag, playerhub_v1_Appearance_fields, appearance.get());
@@ -1630,40 +1654,65 @@ namespace Network::Wire
         bool hasDefaultFace{ false };
         std::vector<Multiplayer::AppearanceBodyMorph> bodyMorphs;
         bool bodyMorphsOverflow{ false };
+        std::vector<Multiplayer::AppearanceFaceSlider> faceSliders;
+        bool faceSlidersOverflow{ false };
 
-        Buffer() { bodyMorphs.reserve(Multiplayer::PlayerAppearance::kMaximumBodyMorphs); }
+        Buffer()
+        {
+            bodyMorphs.reserve(Multiplayer::PlayerAppearance::kMaximumBodyMorphs);
+            faceSliders.reserve(Multiplayer::PlayerAppearance::kMaximumFaceSliders);
+        }
 
         void ResetCallbackFields()
         {
             hasDefaultFace = false;
             bodyMorphs.clear();
             bodyMorphsOverflow = false;
+            faceSliders.clear();
+            faceSlidersOverflow = false;
         }
 
         [[nodiscard]] AppearanceCallbackFields GetCallbackFields() const
         {
             return AppearanceCallbackFields{ .defaultFace = hasDefaultFace ? &defaultFace : nullptr,
                 .bodyMorphs = bodyMorphs,
-                .bodyMorphsOverflow = bodyMorphsOverflow };
+                .bodyMorphsOverflow = bodyMorphsOverflow,
+                .faceSliders = faceSliders,
+                .faceSlidersOverflow = faceSlidersOverflow };
         }
 
         // Called once per element; the list stays bounded, and an overflow is
         // reported when the appearance is read.
-        static bool DecodeBodyMorph(pb_istream_t* a_stream, const pb_field_t*, void** a_arg)
+        template <class Message, class Value>
+        static bool DecodeNamedValue(pb_istream_t* a_stream, const pb_msgdesc_t* a_fields, std::vector<Value>& a_values,
+            std::size_t a_maximumCount, bool& a_overflow)
         {
-            auto* buffer = static_cast<Buffer*>(*a_arg);
-            playerhub_v1_BodyMorph morph = playerhub_v1_BodyMorph_init_zero;
-            if (!pb_decode(a_stream, playerhub_v1_BodyMorph_fields, &morph))
+            Message entry{};
+            if (!pb_decode(a_stream, a_fields, &entry))
             {
                 return false;
             }
-            if (buffer->bodyMorphs.size() >= Multiplayer::PlayerAppearance::kMaximumBodyMorphs)
+            if (a_values.size() >= a_maximumCount)
             {
-                buffer->bodyMorphsOverflow = true;
+                a_overflow = true;
                 return true;
             }
-            buffer->bodyMorphs.push_back(Multiplayer::AppearanceBodyMorph{ .name = morph.name, .value = morph.value });
+            a_values.push_back(Value{ .name = entry.name, .value = entry.value });
             return true;
+        }
+
+        static bool DecodeBodyMorph(pb_istream_t* a_stream, const pb_field_t*, void** a_arg)
+        {
+            auto* buffer = static_cast<Buffer*>(*a_arg);
+            return DecodeNamedValue<playerhub_v1_BodyMorph>(a_stream, playerhub_v1_BodyMorph_fields, buffer->bodyMorphs,
+                Multiplayer::PlayerAppearance::kMaximumBodyMorphs, buffer->bodyMorphsOverflow);
+        }
+
+        static bool DecodeFaceSlider(pb_istream_t* a_stream, const pb_field_t*, void** a_arg)
+        {
+            auto* buffer = static_cast<Buffer*>(*a_arg);
+            return DecodeNamedValue<playerhub_v1_FaceSlider>(a_stream, playerhub_v1_FaceSlider_fields,
+                buffer->faceSliders, Multiplayer::PlayerAppearance::kMaximumFaceSliders, buffer->faceSlidersOverflow);
         }
 
         static bool DecodeDefaultFace(pb_istream_t* a_stream, const pb_field_t*, void** a_arg)
@@ -1693,6 +1742,8 @@ namespace Network::Wire
                 appearance->default_face.arg = *a_arg;
                 appearance->body_morphs.funcs.decode = DecodeBodyMorph;
                 appearance->body_morphs.arg = *a_arg;
+                appearance->face_sliders.funcs.decode = DecodeFaceSlider;
+                appearance->face_sliders.arg = *a_arg;
             }
             return true;
         }

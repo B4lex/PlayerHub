@@ -20,6 +20,8 @@ playerhub.v1.DefaultFace.tints max_count:16
 # Decoded into the plugin's own bounded buffer, for the same reason as default_face.
 playerhub.v1.Appearance.body_morphs type:FT_CALLBACK
 playerhub.v1.BodyMorph.name max_size:65
+playerhub.v1.Appearance.face_sliders type:FT_CALLBACK
+playerhub.v1.FaceSlider.name max_size:65
 playerhub.v1.Equipment.armor max_count:32
 playerhub.v1.Equipment.beast_armor max_count:8
 playerhub.v1.DefaultOutfit.armor max_count:8

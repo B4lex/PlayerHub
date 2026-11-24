@@ -251,10 +251,18 @@ message Appearance {
   repeated BodyMorph body_morphs = 17;
   // Set only with default_race.
   DefaultFace default_face = 18;
+  repeated FaceSlider face_sliders = 19;
 }
 
 // A RaceMenu (SKEE) body morph, summed over the keys that set it.
 message BodyMorph {
+  string name = 1;
+  // Thousandths.
+  sint32 value = 2;
+}
+
+// A RaceMenu (SKEE) face slider value.
+message FaceSlider {
   string name = 1;
   // Thousandths.
   sint32 value = 2;

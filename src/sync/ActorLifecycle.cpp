@@ -296,6 +296,7 @@ namespace ActorLifecycle
         }
         const float allowanceWait = std::exchange(lifecycle.spawnAllowanceWaitSeconds, 0.0F);
 
+        AppearanceSync::OnActorSpawning(a_peer.appearance, spawnBase);
         const RE::NiPoint3 targetPosition{ a_remote.checkpoint.x, a_remote.checkpoint.y, a_remote.checkpoint.z };
         lifecycle.actor = ActorSpawner::Spawn(
             spawnBase.base, targetPosition, a_remote.checkpoint.heading, kActorSpeed, kActorStoppingDistance);

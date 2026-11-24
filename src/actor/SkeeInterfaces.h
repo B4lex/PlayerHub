@@ -2,7 +2,10 @@
 
 #include <RE/Skyrim.h>
 
+#include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <string_view>
 
 // RaceMenu's SKEE interfaces as it publishes them in ModderResource/IPluginInterface.h.
 // Only the vtable order matters; the functions the plugin never calls keep their
@@ -136,6 +139,52 @@ namespace SkeeInterfaces
         virtual bool HasMorphs(RE::TESObjectREFR* a_reference) = 0;
     };
 
+    // SKEE's SKEEFixedString: an MSVC std::string followed by a hash that SKEE's
+    // string table and value maps look names up by. SKEE only reads it and copies the
+    // string with its own allocator.
+    class SkeeString
+    {
+    public:
+        explicit SkeeString(std::string_view a_text);
+
+        SkeeString(SkeeString&&) noexcept = default;
+        SkeeString& operator=(SkeeString&&) noexcept = default;
+
+        struct Layout
+        {
+            // MSVC keeps up to 15 characters in place and points at the heap beyond.
+            union
+            {
+                char buffer[16];
+                const char* pointer;
+            } storage;
+            std::size_t size;
+            std::size_t capacity;
+            std::size_t hash;
+        };
+        static_assert(sizeof(Layout) == 40);
+
+        [[nodiscard]] const Layout& Get() const noexcept { return layout; }
+
+    private:
+        static constexpr std::size_t kInPlaceCapacity = 15;
+
+        // Holds a longer text, so the layout's pointer stays valid across moves.
+        std::unique_ptr<char[]> heap;
+        Layout layout{};
+    };
+
+    // RaceMenu's FaceMorphInterface: SKEE's own slider values per actor base, which
+    // its UpdateNPCMorphs hook applies to a head built at runtime. Checked against
+    // skee64.dll of RaceMenu for 1.7.104 (GetVersion returns 2); older builds put
+    // Load and Save between GetVersion and Revert under the same version.
+    class IFaceMorphInterface : public IPluginInterface
+    {
+    public:
+        virtual float GetMorphValueByName(RE::TESNPC* a_npc, const SkeeString::Layout& a_name) = 0;
+        virtual void SetMorphValue(RE::TESNPC* a_npc, const SkeeString::Layout& a_name, float a_value) = 0;
+    };
+
     // Asks SKEE for its interfaces; at SKSE's kPostPostLoad, once every plugin listens.
     void Initialize();
 
@@ -143,4 +192,5 @@ namespace SkeeInterfaces
     [[nodiscard]] IOverlayInterface* GetOverlays();
     [[nodiscard]] IOverrideInterface* GetOverrides();
     [[nodiscard]] IBodyMorphInterface* GetBodyMorphs();
+    [[nodiscard]] IFaceMorphInterface* GetFaceMorphs();
 }

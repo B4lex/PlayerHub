@@ -453,7 +453,9 @@ player rides, its mount ([Native interactions](native-interactions.md#mounts)).
   heading, never at the local player first, once the peer is in the local
   space, the location is loaded (`ActorSpawner::IsSpawnLocationLoaded`: an
   exterior cell containing it, or the local player's interior), and
-  `AppearanceSync::GetSpawnBase` has a base for the checkpoint's form. A failed
+  `AppearanceSync::GetSpawnBase` has a base for the checkpoint's form. Right
+  before `ActorSpawner::Spawn`, `AppearanceSync::OnActorSpawning` gives the
+  base its [face sliders](appearance-and-equipment.md#face-sliders). A failed
   spawn retries after 1 s. A spawn records its cell and worldspace.
 - **Throttling.** `[Advanced] SpawnsPerSecond` (default 20, `0` unlimited)
   bounds actor and mount spawns. `RefillSpawnAllowance` adds the rate times the

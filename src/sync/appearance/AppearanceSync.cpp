@@ -1,5 +1,6 @@
 #include "sync/appearance/AppearanceSync.h"
 #include "actor/RaceMenuBodyMorphs.h"
+#include "actor/RaceMenuFaceSliders.h"
 #include "actor/RaceMenuOverlays.h"
 #include "forms/BeastForms.h"
 #include "forms/DynamicForm.h"
@@ -48,6 +49,7 @@ namespace AppearanceSync
 
         using Multiplayer::AppearanceBodyMorph;
         using Multiplayer::AppearanceColor;
+        using Multiplayer::AppearanceFaceSlider;
         using Multiplayer::AppearanceFormReference;
         using Multiplayer::AppearanceHeadPart;
         using Multiplayer::AppearanceOverlay;
@@ -290,6 +292,11 @@ namespace AppearanceSync
                 add(std::format(
                     "bodyMorphs count {} -> {}", a_previous.bodyMorphs.size(), a_current.bodyMorphs.size()));
             }
+            if (a_previous.faceSliders != a_current.faceSliders)
+            {
+                add(std::format(
+                    "faceSliders count {} -> {}", a_previous.faceSliders.size(), a_current.faceSliders.size()));
+            }
             if (a_previous.level != a_current.level)
             {
                 add(std::format("level {} -> {}", a_previous.level, a_current.level));
@@ -389,6 +396,10 @@ namespace AppearanceSync
             if (!Multiplayer::IsValidBodyMorphs(a_appearance.bodyMorphs))
             {
                 return std::format("bodyMorphs count {}", a_appearance.bodyMorphs.size());
+            }
+            if (!Multiplayer::IsValidFaceSliders(a_appearance.faceSliders))
+            {
+                return std::format("faceSliders count {}", a_appearance.faceSliders.size());
             }
             return std::format("revision {}", a_appearance.revision);
         }
@@ -624,6 +635,7 @@ namespace AppearanceSync
             }
             appearance.overlays = RaceMenuOverlays::Capture(a_player);
             appearance.bodyMorphs = a_bodyMorphs;
+            appearance.faceSliders = RaceMenuFaceSliders::Capture(*base, *race, appearance.female);
 
             if (const auto alwaysRace = DefaultLook::GetAlwaysUseRace())
             {
@@ -1031,9 +1043,12 @@ namespace AppearanceSync
             return appearance;
         }
 
+        // a_faceSliders receives the sliders the base shows: the source's on its own race,
+        // since a fallback race's face is not the source's.
         RE::TESNPC* CreateActorBase(Multiplayer::PeerSlot a_playerID, const AppearanceData& a_appearance,
-            std::vector<RE::BSFixedString>& a_tintTextures)
+            std::vector<RE::BSFixedString>& a_tintTextures, std::vector<AppearanceFaceSlider>& a_faceSliders)
         {
+            a_faceSliders.clear();
             const auto resolved = ResolveRace(a_playerID, a_appearance);
             if (!resolved.race)
             {
@@ -1043,6 +1058,7 @@ namespace AppearanceSync
             }
             if (resolved.own)
             {
+                a_faceSliders = a_appearance.faceSliders;
                 return BuildActorBase(a_playerID, a_appearance, *resolved.race, a_tintTextures);
             }
 
@@ -1312,10 +1328,10 @@ namespace AppearanceSync
 
         logs::debug(
             "Appearance sync publishing local appearance: revision={} level={} race={}|{:06X} female={} headParts={} "
-            "tints={} overlays={} bodyMorphs={}",
+            "tints={} overlays={} bodyMorphs={} faceSliders={}",
             static_cast<unsigned long long>(candidate->revision), candidate->level, candidate->race.plugin,
             candidate->race.localFormID, candidate->female, candidate->headParts.size(), candidate->tints.size(),
-            candidate->overlays.size(), candidate->bodyMorphs.size());
+            candidate->overlays.size(), candidate->bodyMorphs.size(), candidate->faceSliders.size());
         Network::PublishLocalAppearance(*candidate);
         published = std::move(candidate);
         candidate.reset();
@@ -1339,10 +1355,11 @@ namespace AppearanceSync
         const bool sameBody = a_remote.latest && a_remote.latest->HasSameBody(a_appearance);
         logs::debug(
             "Appearance sync accepted remote appearance: player={} revision={} name=\"{}\" level={} race={}|{:06X} "
-            "female={} headParts={} tints={} overlays={} bodyMorphs={} inPlace={} sameBody={}",
+            "female={} headParts={} tints={} overlays={} bodyMorphs={} faceSliders={} inPlace={} sameBody={}",
             a_playerID, static_cast<unsigned long long>(a_appearance.revision), a_appearance.name, a_appearance.level,
             a_appearance.race.plugin, a_appearance.race.localFormID, a_appearance.female, a_appearance.headParts.size(),
-            a_appearance.tints.size(), a_appearance.overlays.size(), a_appearance.bodyMorphs.size(), inPlace, sameBody);
+            a_appearance.tints.size(), a_appearance.overlays.size(), a_appearance.bodyMorphs.size(),
+            a_appearance.faceSliders.size(), inPlace, sameBody);
 
         if (inPlace)
         {
@@ -1422,13 +1439,15 @@ namespace AppearanceSync
         if ((!a_remote.base || a_remote.baseRevision != revision) && a_remote.failedRevision != revision)
         {
             std::vector<RE::BSFixedString> tintTextures;
-            auto* base = a_remote.latest ? CreateActorBase(a_playerID, *a_remote.latest, tintTextures)
+            std::vector<AppearanceFaceSlider> faceSliders;
+            auto* base = a_remote.latest ? CreateActorBase(a_playerID, *a_remote.latest, tintTextures, faceSliders)
                                          : CreateDefaultActorBase(a_playerID, tintTextures);
             if (base)
             {
                 a_remote.base = base;
                 a_remote.baseRevision = revision;
                 a_remote.baseTintTextures = std::move(tintTextures);
+                a_remote.baseFaceSliders = std::move(faceSliders);
             }
             else
             {
@@ -1437,6 +1456,14 @@ namespace AppearanceSync
         }
 
         return { .base = a_remote.base };
+    }
+
+    void OnActorSpawning(const RemoteState& a_remote, const SpawnBase& a_spawning)
+    {
+        if (a_spawning.base && a_spawning.base == a_remote.base)
+        {
+            RaceMenuFaceSliders::Apply(*a_spawning.base, a_remote.baseFaceSliders);
+        }
     }
 
     void OnActorSpawned(RemoteState& a_remote, const SpawnBase& a_spawned)

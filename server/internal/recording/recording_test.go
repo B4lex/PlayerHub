@@ -57,13 +57,14 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func TestBodyMorphsRoundTrip(t *testing.T) {
+func TestMorphListsRoundTrip(t *testing.T) {
 	r, err := Parse([]byte(testRecording))
 	if err != nil {
 		t.Fatal(err)
 	}
 	appearance := r.Messages[0].Message.GetAppearance()
 	appearance.BodyMorphs = []*pb.BodyMorph{{Name: "Breasts", Value: 750}, {Name: "Waist", Value: -10000}}
+	appearance.FaceSliders = []*pb.FaceSlider{{Name: "CME_EarUpDown", Value: -400}, {Name: "ECE_EarShape", Value: 3000}}
 	line, err := EncodeMessage(Message{TMs: 0, Message: r.Messages[0].Message})
 	if err != nil {
 		t.Fatal(err)

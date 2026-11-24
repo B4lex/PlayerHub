@@ -85,6 +85,21 @@ namespace Multiplayer
         bool operator==(const AppearanceBodyMorph&) const = default;
     };
 
+    // A RaceMenu (SKEE) face slider: one slider name and its value.
+    struct AppearanceFaceSlider
+    {
+        static constexpr std::size_t kMaximumNameLength = 64;
+        // Thousandths, so ±255.0: a preset slider's value is a preset index, and SKEE
+        // caps a slider at 255 presets.
+        static constexpr std::int32_t kMaximumValue = 255000;
+        static constexpr float kScale = 1000.0F;
+
+        std::string name;
+        std::int32_t value{ 0 };
+
+        bool operator==(const AppearanceFaceSlider&) const = default;
+    };
+
     // The face of a RaceMenu preset for the sender's default race, which a receiver
     // that cannot resolve the sender's race shows.
     struct AppearanceDefaultFace
@@ -117,6 +132,7 @@ namespace Multiplayer
         static constexpr std::size_t kMaximumTints = 64;
         static constexpr std::size_t kMaximumOverlays = 32;
         static constexpr std::size_t kMaximumBodyMorphs = 128;
+        static constexpr std::size_t kMaximumFaceSliders = 256;
         static constexpr std::size_t kMaximumTexturePathLength = 260;
         static constexpr float kMaximumOverlayGlowStrength = 100.0F;
         static constexpr std::size_t kMaximumNameLength = 128;
@@ -150,6 +166,8 @@ namespace Multiplayer
         std::optional<AppearanceDefaultFace> defaultFace;
         // Sorted by name, so equal sets compare and encode equally.
         std::vector<AppearanceBodyMorph> bodyMorphs;
+        // Sorted by name, as bodyMorphs.
+        std::vector<AppearanceFaceSlider> faceSliders;
         std::uint64_t revision{ 0 };
 
         [[nodiscard]] bool HasSameBody(const PlayerAppearance& a_other) const
@@ -165,7 +183,7 @@ namespace Multiplayer
                 && faceDetails == a_other.faceDetails && bodyTint == a_other.bodyTint
                 && faceMorphs == a_other.faceMorphs && faceParts == a_other.faceParts && tints == a_other.tints
                 && overlays == a_other.overlays && defaultRace == a_other.defaultRace
-                && defaultFace == a_other.defaultFace;
+                && defaultFace == a_other.defaultFace && faceSliders == a_other.faceSliders;
         }
 
         [[nodiscard]] bool HasSameLook(const PlayerAppearance& a_other) const
@@ -278,9 +296,11 @@ namespace Multiplayer
         return true;
     }
 
-    [[nodiscard]] constexpr bool IsValidBodyMorphName(std::string_view a_name) noexcept
+    // A body morph or face slider name: printable ASCII within T's length.
+    template <class T>
+    [[nodiscard]] constexpr bool IsValidNamedValueName(std::string_view a_name) noexcept
     {
-        if (a_name.empty() || a_name.size() > AppearanceBodyMorph::kMaximumNameLength)
+        if (a_name.empty() || a_name.size() > T::kMaximumNameLength)
         {
             return false;
         }
@@ -295,24 +315,44 @@ namespace Multiplayer
         return true;
     }
 
-    // Names unique and ascending by byte value, values non-zero and within range.
-    [[nodiscard]] inline bool IsValidBodyMorphs(const std::vector<AppearanceBodyMorph>& a_morphs)
+    // Names unique and ascending by byte value, values non-zero and within T's range.
+    template <class T>
+    [[nodiscard]] bool IsValidNamedValues(const std::vector<T>& a_values, std::size_t a_maximumCount)
     {
-        if (a_morphs.size() > PlayerAppearance::kMaximumBodyMorphs)
+        if (a_values.size() > a_maximumCount)
         {
             return false;
         }
-        for (std::size_t i = 0; i < a_morphs.size(); ++i)
+        for (std::size_t i = 0; i < a_values.size(); ++i)
         {
-            const auto& morph = a_morphs[i];
-            if (!IsValidBodyMorphName(morph.name) || morph.value == 0
-                || morph.value < -AppearanceBodyMorph::kMaximumValue || morph.value > AppearanceBodyMorph::kMaximumValue
-                || (i > 0 && !(a_morphs[i - 1].name < morph.name)))
+            const auto& entry = a_values[i];
+            if (!IsValidNamedValueName<T>(entry.name) || entry.value == 0 || entry.value < -T::kMaximumValue
+                || entry.value > T::kMaximumValue || (i > 0 && !(a_values[i - 1].name < entry.name)))
             {
                 return false;
             }
         }
         return true;
+    }
+
+    [[nodiscard]] constexpr bool IsValidBodyMorphName(std::string_view a_name) noexcept
+    {
+        return IsValidNamedValueName<AppearanceBodyMorph>(a_name);
+    }
+
+    [[nodiscard]] inline bool IsValidBodyMorphs(const std::vector<AppearanceBodyMorph>& a_morphs)
+    {
+        return IsValidNamedValues(a_morphs, PlayerAppearance::kMaximumBodyMorphs);
+    }
+
+    [[nodiscard]] constexpr bool IsValidFaceSliderName(std::string_view a_name) noexcept
+    {
+        return IsValidNamedValueName<AppearanceFaceSlider>(a_name);
+    }
+
+    [[nodiscard]] inline bool IsValidFaceSliders(const std::vector<AppearanceFaceSlider>& a_sliders)
+    {
+        return IsValidNamedValues(a_sliders, PlayerAppearance::kMaximumFaceSliders);
     }
 
     [[nodiscard]] inline bool IsValidAppearance(const PlayerAppearance& a_appearance)
@@ -340,7 +380,7 @@ namespace Multiplayer
         {
             return false;
         }
-        if (!IsValidBodyMorphs(a_appearance.bodyMorphs))
+        if (!IsValidBodyMorphs(a_appearance.bodyMorphs) || !IsValidFaceSliders(a_appearance.faceSliders))
         {
             return false;
         }

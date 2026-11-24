@@ -39,6 +39,9 @@ PB_BIND(playerhub_v1_Appearance, playerhub_v1_Appearance, 4)
 PB_BIND(playerhub_v1_BodyMorph, playerhub_v1_BodyMorph, AUTO)
 
 
+PB_BIND(playerhub_v1_FaceSlider, playerhub_v1_FaceSlider, AUTO)
+
+
 PB_BIND(playerhub_v1_DefaultFace, playerhub_v1_DefaultFace, 4)
 
 
