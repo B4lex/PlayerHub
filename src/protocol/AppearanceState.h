@@ -70,6 +70,21 @@ namespace Multiplayer
         bool operator==(const AppearanceOverlay&) const = default;
     };
 
+    // A RaceMenu (SKEE) body morph: the sum of every key's value for one morph name.
+    struct AppearanceBodyMorph
+    {
+        static constexpr std::size_t kMaximumNameLength = 64;
+        // Thousandths, so ±10.0. A guard against extreme shapes rather than a slider
+        // range: sliders are usually within -1..2.
+        static constexpr std::int32_t kMaximumValue = 10000;
+        static constexpr float kScale = 1000.0F;
+
+        std::string name;
+        std::int32_t value{ 0 };
+
+        bool operator==(const AppearanceBodyMorph&) const = default;
+    };
+
     // The face of a RaceMenu preset for the sender's default race, which a receiver
     // that cannot resolve the sender's race shows.
     struct AppearanceDefaultFace
@@ -101,6 +116,7 @@ namespace Multiplayer
         static constexpr std::size_t kMaximumHeadParts = 32;
         static constexpr std::size_t kMaximumTints = 64;
         static constexpr std::size_t kMaximumOverlays = 32;
+        static constexpr std::size_t kMaximumBodyMorphs = 128;
         static constexpr std::size_t kMaximumTexturePathLength = 260;
         static constexpr float kMaximumOverlayGlowStrength = 100.0F;
         static constexpr std::size_t kMaximumNameLength = 128;
@@ -132,9 +148,17 @@ namespace Multiplayer
         std::optional<AppearanceFormReference> defaultRace;
         // Set only with defaultRace.
         std::optional<AppearanceDefaultFace> defaultFace;
+        // Sorted by name, so equal sets compare and encode equally.
+        std::vector<AppearanceBodyMorph> bodyMorphs;
         std::uint64_t revision{ 0 };
 
-        [[nodiscard]] bool HasSameLook(const PlayerAppearance& a_other) const
+        [[nodiscard]] bool HasSameBody(const PlayerAppearance& a_other) const
+        {
+            return bodyMorphs == a_other.bodyMorphs;
+        }
+
+        // Everything a spawn builds into the actor base, which only a respawn changes.
+        [[nodiscard]] bool HasSameBase(const PlayerAppearance& a_other) const
         {
             return race == a_other.race && female == a_other.female && weight == a_other.weight
                 && height == a_other.height && headParts == a_other.headParts && hairColor == a_other.hairColor
@@ -142,6 +166,11 @@ namespace Multiplayer
                 && faceMorphs == a_other.faceMorphs && faceParts == a_other.faceParts && tints == a_other.tints
                 && overlays == a_other.overlays && defaultRace == a_other.defaultRace
                 && defaultFace == a_other.defaultFace;
+        }
+
+        [[nodiscard]] bool HasSameLook(const PlayerAppearance& a_other) const
+        {
+            return HasSameBase(a_other) && HasSameBody(a_other);
         }
 
         [[nodiscard]] bool HasSameLabel(const PlayerAppearance& a_other) const
@@ -249,6 +278,43 @@ namespace Multiplayer
         return true;
     }
 
+    [[nodiscard]] constexpr bool IsValidBodyMorphName(std::string_view a_name) noexcept
+    {
+        if (a_name.empty() || a_name.size() > AppearanceBodyMorph::kMaximumNameLength)
+        {
+            return false;
+        }
+        for (const auto character : a_name)
+        {
+            const auto byte = static_cast<unsigned char>(character);
+            if (byte < 0x20 || byte > 0x7E)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Names unique and ascending by byte value, values non-zero and within range.
+    [[nodiscard]] inline bool IsValidBodyMorphs(const std::vector<AppearanceBodyMorph>& a_morphs)
+    {
+        if (a_morphs.size() > PlayerAppearance::kMaximumBodyMorphs)
+        {
+            return false;
+        }
+        for (std::size_t i = 0; i < a_morphs.size(); ++i)
+        {
+            const auto& morph = a_morphs[i];
+            if (!IsValidBodyMorphName(morph.name) || morph.value == 0
+                || morph.value < -AppearanceBodyMorph::kMaximumValue || morph.value > AppearanceBodyMorph::kMaximumValue
+                || (i > 0 && !(a_morphs[i - 1].name < morph.name)))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     [[nodiscard]] inline bool IsValidAppearance(const PlayerAppearance& a_appearance)
     {
         if (a_appearance.revision == 0 || !IsValidAppearanceName(a_appearance.name)
@@ -271,6 +337,10 @@ namespace Multiplayer
             return false;
         }
         if (a_appearance.defaultFace && (!a_appearance.defaultRace || !IsValidDefaultFace(*a_appearance.defaultFace)))
+        {
+            return false;
+        }
+        if (!IsValidBodyMorphs(a_appearance.bodyMorphs))
         {
             return false;
         }

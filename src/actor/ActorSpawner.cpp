@@ -3,6 +3,7 @@
 #include "actor/ActorFurniture.h"
 #include "actor/ActorRegistry.h"
 #include "actor/PrecisionIsolation.h"
+#include "actor/RaceMenuBodyMorphs.h"
 #include "actor/RaceMenuOverlays.h"
 #include "actor/SurvivalPolicy.h"
 #include "runtime/GameThread.h"
@@ -137,6 +138,7 @@ namespace ActorSpawner
         ActorRegistry::Unregister(a_remote);
         PrecisionIsolation::Release(a_remote.handle);
         RaceMenuOverlays::Release(a_remote.handle, actorPtr.get());
+        RaceMenuBodyMorphs::Release(a_remote.handle, actorPtr.get());
         if (!actorPtr)
         {
             return;

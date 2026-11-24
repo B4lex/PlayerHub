@@ -1,4 +1,5 @@
 #include "sync/appearance/AppearanceSync.h"
+#include "actor/RaceMenuBodyMorphs.h"
 #include "actor/RaceMenuOverlays.h"
 #include "forms/BeastForms.h"
 #include "forms/DynamicForm.h"
@@ -35,6 +36,8 @@ namespace AppearanceSync
         constexpr float kUnsettledCaptureWarningSeconds = 10.0F;
         constexpr float kFirstAppearanceWaitSeconds = 3.0F;
         constexpr float kMinimumRespawnIntervalSeconds = 2.0F;
+        constexpr float kBodyMorphSettleSeconds = 10.0F;
+        constexpr float kUnsettledBodyMorphReportSeconds = 30.0F;
         // Bounds respawns from a form that flips back and forth; vanilla transformations
         // take far longer.
         constexpr float kMinimumShapeshiftIntervalSeconds = 1.0F;
@@ -43,6 +46,7 @@ namespace AppearanceSync
         constexpr std::string_view kFallbackRacePlugin = "Skyrim.esm";
         constexpr RE::FormID kFallbackRaceLocalFormID = 0x00013746; // NordRace
 
+        using Multiplayer::AppearanceBodyMorph;
         using Multiplayer::AppearanceColor;
         using Multiplayer::AppearanceFormReference;
         using Multiplayer::AppearanceHeadPart;
@@ -281,6 +285,11 @@ namespace AppearanceSync
             {
                 add("defaultFace");
             }
+            if (a_previous.bodyMorphs != a_current.bodyMorphs)
+            {
+                add(std::format(
+                    "bodyMorphs count {} -> {}", a_previous.bodyMorphs.size(), a_current.bodyMorphs.size()));
+            }
             if (a_previous.level != a_current.level)
             {
                 add(std::format("level {} -> {}", a_previous.level, a_current.level));
@@ -377,6 +386,10 @@ namespace AppearanceSync
                     return std::format("overlays[{}] {}", i, FormatOverlay(a_appearance.overlays, i));
                 }
             }
+            if (!Multiplayer::IsValidBodyMorphs(a_appearance.bodyMorphs))
+            {
+                return std::format("bodyMorphs count {}", a_appearance.bodyMorphs.size());
+            }
             return std::format("revision {}", a_appearance.revision);
         }
 
@@ -403,10 +416,76 @@ namespace AppearanceSync
             return scale;
         }
 
+        // A changed morph set replaces the settled one only once it has held for
+        // kBodyMorphSettleSeconds, so a RaceMenu slider drag publishes once and a mod
+        // that keeps changing morphs publishes nothing; until then the settled set
+        // stays in the capture and other look changes still go out.
+        class BodyMorphSettling
+        {
+        public:
+            const std::vector<AppearanceBodyMorph>& Update(
+                std::vector<AppearanceBodyMorph>&& a_captured, float a_interval)
+            {
+                if (!initialized)
+                {
+                    initialized = true;
+                    settled = std::move(a_captured);
+                    return settled;
+                }
+                if (a_captured == settled)
+                {
+                    Reset();
+                    return settled;
+                }
+                unsettledSeconds += a_interval;
+                if (pending && *pending == a_captured)
+                {
+                    pendingSeconds += a_interval;
+                    if (pendingSeconds >= kBodyMorphSettleSeconds)
+                    {
+                        logs::debug("Body morphs settled: morphs {} -> {} after {:.0f}s", settled.size(),
+                            pending->size(), unsettledSeconds);
+                        settled = std::move(*pending);
+                        Reset();
+                    }
+                    return settled;
+                }
+                pending = std::move(a_captured);
+                pendingSeconds = 0.0F;
+                if (!unsettledReported && unsettledSeconds >= kUnsettledBodyMorphReportSeconds)
+                {
+                    unsettledReported = true;
+                    logs::debug(
+                        "Body morphs keep changing; peers keep the last settled set: unsettled={:.0f}s "
+                        "settled={} current={}",
+                        unsettledSeconds, settled.size(), pending->size());
+                }
+                return settled;
+            }
+
+        private:
+            void Reset()
+            {
+                pending.reset();
+                pendingSeconds = 0.0F;
+                unsettledSeconds = 0.0F;
+                unsettledReported = false;
+            }
+
+            std::vector<AppearanceBodyMorph> settled;
+            std::optional<std::vector<AppearanceBodyMorph>> pending;
+            float pendingSeconds{ 0.0F };
+            float unsettledSeconds{ 0.0F };
+            bool unsettledReported{ false };
+            bool initialized{ false };
+        };
+
         AppearanceData MakeDefaultAppearance(RE::TESRace& a_race, bool a_female);
         AppearanceData MakeFaceAppearance(RE::TESRace& a_race, const Multiplayer::AppearanceDefaultFace& a_face);
 
-        std::optional<AppearanceData> CaptureLocalAppearance(RE::PlayerCharacter& a_player)
+        // The default look replaces a_bodyMorphs along with the rest of the look.
+        std::optional<AppearanceData> CaptureLocalAppearance(
+            RE::PlayerCharacter& a_player, const std::vector<AppearanceBodyMorph>& a_bodyMorphs)
         {
             auto* base = a_player.GetActorBase();
             if (!base)
@@ -544,6 +623,7 @@ namespace AppearanceSync
                 }
             }
             appearance.overlays = RaceMenuOverlays::Capture(a_player);
+            appearance.bodyMorphs = a_bodyMorphs;
 
             if (const auto alwaysRace = DefaultLook::GetAlwaysUseRace())
             {
@@ -1119,6 +1199,14 @@ namespace AppearanceSync
             QueuePlayerFaceTintRestore(renderTintMasks);
             return maskList.size();
         }
+
+        void ApplyBodyMorphs(RemoteState& a_remote, RE::Actor& a_actor)
+        {
+            PROFILE_FUNCTION();
+            static const std::vector<AppearanceBodyMorph> none;
+            RaceMenuBodyMorphs::Apply(a_actor, a_remote.latest ? a_remote.latest->bodyMorphs : none);
+            a_remote.bodyMorphsRevision = a_remote.latest ? a_remote.latest->revision : 0;
+        }
     }
 
     void SyncAppearance(const LocalFrame& a_local, bool a_transformed, float a_delta)
@@ -1133,6 +1221,7 @@ namespace AppearanceSync
         static float unsettledSeconds = 0.0F;
         static bool unsettledReported = false;
         static std::string invalidReported;
+        static BodyMorphSettling bodyMorphs;
 
         const float delta = FrameTime::Clamp(a_delta);
         captureElapsed += delta;
@@ -1168,7 +1257,8 @@ namespace AppearanceSync
         const float captureInterval = captureElapsed;
         captureElapsed = 0.0F;
 
-        auto captured = CaptureLocalAppearance(a_local.player);
+        const auto& settledMorphs = bodyMorphs.Update(RaceMenuBodyMorphs::Capture(a_local.player), captureInterval);
+        auto captured = CaptureLocalAppearance(a_local.player, settledMorphs);
         if (!captured)
         {
             return;
@@ -1222,10 +1312,10 @@ namespace AppearanceSync
 
         logs::debug(
             "Appearance sync publishing local appearance: revision={} level={} race={}|{:06X} female={} headParts={} "
-            "tints={} overlays={}",
+            "tints={} overlays={} bodyMorphs={}",
             static_cast<unsigned long long>(candidate->revision), candidate->level, candidate->race.plugin,
             candidate->race.localFormID, candidate->female, candidate->headParts.size(), candidate->tints.size(),
-            candidate->overlays.size());
+            candidate->overlays.size(), candidate->bodyMorphs.size());
         Network::PublishLocalAppearance(*candidate);
         published = std::move(candidate);
         candidate.reset();
@@ -1243,15 +1333,18 @@ namespace AppearanceSync
             return;
         }
 
-        const bool relabelOnly = a_remote.latest && a_remote.latest->HasSameLook(a_appearance);
+        // A revision that changes only the label or the body morphs is adopted by the
+        // spawned actor without a respawn.
+        const bool inPlace = a_remote.latest && a_remote.latest->HasSameBase(a_appearance);
+        const bool sameBody = a_remote.latest && a_remote.latest->HasSameBody(a_appearance);
         logs::debug(
             "Appearance sync accepted remote appearance: player={} revision={} name=\"{}\" level={} race={}|{:06X} "
-            "female={} headParts={} tints={} overlays={} relabelOnly={}",
+            "female={} headParts={} tints={} overlays={} bodyMorphs={} inPlace={} sameBody={}",
             a_playerID, static_cast<unsigned long long>(a_appearance.revision), a_appearance.name, a_appearance.level,
             a_appearance.race.plugin, a_appearance.race.localFormID, a_appearance.female, a_appearance.headParts.size(),
-            a_appearance.tints.size(), a_appearance.overlays.size(), relabelOnly);
+            a_appearance.tints.size(), a_appearance.overlays.size(), a_appearance.bodyMorphs.size(), inPlace, sameBody);
 
-        if (relabelOnly)
+        if (inPlace)
         {
             const auto previousRevision = a_remote.latest->revision;
             for (auto* base : { a_remote.base, a_remote.beastBase })
@@ -1272,6 +1365,10 @@ namespace AppearanceSync
             if (a_remote.spawnedRevision == previousRevision)
             {
                 a_remote.spawnedRevision = a_appearance.revision;
+            }
+            if (sameBody && a_remote.bodyMorphsRevision == previousRevision)
+            {
+                a_remote.bodyMorphsRevision = a_appearance.revision;
             }
         }
         a_remote.latest = std::move(a_appearance);
@@ -1368,7 +1465,7 @@ namespace AppearanceSync
     }
 
     void ApplyActorPresentation(
-        RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RE::Actor& a_actor, bool a_actorReady)
+        RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RE::Actor& a_actor, bool a_actorReady, float a_delta)
     {
         PROFILE_FUNCTION();
         if (!a_actorReady || !a_actor.Is3DLoaded() || !a_remote.spawnedBase || a_remote.spawnedBase != a_remote.base
@@ -1388,11 +1485,20 @@ namespace AppearanceSync
             {
                 RaceMenuOverlays::Apply(a_actor, a_remote.latest->overlays);
             }
+            // Also without morphs, which removes the ones the viewer's own mods gave
+            // the actor.
+            ApplyBodyMorphs(a_remote, a_actor);
             logs::debug(
                 "Appearance sync applied actor colors: player={} actor={:08X} base={:08X} revision={} faceNode={}",
                 a_playerID, a_actor.GetHandle().native_handle(), a_remote.spawnedBase->GetFormID(),
                 static_cast<unsigned long long>(a_remote.spawnedRevision), a_actor.GetFaceNodeSkinned() != nullptr);
         }
+        else if (a_remote.latest && a_remote.latest->revision == a_remote.spawnedRevision
+            && a_remote.latest->revision != a_remote.bodyMorphsRevision)
+        {
+            ApplyBodyMorphs(a_remote, a_actor);
+        }
+        RaceMenuBodyMorphs::Maintain(a_actor, a_delta);
 
         // A head rebuilt by a 3D reset gets a new blank texture, so render again.
         auto* tintTexture = FindFaceTintTexture(a_actor, *a_remote.spawnedBase);

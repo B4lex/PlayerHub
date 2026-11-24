@@ -382,9 +382,42 @@ namespace Network::Wire
             return written;
         }
 
-        // a_defaultFace is the decoded default_face callback field, or null without one.
+        bool WriteBodyMorph(const Multiplayer::AppearanceBodyMorph& a_morph, playerhub_v1_BodyMorph& a_result)
+        {
+            static_assert(
+                std::extent_v<
+                    decltype(playerhub_v1_BodyMorph::name)> > Multiplayer::AppearanceBodyMorph::kMaximumNameLength);
+            a_result = playerhub_v1_BodyMorph_init_zero;
+            a_result.value = a_morph.value;
+            return CopyString(a_result.name, a_morph.name);
+        }
+
+        // The arg is a std::vector<Multiplayer::AppearanceBodyMorph>.
+        bool EncodeBodyMorphs(pb_ostream_t* a_stream, const pb_field_t* a_field, void* const* a_arg)
+        {
+            for (const auto& morph : *static_cast<const std::vector<Multiplayer::AppearanceBodyMorph>*>(*a_arg))
+            {
+                playerhub_v1_BodyMorph result;
+                if (!WriteBodyMorph(morph, result) || !pb_encode_tag_for_field(a_stream, a_field)
+                    || !pb_encode_submessage(a_stream, playerhub_v1_BodyMorph_fields, &result))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // The callback fields as the decoder collected them. a_defaultFace is null
+        // without one; a_bodyMorphsOverflow is set when more than the maximum arrived.
+        struct AppearanceCallbackFields
+        {
+            const playerhub_v1_DefaultFace* defaultFace{ nullptr };
+            std::span<const Multiplayer::AppearanceBodyMorph> bodyMorphs;
+            bool bodyMorphsOverflow{ false };
+        };
+
         const char* ReadAppearance(const playerhub_v1_Appearance& a_appearance,
-            const playerhub_v1_DefaultFace* a_defaultFace, Multiplayer::PlayerAppearance& a_result)
+            const AppearanceCallbackFields& a_callbacks, Multiplayer::PlayerAppearance& a_result)
         {
             using Multiplayer::PlayerAppearance;
             a_result.revision = a_appearance.revision;
@@ -485,9 +518,14 @@ namespace Network::Wire
                 return "defaultRace";
             }
             a_result.defaultFace.reset();
-            if (a_defaultFace && !ReadDefaultFace(*a_defaultFace, a_result.defaultFace.emplace()))
+            if (a_callbacks.defaultFace && !ReadDefaultFace(*a_callbacks.defaultFace, a_result.defaultFace.emplace()))
             {
                 return "defaultFace";
+            }
+            a_result.bodyMorphs.assign(a_callbacks.bodyMorphs.begin(), a_callbacks.bodyMorphs.end());
+            if (a_callbacks.bodyMorphsOverflow || !Multiplayer::IsValidBodyMorphs(a_result.bodyMorphs))
+            {
+                return "bodyMorphs";
             }
             return Multiplayer::IsValidAppearance(a_result) ? nullptr : "value ranges";
         }
@@ -1238,7 +1276,8 @@ namespace Network::Wire
         using Multiplayer::PlayerAppearance;
         if (a_appearance.headParts.size() > PlayerAppearance::kMaximumHeadParts
             || a_appearance.tints.size() > PlayerAppearance::kMaximumTints
-            || a_appearance.overlays.size() > PlayerAppearance::kMaximumOverlays)
+            || a_appearance.overlays.size() > PlayerAppearance::kMaximumOverlays
+            || a_appearance.bodyMorphs.size() > PlayerAppearance::kMaximumBodyMorphs)
         {
             return {};
         }
@@ -1324,7 +1363,15 @@ namespace Network::Wire
         {
             return {};
         }
-        return EncodeClientMessage(playerhub_v1_ClientMessage_appearance_tag, playerhub_v1_Appearance_fields, appearance.get());
+
+        if (!a_appearance.bodyMorphs.empty())
+        {
+            appearance->body_morphs.arg
+                = const_cast<std::vector<Multiplayer::AppearanceBodyMorph>*>(std::addressof(a_appearance.bodyMorphs));
+            appearance->body_morphs.funcs.encode = EncodeBodyMorphs;
+        }
+        return EncodeClientMessage(
+            playerhub_v1_ClientMessage_appearance_tag, playerhub_v1_Appearance_fields, appearance.get());
     }
 
     std::string EncodeEquipment(const Multiplayer::PlayerEquipment& a_equipment)
@@ -1581,10 +1628,42 @@ namespace Network::Wire
         playerhub_v1_ServerMessage message;
         playerhub_v1_DefaultFace defaultFace;
         bool hasDefaultFace{ false };
+        std::vector<Multiplayer::AppearanceBodyMorph> bodyMorphs;
+        bool bodyMorphsOverflow{ false };
 
-        [[nodiscard]] const playerhub_v1_DefaultFace* GetDefaultFace() const
+        Buffer() { bodyMorphs.reserve(Multiplayer::PlayerAppearance::kMaximumBodyMorphs); }
+
+        void ResetCallbackFields()
         {
-            return hasDefaultFace ? &defaultFace : nullptr;
+            hasDefaultFace = false;
+            bodyMorphs.clear();
+            bodyMorphsOverflow = false;
+        }
+
+        [[nodiscard]] AppearanceCallbackFields GetCallbackFields() const
+        {
+            return AppearanceCallbackFields{ .defaultFace = hasDefaultFace ? &defaultFace : nullptr,
+                .bodyMorphs = bodyMorphs,
+                .bodyMorphsOverflow = bodyMorphsOverflow };
+        }
+
+        // Called once per element; the list stays bounded, and an overflow is
+        // reported when the appearance is read.
+        static bool DecodeBodyMorph(pb_istream_t* a_stream, const pb_field_t*, void** a_arg)
+        {
+            auto* buffer = static_cast<Buffer*>(*a_arg);
+            playerhub_v1_BodyMorph morph = playerhub_v1_BodyMorph_init_zero;
+            if (!pb_decode(a_stream, playerhub_v1_BodyMorph_fields, &morph))
+            {
+                return false;
+            }
+            if (buffer->bodyMorphs.size() >= Multiplayer::PlayerAppearance::kMaximumBodyMorphs)
+            {
+                buffer->bodyMorphsOverflow = true;
+                return true;
+            }
+            buffer->bodyMorphs.push_back(Multiplayer::AppearanceBodyMorph{ .name = morph.name, .value = morph.value });
+            return true;
         }
 
         static bool DecodeDefaultFace(pb_istream_t* a_stream, const pb_field_t*, void** a_arg)
@@ -1599,19 +1678,21 @@ namespace Network::Wire
         // so the callback fields inside it can be set.
         static bool SetMemberCallbacks(pb_istream_t*, const pb_field_t* a_field, void** a_arg)
         {
-            pb_callback_t* defaultFace = nullptr;
+            playerhub_v1_Appearance* appearance = nullptr;
             if (a_field->tag == playerhub_v1_ServerMessage_peer_enter_tag)
             {
-                defaultFace = &static_cast<playerhub_v1_PeerEnter*>(a_field->pData)->appearance.default_face;
+                appearance = &static_cast<playerhub_v1_PeerEnter*>(a_field->pData)->appearance;
             }
             else if (a_field->tag == playerhub_v1_ServerMessage_peer_appearance_tag)
             {
-                defaultFace = &static_cast<playerhub_v1_PeerAppearance*>(a_field->pData)->appearance.default_face;
+                appearance = &static_cast<playerhub_v1_PeerAppearance*>(a_field->pData)->appearance;
             }
-            if (defaultFace)
+            if (appearance)
             {
-                defaultFace->funcs.decode = DecodeDefaultFace;
-                defaultFace->arg = *a_arg;
+                appearance->default_face.funcs.decode = DecodeDefaultFace;
+                appearance->default_face.arg = *a_arg;
+                appearance->body_morphs.funcs.decode = DecodeBodyMorph;
+                appearance->body_morphs.arg = *a_arg;
             }
             return true;
         }
@@ -1694,7 +1775,7 @@ namespace Network::Wire
         }
 
         auto& message = buffer->message;
-        buffer->hasDefaultFace = false;
+        buffer->ResetCallbackFields();
         message.cb_message.funcs.decode = Buffer::SetMemberCallbacks;
         message.cb_message.arg = buffer.get();
         pb_istream_t stream = pb_istream_from_buffer(bytes, a_data.size());
@@ -1791,7 +1872,7 @@ namespace Network::Wire
                 if (enter.has_appearance)
                 {
                     if (const auto* field
-                        = ReadAppearance(enter.appearance, buffer->GetDefaultFace(), result.appearance.emplace()))
+                        = ReadAppearance(enter.appearance, buffer->GetCallbackFields(), result.appearance.emplace()))
                     {
                         return std::unexpected(std::string{ "peer enter appearance " } + field);
                     }
@@ -1870,7 +1951,7 @@ namespace Network::Wire
                     return std::unexpected("peer appearance");
                 }
                 if (const auto* field
-                    = ReadAppearance(appearance.appearance, buffer->GetDefaultFace(), result.appearance))
+                    = ReadAppearance(appearance.appearance, buffer->GetCallbackFields(), result.appearance))
                 {
                     return std::unexpected(std::string{ "peer appearance " } + field);
                 }

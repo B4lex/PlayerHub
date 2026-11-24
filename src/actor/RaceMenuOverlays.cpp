@@ -1,4 +1,5 @@
 #include "actor/RaceMenuOverlays.h"
+#include "actor/SkeeInterfaces.h"
 #include "forms/TextureFiles.h"
 #include "runtime/GameThread.h"
 #include "text/AsciiCase.h"
@@ -18,128 +19,8 @@ namespace RaceMenuOverlays
 {
     namespace
     {
-        // SKEE's interfaces as RaceMenu publishes them in
-        // ModderResource/IPluginInterface.h. Only the vtable order matters; the
-        // functions this file never calls keep their slots with simplified
-        // parameters.
-        class IPluginInterface
-        {
-        public:
-            virtual ~IPluginInterface() = default;
-            virtual std::uint32_t GetVersion() = 0;
-            virtual void Revert() = 0;
-        };
-
-        class IInterfaceMap
-        {
-        public:
-            virtual IPluginInterface* QueryInterface(const char* a_name) = 0;
-            virtual bool AddInterface(const char* a_name, IPluginInterface* a_interface) = 0;
-            virtual IPluginInterface* RemoveInterface(const char* a_name) = 0;
-        };
-
-        struct InterfaceExchangeMessage
-        {
-            static constexpr std::uint32_t kExchangeInterface = 0x9E3779B9;
-
-            IInterfaceMap* interfaceMap{ nullptr };
-        };
-
-        class IOverlayInterface : public IPluginInterface
-        {
-        public:
-            enum class OverlayType : std::int32_t
-            {
-                kNormal,
-                kSpell
-            };
-            enum class OverlayLocation : std::int32_t
-            {
-                kBody,
-                kHand,
-                kFeet,
-                kFace
-            };
-
-            virtual bool HasOverlays(RE::TESObjectREFR* a_reference) = 0;
-            virtual void AddOverlays(RE::TESObjectREFR* a_reference, bool a_defer) = 0;
-            virtual void RemoveOverlays(RE::TESObjectREFR* a_reference, bool a_defer) = 0;
-            virtual void RevertOverlays(void*, bool, bool) = 0;
-            virtual void RevertOverlay(void*, const char*, std::uint32_t, std::uint32_t, bool, bool) = 0;
-            virtual void EraseOverlays(void*, bool) = 0;
-            virtual void RevertHeadOverlays(void*, bool, bool) = 0;
-            virtual void RevertHeadOverlay(void*, const char*, std::uint32_t, std::uint32_t, bool, bool) = 0;
-            virtual std::uint32_t GetOverlayCount(OverlayType a_type, OverlayLocation a_location) = 0;
-        };
-
-        class IOverrideInterface : public IPluginInterface
-        {
-        public:
-            class GetVariant
-            {
-            public:
-                virtual void Int(std::int32_t a_value) = 0;
-                virtual void Float(float a_value) = 0;
-                virtual void String(const char* a_value) = 0;
-                virtual void Bool(bool a_value) = 0;
-                virtual void TextureSet(const RE::BGSTextureSet* a_value) = 0;
-            };
-
-            class SetVariant
-            {
-            public:
-                enum class Type : std::int32_t
-                {
-                    kNone,
-                    kInt,
-                    kFloat,
-                    kString,
-                    kBool,
-                    kTextureSet
-                };
-                virtual Type GetType() { return Type::kNone; }
-                virtual std::int32_t Int() { return 0; }
-                virtual float Float() { return 0.0F; }
-                virtual const char* String() { return nullptr; }
-                virtual bool Bool() { return false; }
-                virtual RE::BGSTextureSet* TextureSet() { return nullptr; }
-            };
-
-            virtual bool HasArmorAddonNode(void*, bool, void*, void*, const char*, bool) = 0;
-            virtual bool HasArmorOverride(void*, bool, void*, void*, const char*, std::uint16_t, std::uint8_t) = 0;
-            virtual void AddArmorOverride(void*, bool, void*, void*, const char*, std::uint16_t, std::uint8_t, void*) = 0;
-            virtual bool GetArmorOverride(void*, bool, void*, void*, const char*, std::uint16_t, std::uint8_t, void*) = 0;
-            virtual void RemoveArmorOverride(void*, bool, void*, void*, const char*, std::uint16_t, std::uint8_t) = 0;
-            virtual void SetArmorProperties(void*, bool) = 0;
-            virtual void SetArmorProperty(void*, bool, void*, void*, const char*, std::uint16_t, std::uint8_t, void*,
-                bool) = 0;
-            virtual bool GetArmorProperty(void*, bool, void*, void*, const char*, std::uint16_t, std::uint8_t, void*) = 0;
-            virtual void ApplyArmorOverrides(void*, void*, void*, void*, bool) = 0;
-            virtual void RemoveAllArmorOverrides() = 0;
-            virtual void RemoveAllArmorOverridesByReference(void*) = 0;
-            virtual void RemoveAllArmorOverridesByArmor(void*, bool, void*) = 0;
-            virtual void RemoveAllArmorOverridesByAddon(void*, bool, void*, void*) = 0;
-            virtual void RemoveAllArmorOverridesByNode(void*, bool, void*, void*, const char*) = 0;
-
-            virtual bool HasNodeOverride(void*, bool, const char*, std::uint16_t, std::uint8_t) = 0;
-            virtual void AddNodeOverride(RE::TESObjectREFR* a_reference, bool a_female, const char* a_node,
-                std::uint16_t a_key, std::uint8_t a_index, SetVariant& a_value) = 0;
-            virtual bool GetNodeOverride(RE::TESObjectREFR* a_reference, bool a_female, const char* a_node,
-                std::uint16_t a_key, std::uint8_t a_index, GetVariant& a_visitor) = 0;
-            virtual void RemoveNodeOverride(void*, bool, const char*, std::uint16_t, std::uint8_t) = 0;
-            virtual void SetNodeProperties(RE::TESObjectREFR* a_reference, bool a_immediate) = 0;
-            virtual void SetNodeProperty(void*, bool, const char*, std::uint16_t, std::uint8_t, void*, bool) = 0;
-            virtual bool GetNodeProperty(RE::TESObjectREFR* a_reference, bool a_firstPerson, const char* a_node,
-                std::uint16_t a_key, std::uint8_t a_index, GetVariant& a_visitor) = 0;
-            virtual void ApplyNodeOverrides(void*, void*, bool) = 0;
-            virtual void RemoveAllNodeOverrides() = 0;
-            virtual void RemoveAllNodeOverridesByReference(RE::TESObjectREFR* a_reference) = 0;
-        };
-
-        // The version that added GetOverlayCount, and the one that introduced the
-        // variant wrappers.
-        constexpr std::uint32_t kMinimumOverlayVersion = 2;
-        constexpr std::uint32_t kMinimumOverrideVersion = 2;
+        using SkeeInterfaces::IOverlayInterface;
+        using SkeeInterfaces::IOverrideInterface;
 
         // NiOverride keys, as RaceMenu.psc sets them on overlay nodes. Keys other
         // than the texture take index -1.
@@ -160,8 +41,6 @@ namespace RaceMenuOverlays
 
         constexpr std::array kAreas{ OverlayArea::kBody, OverlayArea::kHands, OverlayArea::kFeet, OverlayArea::kFace };
 
-        IOverlayInterface* s_overlays{ nullptr };
-        IOverrideInterface* s_overrides{ nullptr };
         std::vector<RE::ActorHandle> s_applied;
 
         class ValueReader final : public IOverrideInterface::GetVariant
@@ -297,8 +176,9 @@ namespace RaceMenuOverlays
         bool ReadValue(RE::Actor& a_actor, bool a_female, const char* a_node, std::uint16_t a_key,
             std::uint8_t a_index, ValueReader& a_reader)
         {
-            return s_overrides->GetNodeOverride(std::addressof(a_actor), a_female, a_node, a_key, a_index, a_reader)
-                || s_overrides->GetNodeProperty(std::addressof(a_actor), false, a_node, a_key, a_index, a_reader);
+            auto* overrides = SkeeInterfaces::GetOverrides();
+            return overrides->GetNodeOverride(std::addressof(a_actor), a_female, a_node, a_key, a_index, a_reader)
+                || overrides->GetNodeProperty(std::addressof(a_actor), false, a_node, a_key, a_index, a_reader);
         }
 
         float ClampFinite(float a_value, float a_maximum, float a_fallback)
@@ -307,40 +187,12 @@ namespace RaceMenuOverlays
         }
     }
 
-    void Initialize()
-    {
-        InterfaceExchangeMessage message;
-        const auto* messaging = SKSE::GetMessagingInterface();
-        if (!messaging
-            || !messaging->Dispatch(InterfaceExchangeMessage::kExchangeInterface, std::addressof(message),
-                sizeof(InterfaceExchangeMessage*), "skee")
-            || !message.interfaceMap)
-        {
-            logs::info("RaceMenu (SKEE) did not answer; overlays are not synchronized");
-            return;
-        }
-
-        auto* overlays = static_cast<IOverlayInterface*>(message.interfaceMap->QueryInterface("Overlay"));
-        auto* overrides = static_cast<IOverrideInterface*>(message.interfaceMap->QueryInterface("Override"));
-        const auto overlayVersion = overlays ? overlays->GetVersion() : 0;
-        const auto overrideVersion = overrides ? overrides->GetVersion() : 0;
-        if (overlayVersion < kMinimumOverlayVersion || overrideVersion < kMinimumOverrideVersion)
-        {
-            logs::warn("RaceMenu (SKEE) interfaces are too old; overlays are not synchronized: overlay={} override={}",
-                overlayVersion, overrideVersion);
-            return;
-        }
-        s_overlays = overlays;
-        s_overrides = overrides;
-        logs::info("RaceMenu (SKEE) interfaces found; overlays are synchronized: overlay={} override={}",
-            overlayVersion, overrideVersion);
-    }
-
     std::vector<AppearanceOverlay> Capture(RE::Actor& a_player)
     {
         std::vector<AppearanceOverlay> result;
+        auto* overlays = SkeeInterfaces::GetOverlays();
         const auto* base = a_player.GetActorBase();
-        if (!s_overlays || !base)
+        if (!overlays || !base)
         {
             return result;
         }
@@ -349,7 +201,7 @@ namespace RaceMenuOverlays
         const bool female = base->IsFemale();
         for (const auto area : kAreas)
         {
-            const auto count = s_overlays->GetOverlayCount(IOverlayInterface::OverlayType::kNormal, GetLocation(area));
+            const auto count = overlays->GetOverlayCount(IOverlayInterface::OverlayType::kNormal, GetLocation(area));
             for (std::uint32_t slot = 0; slot < count && result.size() < PlayerAppearance::kMaximumOverlays; ++slot)
             {
                 const auto node = FormatNodeName(area, slot);
@@ -399,8 +251,10 @@ namespace RaceMenuOverlays
 
     void Apply(RE::Actor& a_actor, std::span<const AppearanceOverlay> a_overlays)
     {
+        auto* overlays = SkeeInterfaces::GetOverlays();
+        auto* overrides = SkeeInterfaces::GetOverrides();
         const auto* base = a_actor.GetActorBase();
-        if (!s_overlays || a_overlays.empty() || !base || !GameThread::Require("RaceMenuOverlays::Apply"))
+        if (!overlays || a_overlays.empty() || !base || !GameThread::Require("RaceMenuOverlays::Apply"))
         {
             return;
         }
@@ -415,7 +269,7 @@ namespace RaceMenuOverlays
         {
             const auto location = GetLocation(overlay.area);
             auto& slot = nextSlot[static_cast<std::size_t>(location)];
-            if (slot >= s_overlays->GetOverlayCount(IOverlayInterface::OverlayType::kNormal, location))
+            if (slot >= overlays->GetOverlayCount(IOverlayInterface::OverlayType::kNormal, location))
             {
                 ++overflow;
                 continue;
@@ -434,19 +288,19 @@ namespace RaceMenuOverlays
             FloatValue alpha{ overlay.alpha };
             IntValue glowColor{ ToInt(overlay.glowColor) };
             FloatValue glowStrength{ overlay.glowStrength };
-            s_overrides->AddNodeOverride(reference, female, node.data(), kTextureKey, kDiffuseIndex, texture);
-            s_overrides->AddNodeOverride(reference, female, node.data(), kTintColorKey, kNoIndex, color);
-            s_overrides->AddNodeOverride(reference, female, node.data(), kAlphaKey, kNoIndex, alpha);
-            s_overrides->AddNodeOverride(reference, female, node.data(), kEmissiveColorKey, kNoIndex, glowColor);
-            s_overrides->AddNodeOverride(reference, female, node.data(), kEmissiveMultipleKey, kNoIndex, glowStrength);
+            overrides->AddNodeOverride(reference, female, node.data(), kTextureKey, kDiffuseIndex, texture);
+            overrides->AddNodeOverride(reference, female, node.data(), kTintColorKey, kNoIndex, color);
+            overrides->AddNodeOverride(reference, female, node.data(), kAlphaKey, kNoIndex, alpha);
+            overrides->AddNodeOverride(reference, female, node.data(), kEmissiveColorKey, kNoIndex, glowColor);
+            overrides->AddNodeOverride(reference, female, node.data(), kEmissiveMultipleKey, kNoIndex, glowStrength);
             ++applied;
         }
 
         if (applied > 0)
         {
             s_applied.push_back(a_actor.GetHandle());
-            s_overlays->AddOverlays(std::addressof(a_actor), false);
-            s_overrides->SetNodeProperties(std::addressof(a_actor), false);
+            overlays->AddOverlays(std::addressof(a_actor), false);
+            overrides->SetNodeProperties(std::addressof(a_actor), false);
         }
         logs::debug("Applied RaceMenu overlays: actor={:08X} applied={}/{} missingTextures={} noFreeSlot={} "
                     "firstMissing=\"{}\"",
@@ -461,7 +315,7 @@ namespace RaceMenuOverlays
             return;
         }
         // SKEE saves both lists in its co-save, keyed by the reference.
-        s_overrides->RemoveAllNodeOverridesByReference(a_actor);
-        s_overlays->RemoveOverlays(a_actor, true);
+        SkeeInterfaces::GetOverrides()->RemoveAllNodeOverridesByReference(a_actor);
+        SkeeInterfaces::GetOverlays()->RemoveOverlays(a_actor, true);
     }
 }

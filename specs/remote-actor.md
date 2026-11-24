@@ -41,6 +41,7 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/SpellIsolation` | Spell fire and cast hooks ([Combat presentation](combat-presentation.md#isolation)) |
 | `actor/PrecisionIsolation` | Excludes remote actors from Precision through its interface |
 | `actor/RaceMenuOverlays` | Applies and releases a peer's RaceMenu overlays ([Appearance and equipment](appearance-and-equipment.md#overlays)) |
+| `actor/RaceMenuBodyMorphs` | Replaces a remote actor's body morphs with the peer's, keeps them after a 3D rebuild, and releases them ([Appearance and equipment](appearance-and-equipment.md#body-morphs)) |
 | `actor/ReactionSuppression` | Dialogue, flee, and detection hooks |
 | `actor/ScenePackageSuppression` | Scene package action hooks |
 | `actor/RemoteCollision` | Placement ownership, the skipped movement update, collision, support, Speed channel |

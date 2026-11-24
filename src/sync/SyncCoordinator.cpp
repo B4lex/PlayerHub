@@ -450,7 +450,8 @@ namespace SyncCoordinator
                 VoiceSync::ClearRemote(a_peer.voice, actor);
                 if (auto liveActor = actor.handle.get())
                 {
-                    AppearanceSync::ApplyActorPresentation(a_peer.appearance, a_playerID, *liveActor, actor.ready);
+                    AppearanceSync::ApplyActorPresentation(
+                        a_peer.appearance, a_playerID, *liveActor, actor.ready, a_delta);
                 }
                 else
                 {
@@ -486,7 +487,8 @@ namespace SyncCoordinator
                 }
                 else if (auto liveActor = actor.handle.get())
                 {
-                    AppearanceSync::ApplyActorPresentation(a_peer.appearance, a_playerID, *liveActor, actor.ready);
+                    AppearanceSync::ApplyActorPresentation(
+                        a_peer.appearance, a_playerID, *liveActor, actor.ready, a_delta);
                 }
             }
             else if (lifecycle.actor)
@@ -545,7 +547,8 @@ namespace SyncCoordinator
                 {
                     SkeletonSync::SyncSkeleton(
                         remote, a_peer.skeleton, actor, actor.ready && !beast && !furniturePlaying, a_delta);
-                    AppearanceSync::ApplyActorPresentation(a_peer.appearance, a_playerID, *liveActor, actor.ready);
+                    AppearanceSync::ApplyActorPresentation(
+                        a_peer.appearance, a_playerID, *liveActor, actor.ready, a_delta);
                 }
             }
 

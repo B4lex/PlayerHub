@@ -16,6 +16,7 @@
 #include <atomic>
 #include <charconv>
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <exception>
 #include <format>

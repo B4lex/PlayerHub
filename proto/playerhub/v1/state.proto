@@ -246,8 +246,18 @@ message Appearance {
   repeated Tint tints = 14;
   FormRef default_race = 15;
   repeated Overlay overlays = 16;
-  // 17 is kept for body morphs. Set only with default_race.
+  // TODO(next protocol bump): move to a dedicated message with its own revision
+  // and drop the callback and size-budget workarounds (plans/BODY_MORPH_SYNC_PLAN.md).
+  repeated BodyMorph body_morphs = 17;
+  // Set only with default_race.
   DefaultFace default_face = 18;
+}
+
+// A RaceMenu (SKEE) body morph, summed over the keys that set it.
+message BodyMorph {
+  string name = 1;
+  // Thousandths.
+  sint32 value = 2;
 }
 
 // A RaceMenu preset's face for the sender's default race.

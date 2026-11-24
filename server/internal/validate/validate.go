@@ -64,6 +64,10 @@ const (
 	MaximumDefaultFaceHeadPartType = 6
 	MaximumDefaultFaceTints        = 16
 
+	MaximumBodyMorphs         = 128
+	MaximumBodyMorphNameBytes = 64
+	MaximumBodyMorphValue     = 10000 // thousandths
+
 	MaximumArmor        = 32
 	MaximumOutfitArmor  = 8
 	MaximumBeastArmor   = 8
@@ -404,7 +408,42 @@ func Appearance(a *pb.Appearance) error {
 	if a.DefaultFace != nil && (a.DefaultRace == nil || !defaultFace(a.DefaultFace)) {
 		return ErrAppearance
 	}
+	if !bodyMorphs(a.GetBodyMorphs()) {
+		return ErrAppearance
+	}
 	return nil
+}
+
+// bodyMorphs accepts names sorted by byte value without repeats, so equal sets encode
+// equally, and non-zero values.
+func bodyMorphs(morphs []*pb.BodyMorph) bool {
+	if len(morphs) > MaximumBodyMorphs {
+		return false
+	}
+	previous := ""
+	for i, morph := range morphs {
+		name := morph.GetName()
+		if !bodyMorphName(name) || (i > 0 && name <= previous) {
+			return false
+		}
+		if value := morph.GetValue(); value == 0 || value < -MaximumBodyMorphValue || value > MaximumBodyMorphValue {
+			return false
+		}
+		previous = name
+	}
+	return true
+}
+
+func bodyMorphName(name string) bool {
+	if len(name) == 0 || len(name) > MaximumBodyMorphNameBytes {
+		return false
+	}
+	for i := 0; i < len(name); i++ {
+		if name[i] < 0x20 || name[i] > 0x7E {
+			return false
+		}
+	}
+	return true
 }
 
 // defaultFace accepts base-game forms only, one head part per vanilla type, and

@@ -36,6 +36,8 @@ namespace AppearanceSync
         float respawnCooldown{ 0.0F };
         float shapeshiftCooldown{ 0.0F };
         bool colorsApplied{ false };
+        // The revision whose body morphs the spawned actor shows.
+        std::uint64_t bodyMorphsRevision{ 0 };
         RE::NiPointer<RE::NiSourceTexture> faceTintTexture;
     };
 
@@ -59,5 +61,5 @@ namespace AppearanceSync
     [[nodiscard]] bool RequiresShapeshift(const RemoteState& a_remote, Multiplayer::Shapeshift a_form);
 
     void ApplyActorPresentation(
-        RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RE::Actor& a_actor, bool a_actorReady);
+        RemoteState& a_remote, Multiplayer::PeerSlot a_playerID, RE::Actor& a_actor, bool a_actorReady, float a_delta);
 }

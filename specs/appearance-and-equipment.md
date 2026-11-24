@@ -5,7 +5,9 @@
 Not run in game: the tint mask offset on AE 1.6.x and the face tint render on
 SE 1.5.97 (ID 26454); head parts of mod-added types and the extra parts listed
 on the receiver ([Actor base](#actor-base)); tint textures that differ from
-the receiver's race asset; RaceMenu [overlays](#overlays).
+the receiver's race asset; RaceMenu [overlays](#overlays);
+[body morphs](#body-morphs) with OBody NG or BodyGen on the viewer, and on the
+SE 1.5.97 build of SKEE.
 
 ## Scope
 
@@ -26,7 +28,9 @@ the settings in [Configuration](configuration.md#settings).
 | Module | Responsibility |
 | --- | --- |
 | `sync/appearance/AppearanceSync` | Capture and publish; receive, build the actor base, respawn requests, hair, skin, face tint, and overlay presentation |
+| `actor/SkeeInterfaces` | RaceMenu's SKEE interfaces: the exchange at `kPostPostLoad`, the local declarations, and a version check per interface |
 | `actor/RaceMenuOverlays` | SKEE's overlay and override interfaces: capture the player's overlays, apply them to a remote actor, and release them ([Overlays](#overlays)) |
+| `actor/RaceMenuBodyMorphs` | SKEE's body morph interface: capture the player's morphs, replace a remote actor's with the source's, keep them after a 3D rebuild, and release them ([Body morphs](#body-morphs)) |
 | `forms/TextureFiles` | `TextureExists`: whether the receiver's loose files or archives hold a texture, cached per path |
 | `sync/equipment/EquipmentSync` | Capture and publish; receive, resolve, reconcile the actor's inventory and a vampire lord actor's spells and armor; hand readiness |
 | `sync/equipment/SpellStandIn` | Capture a spell hand's spell and look; resolve it to the receiver's own spell or a runtime stand-in spell ([Combat presentation](combat-presentation.md#spell-look)) |
@@ -47,8 +51,8 @@ the settings in [Configuration](configuration.md#settings).
 The actor shows the source's race, sex, body weight, height, head parts (face,
 eyes, hair, beard, brows, scars), hair color, face morph sliders and presets,
 face detail texture, skin tone, face tint layers (war paint, dirt, lip and
-cheek color) with their textures, and RaceMenu overlays (body, hand, feet, and
-face paint).
+cheek color) with their textures, RaceMenu overlays (body, hand, feet, and
+face paint), and RaceMenu body morphs.
 
 ### Capture
 
@@ -97,6 +101,8 @@ On the game thread, once per second:
   path failing the [texture path](network.md#texture-paths) rule is skipped and
   logged once.
 - `overlays`: `RaceMenuOverlays::Capture` ([Overlays](#overlays)).
+- `bodyMorphs`: the settled set of `RaceMenuBodyMorphs::Capture`
+  ([Body morphs](#body-morphs)).
 
 A changed capture must repeat in two consecutive captures, so dragging an
 editor slider does not stream updates. A look that keeps changing for 10 s
@@ -175,6 +181,7 @@ that cannot be built keeps the previous base.
 | Face details | missing | the race's default face details |
 | Tint layer | no race tint asset with that index and type, or a `texture` other than the asset's that `TextureExists` does not find | dropped |
 | Overlay | no SKEE, no free overlay slot of its area, or a texture `TextureExists` does not find | dropped |
+| Body morph | no SKEE, or a name the receiver's body meshes have no morph data for | does nothing; the rest of the body still morphs |
 
 A fallback race takes the race's default look in the source's sex, or, when
 the race is the sent `defaultRace` and `defaultFace` is set, that face in its
@@ -182,7 +189,7 @@ own sex (`MakeFaceAppearance`, each tint taking the texture of the race layer
 its index and type name). `NordRace` never takes the face, since it was built
 for another race. The source's head parts, tints, morphs, presets, face
 details, and hair color belong to its own race and are dropped; display name,
-level, weight, and height are kept. The base is then built as for an own race,
+level, weight, height, and body morphs are kept. The base is then built as for an own race,
 so the table above applies to the face's head parts and tints too. Each
 fallback is logged once per revision.
 
@@ -195,8 +202,10 @@ fallback is logged once per revision.
   previous respawn for that player. The respawn uses the new base and rebuilds
   locomotion, stance, and furniture from the played checkpoint. Coordinate-space
   respawns reuse the current base.
-- A change of only display name or level adopts the revision without a new
-  base or respawn; the built base's full name is rewritten in place.
+- A change of only display name, level, or body morphs adopts the revision
+  without a new base or respawn (`HasSameBase`); the built base's full name is
+  rewritten in place, and changed morphs are applied to the spawned actor
+  ([Body morphs](#body-morphs)).
 - Once the respawned actor is ready with 3D, `Actor::UpdateHairColor` and
   `UpdateSkinColor` run once.
 - The face tint: `PrepareHeadPartForShaders` (ID 26838, SE 26259) gives a
@@ -217,21 +226,24 @@ fallback is logged once per revision.
   that holds would repaint the player's face with the remote player's skin and
   war paint.
 - RaceMenu overlays are applied in the same pass as the colors, when the
-  spawned revision is the latest ([Overlays](#overlays)).
+  spawned revision is the latest ([Overlays](#overlays)), and body morphs in
+  that pass whatever the revision ([Body morphs](#body-morphs)).
 
 ### Overlays
 
 Goal: body, hand, feet, and face paint and tattoos that RaceMenu (SKEE) puts on
 overlay shapes show on the remote actor when both players have RaceMenu and the
 texture, with the source's color, transparency, and glow. Other NiOverride data
-(body morphs, node transforms, armor and skin overrides) is out of scope.
+(node transforms, armor and skin overrides) is out of scope; body morphs have
+[their own section](#body-morphs).
 
-- **Interfaces:** `RaceMenuOverlays::Initialize` runs at SKSE's
+- **Interfaces:** `SkeeInterfaces::Initialize` runs at SKSE's
   `kPostPostLoad`. It dispatches SKEE's interface exchange
   (`0x9E3779B9`) to `skee` and queries `Overlay` and `Override` from the
-  returned map, both at version 2 or later; without them nothing is captured
-  or applied, and a line logs why. The interfaces are declared locally after
-  RaceMenu's `ModderResource/IPluginInterface.h`.
+  returned map, both at version 2 or later, and `BodyMorph`; one line logs
+  each interface found, or missing or too old. Without both overlay
+  interfaces no overlay is captured or applied. The interfaces are declared
+  locally after RaceMenu's `ModderResource/IPluginInterface.h`.
 - **Capture:** for each area, slots `0..GetOverlayCount(Normal, area)` of the
   nodes `Body [Ovl#]`, `Hands [Ovl#]`, `Feet [Ovl#]`, and `Face [Ovl#]`, in
   that order, up to 32 overlays. Spell overlays (`[SOvl#]`) are left out. Each
@@ -259,6 +271,70 @@ texture, with the source's color, transparency, and glow. Other NiOverride data
   `RaceMenuOverlays::Release` for an actor that got overlays:
   `RemoveAllNodeOverridesByReference` and a deferred `RemoveOverlays`, so
   SKEE's co-save does not keep the retired reference.
+
+### Body morphs
+
+Goal: a remote player shows the source's SKEE body morphs (RaceMenu body
+sliders, OBody presets, BodyGen) on the body and on armor built with morphs. A
+viewer whose body and armor meshes have morph data for the same names ("Build
+Morphs" in BodySlide, the same body family) sees the source's shape; any other
+viewer sees its own body unchanged. A remote actor carries only the source's
+morphs: morphs the viewer's own OBody NG, BodyGen, or other mods put on it are
+removed, also when the source has none.
+
+Non-goals: BodySlide presets baked into meshes (files on disk, not runtime
+state; each peer sees its own baked body plus the source's morphs), node
+transforms other than the `NPC` scale in [`height`](#capture), physics, and
+streaming morphs that mods change at runtime (weight gain, inflation): only a
+settled set is published.
+
+- **Interface:** SKEE's `BodyMorph` at version 4 or later
+  ([SKEE body morphs](#engine-assumptions)); without it no morph is captured
+  or applied.
+- **Capture:** `VisitMorphValues` on the player, summed per morph name over
+  every key, since SKEE shows the sum; rounded to thousandths. A zero sum is
+  left out; a name or value the [validation](network.md#bodymorph) rejects is
+  left out and logged once per name (at most 32 names). Over 128 morphs the
+  largest by magnitude are kept, logged once. The list is sorted by name.
+- **Settling:** separate from the look's two-capture rule
+  (`BodyMorphSettling`). The first capture is taken as is. A changed morph set
+  replaces the settled one only after it has held unchanged for 10 s
+  (`kBodyMorphSettleSeconds`, accumulated from the capture intervals); until
+  then each capture carries the settled set, so a RaceMenu slider drag
+  publishes once, a mod that keeps changing morphs publishes nothing while
+  other look changes still go out, and a mod that changes in rare steps
+  publishes each step once it holds. Morphs that stay unsettled for 30 s log
+  one debug line per streak. [Always use](#always-use) sends no morphs.
+- **Apply:** in the colors pass of a spawned actor, and again when an adopted
+  revision changes only the morphs (`RemoteState::bodyMorphsRevision`),
+  `RaceMenuBodyMorphs::Apply` replaces the actor's morphs: when the actor has
+  any, `ClearMorphs` (every key, so other mods' go too), then
+  `SetMorph(name, "PlayerHub", value / 1000)` for each sent morph and
+  `ApplyBodyMorphs`. With no sent morph and none on the actor it does nothing,
+  so a crowd without morphs costs no geometry rebuild. A fallback race keeps
+  the morphs; a name the receiver's meshes lack does nothing. One debug line
+  per apply counts the morphs, names the reason, and says whether foreign
+  morphs were cleared.
+- **Foreign morph exclusion:** OBody NG assigns a preset from its
+  `Character::Load3D` hook to every `ActorTypeNPC` adult without its marker
+  morph, which the clear removes, so it acts again on each 3D load; BodyGen
+  never matches a runtime-built base
+  ([OBody NG and BodyGen](#engine-assumptions)).
+  `RaceMenuBodyMorphs::Maintain`, called every frame from
+  `ApplyActorPresentation`, compares the actor's 3D root with the one the
+  morphs were written for (held by a `NiPointer`, so a new root at the same
+  address still counts) and replaces the morphs again on a new root. After
+  each apply or rebuild it checks once, 2 s later (`kForeignCheckSeconds`),
+  whether a key other than `PlayerHub` is present, for mods that write their
+  morphs after the load, and replaces them again if so. The keys found on a
+  remote actor are logged once per actor at debug level.
+- **Release:** `ActorSpawner::Remove` calls `RaceMenuBodyMorphs::Release`,
+  which drops the actor's entry and calls `ClearMorphs` when it has morphs, so
+  SKEE's co-save does not keep the retired reference.
+- **Cost:** SKEE rebuilds each morphed mesh's vertices on the CPU, on the game
+  thread, when morphs are applied: once per spawn, per settled change, and per
+  3D rebuild, never per frame. Applying has a Tracy zone; a crowd spawn has not
+  been measured.
 
 ### Shapeshifts
 
@@ -637,8 +713,8 @@ base-game or not, and the capture then keeps only its result:
   height, the [preset face](#preset-face) for it in the face's sex
   (`MakeFaceAppearance`), or without a preset `MakeDefaultAppearance` in the
   player's sex: the look a receiver builds for a race it cannot resolve.
-  Head parts, tints, hair color, face data, and RaceMenu overlays are not the
-  character's. `defaultRace` and `defaultFace` are unset, since `race` is
+  Head parts, tints, hair color, face data, RaceMenu overlays, and body morphs
+  are not the character's. `defaultRace` and `defaultFace` are unset, since `race` is
   already base-game.
 - Equipment: `armor` holds only the outfit pieces, each with its resolved
   item's own slot mask, so an item covering only slots without a piece, or
@@ -812,6 +888,27 @@ at runtime from the base's head parts and face data.
     `morphs.default.presets` the 4 presets. `faceTextures` repeats the face
     part's texture set when nothing replaced it, so it does not count as
     RaceMenu data.
+19. SKEE body morphs, from RaceMenu's `IPluginInterface.h` and `skee64.dll` of
+    RaceMenu for 1.7.104: the `BodyMorphInterface` vtable (found through its
+    RTTI) holds `SetMorph` at slot 3, `VisitMorphValues` at 10, `ClearMorphs`
+    at 11, `ApplyBodyMorphs` at 13, and `HasMorphs` at 16, as the header
+    orders them, and `GetVersion` returns 5. The header notes version 5 only
+    for the appended `AddMorphShapeCallback`; the SE 1.5.97 build was not
+    checked, and builds older than 4 are not used. From SKEE's source:
+    `SetMorph` stores the value under the reference's form ID, name, and key,
+    `ClearMorphs` erases every key of the reference, `HasMorphs` is true while
+    the reference has any entry, `ApplyBodyMorphs` rebuilds at once on the main
+    thread, SKEE reapplies a reference's morphs when armor or 3D attaches, and
+    by default (`iBodyMorphMode` 0) a name shows the sum of its keys' values.
+    The co-save writes every reference with morphs and drops deleted ones on
+    load.
+20. OBody NG and BodyGen, from their sources: OBody NG assigns a preset from a
+    `Character::Load3D` hook and on `TESInitScriptEvent` to an actor with the
+    `ActorTypeNPC` keyword that is not a child and lacks its per-save marker
+    morph (key `OBody`); equip events refit only marked actors. SKEE's BodyGen
+    evaluates on `TESObjectLoadedEvent` for an actor without morphs, but picks
+    templates by the NPC base pointers listed when its morph files load, so a
+    runtime-built base never matches.
 
 ## Acceptance criteria
 
@@ -874,7 +971,15 @@ at runtime from the base's head parts and face data.
     have RaceMenu and the textures, with the same color, transparency, and
     glow, also after a cell change and a respawn. A peer without RaceMenu or a
     texture sees the player without that overlay, and nothing else changes.
-19. A player who picks a RaceMenu preset for the default look appears with its
+19. A player with RaceMenu body morphs (body sliders, an OBody preset,
+    BodyGen) appears with that shape, on the body and on armor built with
+    morphs, to peers who have the same body family with morphs built; a peer
+    without them sees its own body and no error. A changed preset or slider
+    reaches peers about 10 s after the last change, without a respawn on
+    current clients. A remote player never shows a preset the viewer's own
+    OBody NG or BodyGen would give it, also after a cell change and an
+    equipment change.
+20. A player who picks a RaceMenu preset for the default look appears with its
     hair, eyes, brows, beard, scars, hair color, face sliders and presets, and
     vanilla tints, in the preset's sex, to every peer that shows the default
     look, whatever mods that peer has, as `[DefaultLook] Race`. A modded part,
@@ -885,9 +990,15 @@ at runtime from the base's head parts and face data.
 
 - Voice type (the actor speaks with its race's player voice, or the even-toned
   one of its sex), actor values, mod-added transformation races, and
-  RaceMenu/NiOverride data other than overlays (body morphs, node transforms,
-  scaled bones, armor and skin overrides) are not synchronized, except the
-  `NPC` node scale, which travels in [`height`](#capture).
+  RaceMenu/NiOverride data other than overlays and body morphs (node
+  transforms, scaled bones, armor and skin overrides) are not synchronized,
+  except the `NPC` node scale, which travels in [`height`](#capture).
+- Body morphs show only for a viewer whose body and armor meshes were built
+  with morph data for the same names; shapes baked into meshes by BodySlide are
+  each peer's own. Morphs that mods change at runtime reach peers only when
+  they hold for 10 s. Clients that predate body morphs respawn the actor on
+  each morph-only revision. Morphs ride inside `Appearance` until the next
+  protocol change ([Network](network.md#bodymorph)).
 - An overlay carries only its diffuse texture: the other texture set slots
   RaceMenu can set (a `|`-separated path list, indices 1..8) and spell
   overlays are not shown. A receiver with fewer slots of an area

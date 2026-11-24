@@ -2,6 +2,7 @@ package validate
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -294,6 +295,8 @@ func validAppearance() *pb.Appearance {
 			FaceParts:   []int32{1, -1, 1, 19},
 			Tints:       []*pb.Tint{{Index: 44, Type: 6, Color: &pb.Color{R: 1}, Alpha: 1}},
 		},
+		BodyMorphs: []*pb.BodyMorph{{Name: "Breasts", Value: 750}, {Name: "Butt", Value: -10000},
+			{Name: "Waist", Value: MaximumBodyMorphValue}},
 	}
 }
 
@@ -310,6 +313,18 @@ func TestAppearance(t *testing.T) {
 	}
 	if err := Appearance(full); err != nil {
 		t.Fatalf("%d head parts: %v", MaximumHeadParts, err)
+	}
+	full.BodyMorphs = nil
+	for i := range MaximumBodyMorphs {
+		name := fmt.Sprintf("%03d%s", i, strings.Repeat("~", MaximumBodyMorphNameBytes-3))
+		full.BodyMorphs = append(full.BodyMorphs, &pb.BodyMorph{Name: name, Value: -MaximumBodyMorphValue})
+	}
+	if err := Appearance(full); err != nil {
+		t.Fatalf("%d body morphs: %v", MaximumBodyMorphs, err)
+	}
+	full.BodyMorphs = nil
+	if err := Appearance(full); err != nil {
+		t.Fatalf("no body morphs: %v", err)
 	}
 	cases := map[string]func(*pb.Appearance){
 		"zero revision":          func(a *pb.Appearance) { a.Revision = 0 },
@@ -371,8 +386,23 @@ func TestAppearance(t *testing.T) {
 		"face tint texture": func(a *pb.Appearance) {
 			a.DefaultFace.Tints[0].Texture = `Actors\Character\Character Assets\TintMasks\SkinTone.dds`
 		},
-		"face tint type":  func(a *pb.Appearance) { a.DefaultFace.Tints[0].Type = 15 },
-		"face tint alpha": func(a *pb.Appearance) { a.DefaultFace.Tints[0].Alpha = -0.1 },
+		"too many morphs": func(a *pb.Appearance) {
+			a.BodyMorphs = nil
+			for i := range MaximumBodyMorphs + 1 {
+				a.BodyMorphs = append(a.BodyMorphs, &pb.BodyMorph{Name: fmt.Sprintf("Morph%03d", i), Value: 1})
+			}
+		},
+		"empty morph name":    func(a *pb.Appearance) { a.BodyMorphs[0].Name = "" },
+		"long morph name":     func(a *pb.Appearance) { a.BodyMorphs[0].Name = strings.Repeat("A", 65) },
+		"control in morph":    func(a *pb.Appearance) { a.BodyMorphs[0].Name = "Breasts\n" },
+		"non-ASCII in morph":  func(a *pb.Appearance) { a.BodyMorphs[0].Name = "Brüste" },
+		"morphs out of order": func(a *pb.Appearance) { a.BodyMorphs[0].Name = "Zeta" },
+		"morph repeated":      func(a *pb.Appearance) { a.BodyMorphs[1].Name = "Breasts" },
+		"zero morph":          func(a *pb.Appearance) { a.BodyMorphs[1].Value = 0 },
+		"morph above range":   func(a *pb.Appearance) { a.BodyMorphs[2].Value = MaximumBodyMorphValue + 1 },
+		"morph below range":   func(a *pb.Appearance) { a.BodyMorphs[1].Value = -MaximumBodyMorphValue - 1 },
+		"face tint type":      func(a *pb.Appearance) { a.DefaultFace.Tints[0].Type = 15 },
+		"face tint alpha":     func(a *pb.Appearance) { a.DefaultFace.Tints[0].Alpha = -0.1 },
 	}
 	for name, mutate := range cases {
 		a := validAppearance()

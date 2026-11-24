@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 
 	"playerhub/server/internal/clock"
@@ -883,6 +884,43 @@ func TestAppearanceCarriesTheSessionDisplayName(t *testing.T) {
 	}
 	if f.hub.Name(a) != "Lydia" || f.hub.Name(v) != "Lydia" || f.hub.Name(99) != "" {
 		t.Fatalf("names: %q %q %q", f.hub.Name(a), f.hub.Name(v), f.hub.Name(99))
+	}
+}
+
+// A server that predates an Appearance field relays it as an unknown field, which is
+// how body morphs pass a 3.0.0 server. A field number this schema does not know stands
+// in for it.
+func TestAppearanceRelaysUnknownFields(t *testing.T) {
+	unknown := protowire.AppendTag(nil, 1000, protowire.BytesType)
+	unknown = protowire.AppendBytes(unknown, []byte("morphs"))
+	received := func(revision uint64) *pb.ClientMessage {
+		sent := appearance(revision, "Lydia")
+		sent.GetAppearance().ProtoReflect().SetUnknown(unknown)
+		bytes, err := proto.Marshal(sent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m := &pb.ClientMessage{}
+		if err := proto.Unmarshal(bytes, m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	f := newFixture(t)
+	a, b := f.connectAs("Lydia"), f.connectAs("Serana")
+	f.place(b, 1)
+	f.send(a, received(1))
+	f.place(a, 1)
+	messages := f.messages(b)
+	enter := messages[len(messages)-1].GetPeerEnter().GetAppearance()
+	if string(enter.ProtoReflect().GetUnknown()) != string(unknown) {
+		t.Fatalf("enter lost the unknown field: %v", enter)
+	}
+	f.send(a, received(2))
+	messages = f.messages(b)
+	relayed := messages[len(messages)-1].GetPeerAppearance().GetAppearance()
+	if relayed.GetRevision() != 2 || string(relayed.ProtoReflect().GetUnknown()) != string(unknown) {
+		t.Fatalf("relay lost the unknown field: %v", relayed)
 	}
 }
 

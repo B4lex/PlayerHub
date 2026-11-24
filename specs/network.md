@@ -92,8 +92,9 @@ compatibility shims; a version mismatch is refused at the handshake.
   WebSocket pings; its ping interval is -1, since IXWebSocket polls with the
   interval as timeout and 0 spins its thread.
 - Boundary limits: 48 KiB per message (the largest valid `ClientMessage`, an
-  `Appearance` with every tint and overlay path at full length and a full
-  `default_face`, is about 45 KB); `limits.messages_per_second` (120, burst 240) per connection,
+  `Appearance` with every tint and overlay path at full length, a full
+  `default_face`, and 128 body morphs with 64-byte names, is 48,013 bytes);
+  `limits.messages_per_second` (120, burst 240) per connection,
   over which the connection is closed with 4003, counting every message; a recipient whose unsent
   ordered messages exceed `limits.ordered_backlog` (4096) is closed with 4002.
   Compression is off on both ends.
@@ -383,6 +384,7 @@ only the overriding file (Skyrim.esm's `000DDFB3` lists `Update.esm`).
 | `overlays` | at most 32; `area` `BODY`, `HANDS`, `FEET`, or `FACE`; a [texture path](#texture-paths); `color` and `glow_color` RGB `0..255`, both required; `alpha` `0..1`; `glow_strength` `0..100` |
 | `default_race` | a base-game race, unset for none; the fallback race keeps the appearance's `female` unless `default_face` is set |
 | `default_face` | a [`DefaultFace`](#defaultface), only with `default_race` |
+| `body_morphs` | at most 128 [`BodyMorph`](#bodymorph)s, names unique and sorted ascending by byte value, so equal sets compare and encode equally (`MaximumBodyMorphs`, `IsValidBodyMorphs`) |
 
 Hair color is RGB rather than a form, because character editors commonly
 create dynamic color forms.
@@ -406,12 +408,34 @@ base-game plugin, so any receiver can build it.
 
 `Appearance.default_face` (field 18) is additive, so the protocol stays 16:
 clients that predate it skip the field and show the race's default face, and
-servers that predate it relay it unvalidated. Field 17 is kept for body
-morphs. In nanopb it is an `FT_CALLBACK` field, since a static `DefaultFace`
+servers that predate it relay it unvalidated. In nanopb it is an
+`FT_CALLBACK` field, since a static `DefaultFace`
 (about 7.5 KB) would push `PeerEnter` past the 16-bit field offsets; the
 `ServerMessage` oneof has `submsg_callback`, whose callback sets the
 `default_face` decoder of a `peer_enter` or `peer_appearance` member before it
 is decoded, and the face is decoded into the decoder's own buffer.
+
+#### `BodyMorph`
+
+A [body morph](appearance-and-equipment.md#body-morphs): one SKEE morph name
+and the sum of its keys' values.
+
+| Field | Validation |
+| --- | --- |
+| `name` | 1..64 bytes of printable ASCII (`0x20..0x7E`) (`MaximumBodyMorphNameBytes`, `IsValidBodyMorphName`) |
+| `value` | thousandths, non-zero, within `±10000` (±10.0, `MaximumBodyMorphValue`); a guard against extreme shapes rather than a slider range, since SKEE sliders usually stay within `-1..2` |
+
+`Appearance.body_morphs` (field 17) is additive too, so the protocol stays 16.
+A client that predates it skips the field and shows its own body, and respawns
+the actor on each morph-only revision. A server that predates it relays it as
+an unknown field: Go's `proto.Unmarshal` keeps unknown fields and
+`wire.Marshal` writes them back (`TestAppearanceRelaysUnknownFields`), so only
+the receiving client validates it. In nanopb the field is
+`FT_CALLBACK`, so `PeerEnter` stays within the 16-bit field offsets: the
+oneof callback that sets the `default_face` decoder sets the morph decoder
+too, which decodes each element into the decoder's own buffer, reserved for
+128 morphs. A 129th sets an overflow flag, and a list that fails a rule
+rejects the message (`peer appearance bodyMorphs`).
 
 #### Texture paths
 
@@ -1287,6 +1311,10 @@ window, and are empty after a long gap. The status panel shows them.
   ([Interest and delivery](interest-and-delivery.md#admin-controls)); only a
   player's own vanish follows the session.
 - Chat has no history for late joiners.
+- Body morphs ride inside `Appearance` to keep protocol 16, so a morph change
+  resends the whole appearance, and clients that predate them respawn the
+  actor for it. At the next protocol change they move to a message of their
+  own with its own revision, like `Effects`, and the callback field goes.
 - The roster tells every client the display name of every connected player,
   wherever they are, and its session ID. It carries no level.
 - Form references, spaces included, match only between peers that load the

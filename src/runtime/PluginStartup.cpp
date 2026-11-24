@@ -6,10 +6,10 @@
 #include "actor/CombatIsolation.h"
 #include "actor/JumpSound.h"
 #include "actor/PrecisionIsolation.h"
-#include "actor/RaceMenuOverlays.h"
 #include "actor/ReactionSuppression.h"
 #include "actor/RemoteCollision.h"
 #include "actor/ScenePackageSuppression.h"
+#include "actor/SkeeInterfaces.h"
 #include "actor/SpellIsolation.h"
 #include "actor/SurvivalPolicy.h"
 #include "config/PluginConfig.h"
@@ -99,7 +99,7 @@ namespace PluginStartup
             switch (a_message->type)
             {
                 case SKSE::MessagingInterface::kPostPostLoad:
-                    RaceMenuOverlays::Initialize();
+                    SkeeInterfaces::Initialize();
                     break;
                 case SKSE::MessagingInterface::kDataLoaded:
                     OnDataLoaded();

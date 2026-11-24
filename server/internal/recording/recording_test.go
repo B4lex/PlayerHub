@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"playerhub/server/internal/wire/pb"
 )
 
@@ -52,6 +54,27 @@ func TestParse(t *testing.T) {
 	}
 	if c := r.Messages[7].Message.GetContext(); c.GetInteriorCell().GetFormId() != 7 || c.Furniture.GetFormId() != 9 {
 		t.Fatalf("context parsed as %v", c)
+	}
+}
+
+func TestBodyMorphsRoundTrip(t *testing.T) {
+	r, err := Parse([]byte(testRecording))
+	if err != nil {
+		t.Fatal(err)
+	}
+	appearance := r.Messages[0].Message.GetAppearance()
+	appearance.BodyMorphs = []*pb.BodyMorph{{Name: "Breasts", Value: 750}, {Name: "Waist", Value: -10000}}
+	line, err := EncodeMessage(Message{TMs: 0, Message: r.Messages[0].Message})
+	if err != nil {
+		t.Fatal(err)
+	}
+	header := strings.SplitN(testRecording, "\n", 2)[0]
+	parsed, err := Parse([]byte(header + "\n" + string(line) + "\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := parsed.Messages[0].Message.GetAppearance(); !proto.Equal(got, appearance) {
+		t.Fatalf("got %v\nwant %v", got, appearance)
 	}
 }
 
