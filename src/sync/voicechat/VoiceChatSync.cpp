@@ -287,6 +287,11 @@ namespace VoiceChatSync
         Audio::SetSpeakers(s_speakers);
     }
 
+    bool IsLocalMouthOpen()
+    {
+        return s_localMouthOpen;
+    }
+
     bool IsSpeaking(Multiplayer::PeerSlot a_playerID)
     {
         return GameThread::IsAuthoritative() && FindLevel(a_playerID) > kSpeakingLevel;

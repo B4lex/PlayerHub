@@ -6,6 +6,7 @@
 #include "protocol/MovementState.h"
 #include "protocol/PeerSlot.h"
 #include "protocol/Shapeshift.h"
+#include "protocol/FacePose.h"
 #include "protocol/SkeletonPose.h"
 
 #include <cstdint>
@@ -56,6 +57,8 @@ namespace Network
         std::uint64_t sequence{ 0 };
         std::uint32_t sampleTime{ 0 };
         EncodedSkeletonPose skeleton;
+        // Only with a skeleton pose.
+        EncodedFacePose face;
     };
 
     enum class AttackAction : std::uint8_t

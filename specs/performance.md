@@ -40,7 +40,9 @@ Work elsewhere does not count toward plugin time:
   ones: graph channel polls, graph input, pose copy, movement isolation,
   hostility checks, aim targets, and the speed sampler
   ([Remote actor](remote-actor.md#graph-channels)). Each call is a registry
-  lookup and a small write.
+  lookup and a small write. The face update hook runs for every animating
+  head and returns at once while no remote face is shown
+  ([Remote actor](remote-actor.md#face)).
 - **The connection thread** decodes and validates server messages
   ([Network](network.md#client)).
 - **Voice** runs on its device and datagram threads

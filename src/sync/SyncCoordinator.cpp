@@ -545,8 +545,8 @@ namespace SyncCoordinator
                 }
                 else if (auto liveActor = actor.handle.get())
                 {
-                    SkeletonSync::SyncSkeleton(
-                        remote, a_peer.skeleton, actor, actor.ready && !beast && !furniturePlaying, a_delta);
+                    SkeletonSync::SyncSkeleton(remote, a_peer.skeleton, actor, *liveActor,
+                        actor.ready && !beast && !furniturePlaying, a_delta);
                     AppearanceSync::ApplyActorPresentation(
                         a_peer.appearance, a_playerID, *liveActor, actor.ready, a_delta);
                 }

@@ -73,9 +73,15 @@ namespace Network
         bool tradeEventsLost = false;
         std::unordered_set<PeerSlot> pendingExits;
         std::unordered_set<PeerSlot> pendingDisconnects;
-        // The skeleton pose the server last sent of each peer, which a layout-3 pose is a change
-        // from. Reset where the server resets its own: PeerEnter, PeerLeave, a new connection.
-        std::unordered_map<PeerSlot, QuantizedSkeletonPose> receivedPoses;
+        struct ReceivedPose
+        {
+            QuantizedSkeletonPose skeleton;
+            std::optional<QuantizedFacePose> face;
+        };
+        // The pose the server last sent of each peer, which a layout-3 pose and a face change are
+        // changes from. Reset where the server resets its own: PeerEnter, PeerLeave, a new
+        // connection.
+        std::unordered_map<PeerSlot, ReceivedPose> receivedPoses;
         // Peers whose last pose could not be resolved, so each failure run is logged once.
         std::unordered_set<PeerSlot> unresolvedPoses;
         PeerSlot localSlot = 0;
@@ -96,9 +102,10 @@ namespace Network
         std::mutex publishLock;
         std::optional<CheckpointContext> sentContext;
         std::uint64_t localActionSequence = 0;
-        // The skeleton pose last sent on sentPoseSocket; the server keeps the same per connection.
+        // The pose last sent on sentPoseSocket; the server keeps the same per connection.
         std::weak_ptr<ix::WebSocket> sentPoseSocket;
         std::optional<QuantizedSkeletonPose> sentPose;
+        std::optional<QuantizedFacePose> sentFace;
 
         std::mutex attemptLock;
         Config::ServerAddress attemptAddress;
@@ -157,23 +164,29 @@ namespace Network
             SendOn(GetSocket(), a_message);
         }
 
-        // The caller sends a_skeleton on a_socket next, so that socket's server session holds
-        // the same reference.
-        void EncodeSentSkeletonLocked(const std::shared_ptr<ix::WebSocket>& a_socket, EncodedSkeletonPose& a_skeleton)
+        // The caller sends a_skeleton and a_face on a_socket next, so that socket's server session
+        // holds the same reference.
+        void EncodeSentPoseLocked(
+            const std::shared_ptr<ix::WebSocket>& a_socket, EncodedSkeletonPose& a_skeleton, EncodedFacePose& a_face)
         {
             const auto pose = ReadSkeletonPose(a_skeleton.view());
             if (!pose)
             {
                 a_skeleton = {};
+                a_face = {};
                 return;
             }
             if (sentPoseSocket.owner_before(a_socket) || a_socket.owner_before(sentPoseSocket))
             {
                 sentPoseSocket = a_socket;
                 sentPose.reset();
+                sentFace.reset();
             }
             a_skeleton = EncodeSkeletonPoseChange(*pose, sentPose ? &*sentPose : nullptr);
             sentPose = *pose;
+            const auto face = a_face.empty() ? std::nullopt : ReadFacePose(a_face.view());
+            a_face = face ? EncodeFacePoseChange(*face, sentFace ? &*sentFace : nullptr) : EncodedFacePose{};
+            sentFace = face;
         }
 
         void SendHello(ix::WebSocket& a_socket)
@@ -331,23 +344,28 @@ namespace Network
         }
 
         // Every received checkpoint, in order, whether or not it is accepted: the server's
-        // reference moves with each pose it sends.
-        void ResolveSkeletonLocked(PeerSlot a_slot, EncodedSkeletonPose& a_skeleton)
+        // reference moves with each pose it sends. A face travels only with a skeleton pose.
+        void ResolvePoseLocked(PeerSlot a_slot, EncodedSkeletonPose& a_skeleton, EncodedFacePose& a_face)
         {
             if (a_skeleton.empty())
             {
+                a_face = {};
                 return;
             }
             const auto reference = receivedPoses.find(a_slot);
-            const auto pose
-                = ResolveSkeletonPose(a_skeleton.view(), reference != receivedPoses.end() ? &reference->second : nullptr);
-            if (!pose)
+            const auto* previous = reference != receivedPoses.end() ? &reference->second : nullptr;
+            const auto pose = ResolveSkeletonPose(a_skeleton.view(), previous ? &previous->skeleton : nullptr);
+            const auto face = a_face.empty() ? std::nullopt
+                                             : ResolveFacePose(a_face.view(),
+                                                   previous && previous->face ? &*previous->face : nullptr);
+            if (!pose || (!a_face.empty() && !face))
             {
                 if (unresolvedPoses.insert(a_slot).second)
                 {
                     logs::warn("Dropped an unresolvable skeleton pose of peer {}, and its next ones until one "
-                               "resolves: layout={} size={} reference={}",
-                        a_slot, a_skeleton.bytes[0], a_skeleton.size, reference != receivedPoses.end());
+                               "resolves: layout={} size={} faceLayout={} faceSize={} reference={}",
+                        a_slot, a_skeleton.bytes[0], a_skeleton.size, a_face.empty() ? 0 : a_face.bytes[0],
+                        a_face.size, previous != nullptr);
                 }
                 // Later changes build on the pose this one would have given.
                 if (reference != receivedPoses.end())
@@ -355,11 +373,13 @@ namespace Network
                     receivedPoses.erase(reference);
                 }
                 a_skeleton = {};
+                a_face = {};
                 return;
             }
-            receivedPoses.insert_or_assign(a_slot, *pose);
+            receivedPoses.insert_or_assign(a_slot, ReceivedPose{ .skeleton = *pose, .face = face });
             unresolvedPoses.erase(a_slot);
             a_skeleton = EncodeSkeletonPose(*pose);
+            a_face = face ? EncodeFacePose(*face) : EncodedFacePose{};
         }
 
         void AcceptCheckpointLocked(
@@ -491,7 +511,7 @@ namespace Network
             std::scoped_lock lock{ remoteChangesLock };
             for (auto& entry : a_states.entries)
             {
-                ResolveSkeletonLocked(entry.slot, entry.checkpoint.skeleton);
+                ResolvePoseLocked(entry.slot, entry.checkpoint.skeleton, entry.checkpoint.face);
                 if (entry.slot != localSlot)
                 {
                     AcceptCheckpointLocked(entry.slot, entry.checkpoint, received);
@@ -518,7 +538,7 @@ namespace Network
                 AcceptEquipmentLocked(a_enter.slot, std::move(*a_enter.equipment));
             }
             peerContexts.insert_or_assign(a_enter.slot, a_enter.context);
-            ResolveSkeletonLocked(a_enter.slot, a_enter.state.skeleton);
+            ResolvePoseLocked(a_enter.slot, a_enter.state.skeleton, a_enter.state.face);
             AcceptCheckpointLocked(a_enter.slot, a_enter.state, std::chrono::steady_clock::now());
         }
 
@@ -980,7 +1000,11 @@ namespace Network
         if (!checkpoint.skeleton.empty())
         {
             const std::scoped_lock lock{ publishLock };
-            EncodeSentSkeletonLocked(current, checkpoint.skeleton);
+            EncodeSentPoseLocked(current, checkpoint.skeleton, checkpoint.face);
+        }
+        else
+        {
+            checkpoint.face = {};
         }
         SendOn(current, Wire::EncodeCheckpoint(checkpoint));
     }

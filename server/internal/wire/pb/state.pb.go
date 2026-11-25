@@ -816,7 +816,9 @@ type Checkpoint struct {
 	Time      uint32 `protobuf:"varint,11,opt,name=time,proto3" json:"time,omitempty"`
 	LookPitch int32  `protobuf:"zigzag32,12,opt,name=look_pitch,json=lookPitch,proto3" json:"look_pitch,omitempty"`
 	// Last: the server writes each recipient's pose change behind the other fields.
-	Skeleton      []byte `protobuf:"bytes,13,opt,name=skeleton,proto3" json:"skeleton,omitempty"`
+	Skeleton []byte `protobuf:"bytes,13,opt,name=skeleton,proto3" json:"skeleton,omitempty"`
+	// The face weights of a posed checkpoint, written per recipient like skeleton.
+	Face          []byte `protobuf:"bytes,14,opt,name=face,proto3" json:"face,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -938,6 +940,13 @@ func (x *Checkpoint) GetLookPitch() int32 {
 func (x *Checkpoint) GetSkeleton() []byte {
 	if x != nil {
 		return x.Skeleton
+	}
+	return nil
+}
+
+func (x *Checkpoint) GetFace() []byte {
+	if x != nil {
+		return x.Face
 	}
 	return nil
 }
@@ -2333,7 +2342,7 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x18playerhub/v1/state.proto\x12\fplayerhub.v1\":\n" +
 	"\aFormRef\x12\x16\n" +
 	"\x06plugin\x18\x01 \x01(\tR\x06plugin\x12\x17\n" +
-	"\aform_id\x18\x02 \x01(\rR\x06formId\"\xb3\x02\n" +
+	"\aform_id\x18\x02 \x01(\rR\x06formId\"\xc7\x02\n" +
 	"\n" +
 	"Checkpoint\x12\x16\n" +
 	"\x06player\x18\x01 \x01(\rR\x06player\x12\x1a\n" +
@@ -2350,7 +2359,8 @@ const file_playerhub_v1_state_proto_rawDesc = "" +
 	"\x04time\x18\v \x01(\rR\x04time\x12\x1d\n" +
 	"\n" +
 	"look_pitch\x18\f \x01(\x11R\tlookPitch\x12\x1a\n" +
-	"\bskeleton\x18\r \x01(\fR\bskeleton\"\xd3\x02\n" +
+	"\bskeleton\x18\r \x01(\fR\bskeleton\x12\x12\n" +
+	"\x04face\x18\x0e \x01(\fR\x04face\"\xd3\x02\n" +
 	"\aContext\x12:\n" +
 	"\rinterior_cell\x18\x01 \x01(\v2\x15.playerhub.v1.FormRefR\finteriorCell\x125\n" +
 	"\n" +

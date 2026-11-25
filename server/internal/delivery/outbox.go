@@ -54,7 +54,8 @@ type latestEntry struct {
 type due struct {
 	peer     uint32
 	bytes    []byte
-	pose     *wire.SkeletonPose
+	pose     wire.Pose
+	posed    bool
 	priority float64
 }
 
@@ -69,9 +70,9 @@ type Outbox struct {
 	intervals   map[uint32]time.Duration
 	lastWritten map[uint32]time.Time
 	weights     map[uint32]float64
-	// The skeleton pose last drained for each peer, which its next one is written as a change
-	// from. The connection delivers in order, so the recipient holds the same.
-	poses      map[uint32]*wire.SkeletonPose
+	// The pose last drained for each peer, which its next one is written as a change from. The
+	// connection delivers in order, so the recipient holds the same.
+	poses      map[uint32]wire.Pose
 	limit      int
 	overflowed bool
 	closed     bool
@@ -94,7 +95,7 @@ func NewOutbox(limit int) *Outbox {
 		intervals:   make(map[uint32]time.Duration),
 		lastWritten: make(map[uint32]time.Time),
 		weights:     make(map[uint32]float64),
-		poses:       make(map[uint32]*wire.SkeletonPose),
+		poses:       make(map[uint32]wire.Pose),
 		limit:       limit,
 	}
 }
@@ -255,9 +256,10 @@ func (o *Outbox) Drain(b *Batch, now time.Time) (ok bool, next time.Time) {
 	for i := range b.ordered {
 		switch it := &b.ordered[i]; {
 		case it.kind == itemEntry:
-			var pose *wire.SkeletonPose
-			it.bytes, pose = o.encodeLocked(b, it.peer, it.entry)
-			if pose != nil {
+			var pose wire.Pose
+			var posed bool
+			it.bytes, pose, posed = o.encodeLocked(b, it.peer, it.entry)
+			if posed {
 				o.poses[it.peer] = pose
 			}
 		case it.kind == itemMessage && it.resetsPose:
@@ -279,8 +281,8 @@ func (o *Outbox) Drain(b *Batch, now time.Time) (ok bool, next time.Time) {
 			weight = 1
 		}
 		priority := (now.Sub(entry.since).Seconds() + priorityFloorSeconds) * weight
-		bytes, pose := o.encodeLocked(b, peer, entry.entry)
-		dues = append(dues, due{peer, bytes, pose, priority})
+		bytes, pose, posed := o.encodeLocked(b, peer, entry.entry)
+		dues = append(dues, due{peer, bytes, pose, posed, priority})
 	}
 	if o.budget != nil {
 		if waiting := o.spendLocked(b, dues, now); len(waiting) > 0 &&
@@ -353,19 +355,19 @@ func (o *Outbox) spendLocked(b *Batch, dues []due, now time.Time) []due {
 }
 
 // encodeLocked returns the entry's bytes for this recipient, and the pose they carry.
-func (o *Outbox) encodeLocked(b *Batch, peer uint32, e *wire.Entry) ([]byte, *wire.SkeletonPose) {
-	pose := e.Pose()
-	if pose == nil {
-		return e.Plain(), nil
+func (o *Outbox) encodeLocked(b *Batch, peer uint32, e *wire.Entry) ([]byte, wire.Pose, bool) {
+	pose, posed := e.Pose()
+	if !posed {
+		return e.Plain(), wire.Pose{}, false
 	}
 	start := len(b.scratch)
 	b.scratch = e.Append(b.scratch, o.poses[peer])
-	return b.scratch[start:len(b.scratch):len(b.scratch)], pose
+	return b.scratch[start:len(b.scratch):len(b.scratch)], pose, true
 }
 
 func (o *Outbox) writeLatestLocked(b *Batch, d due, now time.Time) {
 	b.latest = append(b.latest, d.bytes)
-	if d.pose != nil {
+	if d.posed {
 		o.poses[d.peer] = d.pose
 	}
 	delete(o.latest, d.peer)

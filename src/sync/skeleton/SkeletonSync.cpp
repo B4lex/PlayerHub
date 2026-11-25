@@ -1,4 +1,5 @@
 #include "sync/skeleton/SkeletonSync.h"
+#include "actor/ActorFace.h"
 #include "actor/ActorMovement.h"
 #include "actor/ActorSkeleton.h"
 #include "actor/RemoteActor.h"
@@ -19,6 +20,12 @@ namespace SkeletonSync
 
         bool s_publishing = false;
 
+        std::optional<Network::FaceWeights> DecodeFace(const Network::EncodedFacePose& a_face)
+        {
+            const auto face = Network::ReadFacePose(a_face.view());
+            return face ? std::optional{ Network::DequantizeFace(*face) } : std::nullopt;
+        }
+
         // The played checkpoint's pose usually is the previous pass's next one.
         void Decode(const RemoteFrame& a_remote, RemoteState& a_state)
         {
@@ -28,10 +35,12 @@ namespace SkeletonSync
                 if (a_state.toSequence == played)
                 {
                     a_state.from = a_state.to;
+                    a_state.fromFace = a_state.toFace;
                 }
                 else
                 {
                     a_state.from = Network::DecodeSkeletonPose(a_remote.checkpoint.skeleton);
+                    a_state.fromFace = DecodeFace(a_remote.checkpoint.face);
                 }
                 a_state.fromSequence = played;
             }
@@ -39,6 +48,7 @@ namespace SkeletonSync
             if (next != 0 && a_state.toSequence != next)
             {
                 a_state.to = Network::DecodeSkeletonPose(a_remote.next->skeleton);
+                a_state.toFace = DecodeFace(a_remote.next->face);
                 a_state.toSequence = next;
             }
         }
@@ -47,10 +57,19 @@ namespace SkeletonSync
         {
             auto& pose = a_state.shown;
             pose = a_state.from;
+            a_state.shownFace = a_state.fromFace;
             const float fraction = a_remote.pose.fraction;
             if (!a_remote.next || a_state.toSequence != a_remote.next->sequence || fraction <= 0.0F)
             {
                 return;
+            }
+            if (a_state.shownFace && a_state.toFace)
+            {
+                auto& face = a_state.shownFace->values;
+                for (std::size_t weight = 0; weight < face.size(); ++weight)
+                {
+                    face[weight] += (a_state.toFace->values[weight] - face[weight]) * fraction;
+                }
             }
             const auto shared = a_state.from.present & a_state.to.present;
             for (std::size_t bone = 0; bone < Network::kSkeletonBoneCount; ++bone)
@@ -71,7 +90,7 @@ namespace SkeletonSync
         }
     }
 
-    Network::EncodedSkeletonPose SampleLocalSkeleton(const LocalFrame& a_local)
+    LocalPose SampleLocalPose(const LocalFrame& a_local, bool a_voiceMouth)
     {
         PROFILE_FUNCTION();
         if (!PoseWindow::IsOpen())
@@ -86,17 +105,28 @@ namespace SkeletonSync
         {
             return {};
         }
-        auto encoded = Network::EncodeSkeletonPose(*pose);
+        LocalPose result{ .skeleton = Network::EncodeSkeletonPose(*pose) };
+        if (auto face = ActorFace::ReadFace(a_local.player))
+        {
+            if (a_voiceMouth)
+            {
+                using Phoneme = RE::BSFaceGenKeyframeMultiple::Phoneme;
+                face->values[Network::kFaceFirstPhonemeWeight + Phoneme::Aah] = 0.0F;
+                face->values[Network::kFaceFirstPhonemeWeight + Phoneme::BigAah] = 0.0F;
+            }
+            result.face = Network::EncodeFacePose(Network::QuantizeFace(*face));
+        }
         if (!s_publishing)
         {
             s_publishing = true;
-            logs::debug("Publishing local skeleton poses: bytes={} bones={}", encoded.size, std::popcount(pose->present));
+            logs::debug("Publishing local skeleton poses: bytes={} bones={} faceBytes={}", result.skeleton.size,
+                std::popcount(pose->present), result.face.size);
         }
-        return encoded;
+        return result;
     }
 
-    void SyncSkeleton(
-        const RemoteFrame& a_remote, RemoteState& a_state, RemoteActor& a_actor, bool a_owned, float a_delta)
+    void SyncSkeleton(const RemoteFrame& a_remote, RemoteState& a_state, RemoteActor& a_actor, RE::Actor& a_liveActor,
+        bool a_owned, float a_delta)
     {
         PROFILE_FUNCTION();
         const auto* holder = a_actor.animationGraphHolder;
@@ -123,9 +153,9 @@ namespace SkeletonSync
             Interpolate(a_remote, a_state);
             if (!a_state.holder)
             {
-                logs::debug("Remote skeleton pose blending in: player={} actor={:08X} bones={} sequence={}",
+                logs::debug("Remote skeleton pose blending in: player={} actor={:08X} bones={} face={} sequence={}",
                     a_remote.playerID, a_actor.handle.native_handle(), std::popcount(a_state.shown.present),
-                    static_cast<unsigned long long>(checkpoint.sequence));
+                    a_state.shownFace.has_value(), static_cast<unsigned long long>(checkpoint.sequence));
             }
             a_state.weight = (std::min)(a_state.weight + delta / kBlendInSeconds, 1.0F);
         }
@@ -143,6 +173,14 @@ namespace SkeletonSync
             }
         }
         ActorSkeleton::SetPose(a_actor, a_state.shown, a_state.weight);
+        if (a_state.shownFace)
+        {
+            ActorFace::SetFace(a_actor, a_liveActor, *a_state.shownFace, a_state.weight);
+        }
+        else
+        {
+            ActorFace::ClearFace(a_actor);
+        }
         ActorMovement::SetPoseWeight(a_actor, a_state.weight);
         a_state.holder = holder;
     }
@@ -156,6 +194,7 @@ namespace SkeletonSync
         if (a_state.holder == a_actor.animationGraphHolder)
         {
             ActorSkeleton::ClearPose(a_actor);
+            ActorFace::ClearFace(a_actor);
         }
         ActorMovement::SetPoseWeight(a_actor, 0.0F);
         logs::debug("Remote skeleton pose released to the graph: actor={:08X} weight={:.2f}",

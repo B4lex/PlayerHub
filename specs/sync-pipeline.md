@@ -197,7 +197,7 @@ One checkpoint is one coherent sample: `MountSync::SampleLocalMount`,
 `AnimationSync::SampleLocalAnimation`, `FurnitureSync::SampleLocalFurniture`,
 `CombatSync::SampleLocalHandPresentation`, `VoiceSync::SampleLocalVoice`,
 `DeathSync::SampleLocalDeath`, `ShapeshiftSync::SampleLocalVampireLord`,
-`IdleSync::SampleLocalIdle`, and `SkeletonSync::SampleLocalSkeleton`
+`IdleSync::SampleLocalIdle`, and `SkeletonSync::SampleLocalPose`
 ([Remote actor](remote-actor.md#skeleton-pose)), with the graph epoch and local
 form observed this pass. No stage publishes a partial checkpoint. The
 checkpoint precedes the `Action` anchored to it, and a weapon or shout swap is

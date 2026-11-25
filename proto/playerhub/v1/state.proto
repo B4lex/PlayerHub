@@ -25,6 +25,8 @@ message Checkpoint {
   sint32 look_pitch = 12;
   // Last: the server writes each recipient's pose change behind the other fields.
   bytes skeleton = 13;
+  // The face weights of a posed checkpoint, written per recipient like skeleton.
+  bytes face = 14;
 }
 
 enum MovementState {

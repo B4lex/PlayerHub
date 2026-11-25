@@ -17,7 +17,7 @@ compatibility shims; a version mismatch is refused at the handshake.
 | Module | Responsibility |
 | --- | --- |
 | `proto/playerhub/v1/` | The schema (`state.proto`, `messages.proto`) and nanopb size options. `proto/generate.sh` regenerates `server/internal/wire/pb` and `src/network/proto` |
-| `src/protocol/` | Plain wire values and shared validation: `PlayerState.h`, `MovementState.h`, `AppearanceState.h`, `PlayerInspection.h`, `EquipmentState.h`, `FormReference.h`, `ChatMessage.h`, `PeerSlot.h`, `Session.h`, `Role.h`, `VoiceFrame.h`, and the quantization rules in `Quantization.h`. No Skyrim headers |
+| `src/protocol/` | Plain wire values and shared validation: `PlayerState.h`, `MovementState.h`, `AppearanceState.h`, `PlayerInspection.h`, `EquipmentState.h`, `FormReference.h`, `ChatMessage.h`, `PeerSlot.h`, `Session.h`, `Role.h`, `VoiceFrame.h`, the pose codecs in `SkeletonPose.h` and `FacePose.h`, and the quantization rules in `Quantization.h`. No Skyrim headers |
 | `network/WireCodec` | nanopb encoding of client messages and validated decoding of server messages |
 | `network/SkeletonDelta` | Writes a skeleton pose as a [change](#pose-changes) from its stream's previous one, and resolves a received pose against it |
 | `network/ServerClient` | IXWebSocket transport: sends, dispatches received messages, holds both directions' [pose references](#pose-changes), merges each peer's context into its checkpoints, and queues per-player changes for `DrainRemotePlayerChanges` |
@@ -31,7 +31,7 @@ compatibility shims; a version mismatch is refused at the handshake.
 | `server/internal/admission` | Caps on players, pending hellos, and new sessions per address; the client address behind trusted proxies |
 | `server/internal/validate` | Field validation of client messages |
 | `server/internal/world` | A player's accepted state and the ordering rules |
-| `server/internal/wire` | Hand-written encoding of checkpoint entries and batches, the skeleton pose codec with [changes](#pose-changes), quantization for tools |
+| `server/internal/wire` | Hand-written encoding of checkpoint entries and batches, the skeleton pose and [face](#face-weights) codecs with [changes](#pose-changes), quantization for tools |
 | `server/internal/hub` | Applies accepted messages on one goroutine ([Interest and delivery](interest-and-delivery.md)) |
 | `server/internal/voice` | The voice relay: datagram keys and addresses, replay windows, forwarding ([Voice](#voice)) |
 
@@ -164,7 +164,8 @@ context.
 | `direction` | `uint32`, graph `Direction` × 256, wrapping | `0..255` |
 | `flags` | bits 0–2 movement state `0..6` (`idle`, `walking`, `running`, `sprinting`, `sneakingIdle`, `sneakingWalking`, `sneakingRunning`); bits 3–23 `grounded` (the carrier's controller is on the ground and the carrier is not ragdolled, [Locomotion](locomotion.md#ground-offset)), `weaponDrawn`, `jumping`, `blocking`, `bowDrawn`, `castingLeft`, `castingRight`, `swimming`, `mounted`, `dead`, `levitating`, `mistForm`, `bats`, `castReleasedLeft`, `castReleasedRight`, `dualCasting` ([Combat presentation](combat-presentation.md#spells)), `shouting`, `shoutReleased`, `shoutTwoWords`, `shoutThreeWords`, `shoutFailed` ([Combat presentation](combat-presentation.md#shouts-and-powers)); bit 24 `flyingMount` (the mount's race flies); bits 25–27 the flying mount's fly state `0..6` (`FlyState`: `none`, `takeOff`, `cruising`, `hovering`, `landing`, `perching`, `action`, Skyrim's `FLY_STATE`, [Native interactions](native-interactions.md#dragon-flight)); bits 28–29 its wing stroke while it cruises (`WingState`: `none`, `flapping`, `gliding`, `feathering`, [Native interactions](native-interactions.md#wing-strokes)) (`CheckpointFlag`, mirrored by `Network::CheckpointFlags` with `static_assert`s in `WireCodec.cpp`) | unknown bits rejected; `flyingMount` only with `mounted`, a nonzero fly state or wing stroke only with `flyingMount`, and the fly state at most `action` (`validate.mountFlags`, `IsValidQuantizedCheckpoint`); `levitating`, `mistForm`, and `bats` only in a `VAMPIRE_LORD` context (`validate.VampireLordFlags`, `incompatible animation checkpoint`); `castReleasedLeft` and `dualCasting` only with `castingLeft`, `castReleasedRight` only with `castingRight` (`validate.castFlags`, `IsValidQuantizedCheckpoint`); `shoutReleased` and the word flags only with `shouting`, at most one word flag, and `shoutFailed` only with `shoutReleased` (`validate.shoutFlags`, `IsValidQuantizedCheckpoint`) |
 | `time` | `uint32`, the sender's `steady_clock` in milliseconds when sampled, modulo 16384 | `0..16383` |
-| `skeleton` | `bytes`, the last field, since the server writes each recipient's pose change behind the encoded others ([Interest and delivery](interest-and-delivery.md#skeleton-poses)): the sender's skeleton pose ([below](#skeleton-pose-encoding)); empty when not sent | empty, or a layout below: whole (`validate.SkeletonPose`) or a [change](#pose-changes) that resolves against the stream's previous pose |
+| `skeleton` | `bytes`, behind every field but `face`, since the server writes each recipient's pose change behind the encoded others ([Interest and delivery](interest-and-delivery.md#skeleton-poses)): the sender's skeleton pose ([below](#skeleton-pose-encoding)); empty when not sent | empty, or a layout below: whole (`validate.SkeletonPose`) or a [change](#pose-changes) that resolves against the stream's previous pose |
+| `face` | `bytes`, the last field, written per recipient like `skeleton`: the sender's [face weights](#face-weights); empty when not sent | empty, or only with `skeleton`: whole (`validate.FacePose`) or a change that resolves against the stream's previous face |
 
 | `Context` field | Validation |
 | --- | --- |
@@ -281,27 +282,57 @@ every message in order, so both ends hold the same reference without
 acknowledgements:
 
 - **Client to server.** The reference is the pose this client last sent on the
-  current socket (`ServerClient`'s `sentPose`, reset when the socket changes)
-  and the pose its session last resolved (`session.Server.read`). The session
-  resolves each checkpoint's pose before validating anything else, so a
-  checkpoint rejected later still moves the reference, and replaces it with
-  layout 2: the hub, recordings, and replays see only whole poses. An
-  unresolvable pose drops its checkpoint and leaves no reference, so changes
-  are refused until a whole pose.
+  current socket (`ServerClient`'s `sentPose` and `sentFace`, reset when the
+  socket changes) and the pose its session last resolved
+  (`session.Server.read`, a `wire.Pose`). The session resolves each
+  checkpoint's pose and face (`wire.ResolvePose`) before validating anything
+  else, so a checkpoint rejected later still moves the reference, and replaces
+  them with whole ones: the hub, recordings, and replays see only whole poses
+  and faces. An unresolvable pose or face drops its checkpoint and leaves no
+  reference, so changes are refused until a whole pose.
 - **Server to client.** The reference is the pose of the peer last written to
   this recipient: the outbox encodes posed entries per recipient as it drains
   them, in write order ([Interest and delivery](interest-and-delivery.md#skeleton-poses)).
   Both ends drop it at the peer's `PeerEnter` and `PeerLeave` and with the
   connection; a checkpoint without a pose leaves it. The client resolves each
   entry as it decodes the message, before anything may discard the
-  checkpoint, and passes layout 2 on (`ServerClient::ResolveSkeletonLocked`).
-  An unresolvable pose is dropped with the reference, and logged once until
-  one resolves (`Dropped an unresolvable skeleton pose`). A server message
-  that fails to decode drops every reference, since it may have carried
-  poses.
+  checkpoint, and passes whole layouts on (`ServerClient::ResolvePoseLocked`).
+  An unresolvable pose or face is dropped with the reference, and logged once
+  until one resolves (`Dropped an unresolvable skeleton pose`). A server
+  message that fails to decode drops every reference, since it may have
+  carried poses.
+
+The reference is the whole pose, skeleton and face together: a posed
+checkpoint without a face leaves no face reference, so the next face is
+whole.
 
 Poses travel on every checkpoint of a window: at 10 Hz, Catmull-Rom
 interpolation was off by 9° at the 95th percentile in the trunk and limbs.
+
+#### Face weights
+
+A posed checkpoint may carry the sender's face weights
+([Remote actor](remote-actor.md#face)), 50 bytes in wire order
+(`Network::kFaceWeightCount`, `validate.FaceWeightCount`): the 17 expressions,
+the 17 modifiers, and the 16 phonemes, each in Skyrim's order
+(`BSFaceGenKeyframeMultiple`). A weight is `0..255` for 0 to 1
+(`Network::QuantizeFace`); a weight outside (0, 1] is 0, as Skyrim reads its
+keyframes.
+
+1. **Whole**, layout `1` (`kFaceLayoutWhole`, `validate.FaceLayoutWhole`):
+   the layout byte, the mask of nonzero weights (bit `i` for weight `i`) as an
+   unsigned varint in its shortest form, then one byte per weight in the mask,
+   none of them 0.
+2. **Change**, layout `2` (`kFaceLayoutChange`, `validate.FaceLayoutChange`):
+   the layout byte, the mask of weights that differ from the stream's
+   reference face, then each one's new byte, none equal to the reference's.
+
+Bits 50 and above must be clear, and the length must be exactly the header
+plus one byte per mask bit, so no face exceeds 59 bytes
+(`MaximumFacePoseSize`, the nanopb `max_size`). The encoder
+(`Network::EncodeFacePoseChange`, `wire.FacePose.AppendChange`) sends a change
+only when it is smaller than the whole face; both ends write the same bytes.
+A change is refused without a reference face.
 
 ## Actions
 

@@ -1,4 +1,5 @@
 #include "actor/ActorRegistry.h"
+#include "actor/ActorFace.h"
 #include "actor/ActorSkeleton.h"
 #include "actor/AnimationEvents.h"
 #include "actor/RemoteActor.h"
@@ -273,6 +274,7 @@ namespace ActorRegistry
         }
 
         ActorSkeleton::ClearPose(a_remote);
+        ActorFace::ForgetFace(a_remote);
         std::scoped_lock lock{ s_mutex };
         EraseRegistration(a_remote.animationGraphHolder);
         a_remote.animationGraphHolder = nullptr;

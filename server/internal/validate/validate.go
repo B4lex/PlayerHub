@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"math"
+	"math/bits"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -38,6 +39,13 @@ const (
 	maximumSkeletonMaskBytes  = 9
 	allSkeletonBones          = 1<<SkeletonBoneCount - 1
 	MaximumSkeletonPoseSize   = 219
+
+	FaceLayoutWhole  = 1
+	FaceLayoutChange = 2 // a change from the stream's last face (wire.ResolveFacePose)
+	FaceWeightCount  = 50
+	allFaceWeights   = 1<<FaceWeightCount - 1
+	// The mask's varint, at most 8 bytes for 50 bits, and a byte per weight.
+	MaximumFacePoseSize = 1 + 8 + FaceWeightCount
 
 	MaximumNameBytes        = 128
 	MinimumDisplayNameBytes = 3
@@ -160,7 +168,8 @@ func Checkpoint(c *pb.Checkpoint) error {
 		c.GetSpeed() > MaximumSpeed || c.GetDirection() > MaximumDirection || c.GetTime() > MaximumTime ||
 		c.GetFlags()&^knownFlags != 0 || c.GetFlags()&movementStateMask > MaximumMovementState ||
 		!castFlags(c.GetFlags()) || !shoutFlags(c.GetFlags()) || !mountFlags(c.GetFlags()) ||
-		!SkeletonPose(c.GetSkeleton()) {
+		!SkeletonPose(c.GetSkeleton()) || !FacePose(c.GetFace()) ||
+		len(c.GetFace()) > 0 && len(c.GetSkeleton()) == 0 {
 		return ErrCheckpoint
 	}
 	return nil
@@ -241,6 +250,33 @@ func SkeletonHeader(b []byte, layout byte) (missing uint64, n int, ok bool) {
 // skeletonRotationBits counts a bone's two-bit index of its largest component and its three stored components.
 func skeletonRotationBits(bone int) int {
 	return 2 + 3*SkeletonComponentBits(bone)
+}
+
+// FacePose reports whether b is empty or whole: the layout byte, the shortest varint of a mask of
+// the nonzero weights below bit FaceWeightCount, and one nonzero byte per weight in the mask.
+func FacePose(b []byte) bool {
+	if len(b) == 0 {
+		return true
+	}
+	mask, n, ok := FaceHeader(b, FaceLayoutWhole)
+	if !ok || len(b) != n+bits.OnesCount64(mask) {
+		return false
+	}
+	return !slices.Contains(b[n:], 0)
+}
+
+// FaceHeader reads a face's layout byte, which must be layout, and the shortest varint of its
+// weight mask below bit FaceWeightCount; n is the header's size.
+func FaceHeader(b []byte, layout byte) (mask uint64, n int, ok bool) {
+	if len(b) == 0 || b[0] != layout {
+		return 0, 0, false
+	}
+	var shortest [binary.MaxVarintLen64]byte
+	mask, n = binary.Uvarint(b[1:])
+	if n <= 0 || n != binary.PutUvarint(shortest[:], mask) || mask&^allFaceWeights != 0 {
+		return 0, 0, false
+	}
+	return mask, 1 + n, true
 }
 
 // SkeletonComponentBits is the width of each stored quaternion component of a bone.

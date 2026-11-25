@@ -224,7 +224,10 @@ cave echoes as the cave's NPCs do, and outdoors stays dry.
   decoded frame. `VoiceChatSync` copies levels once per pass; `IsSpeaking` is a
   level above 0.05, for nameplates and the player list.
 - A speaking peer's level opens its character's mouth through `ActorLipSync`;
-  it closes when the peer stops. No phoneme analysis.
+  it closes when the peer stops. No phoneme analysis. While the peer is posed,
+  its received [face](remote-actor.md#face) shows each phoneme at the larger of
+  the received weight and the lip sync's, and the source leaves out the
+  phonemes its own lip sync drives.
 - The player's own character moves its mouth the same way, so the player sees
   it as peers do. `VoiceEncoder` measures each frame it sends on the same scale
   and releases the level between spurts (`Audio::GetSentLevel`, 0 while the

@@ -151,14 +151,16 @@ limbs at the 95th percentile on recorded climbs and paragliding, so they show
 the vanilla reproduction instead.
 
 - `world.Player` holds each posed checkpoint as two `wire.Entry` values,
-  `Entry` with the pose and `PlainEntry` without (`wire.WithoutSkeleton`); a
+  `Entry` with the pose and its [face](network.md#face-weights) and
+  `PlainEntry` without either (`wire.WithoutSkeleton`); a
   plain checkpoint has one, shared by both. `distribute`, the checkpoint in
   front of an action, and `PeerEnter` pick by the pair's `subscription.pose`.
   `PeerEnter` always carries the checkpoint without the pose; poses follow from
   the subscription's first ranking.
 - A posed `wire.Entry` keeps its fields encoded and its decoded pose
-  (`wire.SkeletonPose`, shared and immutable), and is encoded per recipient
-  when the outbox drains it, as a change from the pose last written to that
+  (`wire.Pose`: a `wire.SkeletonPose` and an optional `wire.FacePose`, shared
+  and immutable), and is encoded per recipient when the outbox drains it, the
+  skeleton pose and face each as a change from the ones last written to that
   recipient (`Outbox.poses`). `Drain` encodes ordered items in order, dropping
   a peer's reference at its `PeerEnter` or `PeerLeave`, then the latest-wins
   entries. A latest-wins entry sets the reference only when written, so one the

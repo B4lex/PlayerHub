@@ -1262,7 +1262,7 @@ extern const pb_msgdesc_t playerhub_v1_ServerMessage_msg;
 #if defined(playerhub_v1_Appearance_size)
 #define PLAYERHUB_V1_PLAYERHUB_V1_MESSAGES_PB_H_MAX_SIZE playerhub_v1_PeerEnter_size
 #define playerhub_v1_PeerAppearance_size         (12 + playerhub_v1_Appearance_size)
-#define playerhub_v1_PeerEnter_size              (22400 + playerhub_v1_Appearance_size)
+#define playerhub_v1_PeerEnter_size              (22461 + playerhub_v1_Appearance_size)
 #endif
 
 #ifdef __cplusplus

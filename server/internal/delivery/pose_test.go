@@ -103,3 +103,62 @@ func TestPosesAreWrittenAsChangesFromTheLastWrittenPose(t *testing.T) {
 	o.SetCheckpoint(1, 6, posed(1, 6), time.Now())
 	expect(t, r.drain(t, o), "A:6 whole")
 }
+
+// face sets weight 0 to 5 and weight 1 to w, so a change of one weight is smaller than the whole.
+func face(w uint8) []byte {
+	return []byte{validate.FaceLayoutWhole, 3, 5, w}
+}
+
+func TestFacesAreWrittenAsChangesFromTheLastWrittenPose(t *testing.T) {
+	o := NewOutbox(16)
+	faced := func(sequence uint64, w uint8) *wire.Entry {
+		c := &pb.Checkpoint{Sequence: sequence, Skeleton: skeleton(int16(sequence))}
+		if w != 0 {
+			c.Face = face(w)
+		}
+		return wire.NewEntry(1, c)
+	}
+	var reference *wire.FacePose
+	drain := func() string {
+		t.Helper()
+		var b Batch
+		if ok, _ := o.Drain(&b, time.Now()); !ok {
+			t.Fatal("drain refused")
+		}
+		got := ""
+		err := b.Write(func(frame []byte) error {
+			var m pb.ServerMessage
+			if err := proto.Unmarshal(frame, &m); err != nil {
+				return err
+			}
+			for _, s := range m.GetPeerStates().GetStates() {
+				if len(s.Face) == 0 {
+					reference, got = nil, "none"
+					continue
+				}
+				resolved, ok := wire.ResolveFacePose(s.Face, reference)
+				if !ok {
+					t.Fatalf("face of %d does not resolve", s.Sequence)
+				}
+				reference, got = resolved, "whole"
+				if s.Face[0] == validate.FaceLayoutChange {
+					got = "change"
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	for i, want := range []struct {
+		weight uint8
+		layout string
+	}{{9, "whole"}, {9, "change"}, {10, "change"}, {0, "none"}, {10, "whole"}} {
+		o.SetCheckpoint(1, uint64(i+1), faced(uint64(i+1), want.weight), time.Now())
+		if got := drain(); got != want.layout {
+			t.Fatalf("face %d written %s, want %s", i+1, got, want.layout)
+		}
+	}
+}

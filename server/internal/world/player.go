@@ -134,7 +134,7 @@ func (p *Player) SetCheckpoint(c *pb.Checkpoint) error {
 	p.Checkpoint = c
 	p.Entry = wire.NewEntry(p.Slot, c)
 	p.PlainEntry = p.Entry
-	if p.Entry.Pose() != nil {
+	if _, posed := p.Entry.Pose(); posed {
 		p.PlainEntry = wire.NewEntry(p.Slot, wire.WithoutSkeleton(c))
 	}
 	return nil

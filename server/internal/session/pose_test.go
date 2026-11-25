@@ -25,8 +25,22 @@ func testPose(t *testing.T, x int16) *wire.SkeletonPose {
 }
 
 func posedCheckpoint(sequence uint64, skeleton []byte) *pb.ClientMessage {
+	return facedCheckpoint(sequence, skeleton, nil)
+}
+
+func facedCheckpoint(sequence uint64, skeleton, face []byte) *pb.ClientMessage {
 	return &pb.ClientMessage{Message: &pb.ClientMessage_Checkpoint{Checkpoint: &pb.Checkpoint{
-		Sequence: sequence, X: 10, Skeleton: skeleton}}}
+		Sequence: sequence, X: 10, Skeleton: skeleton, Face: face}}}
+}
+
+// testFace sets weight 0 to w.
+func testFace(t *testing.T, w uint8) *wire.FacePose {
+	t.Helper()
+	face, ok := wire.ReadFacePose([]byte{validate.FaceLayoutWhole, 1, w})
+	if !ok {
+		t.Fatal("test face does not read")
+	}
+	return face
 }
 
 func TestPosesTravelAsChanges(t *testing.T) {
@@ -39,24 +53,27 @@ func TestPosesTravelAsChanges(t *testing.T) {
 	a.send(&pb.ClientMessage{Message: &pb.ClientMessage_Context{Context: &pb.Context{
 		Worldspace: &pb.FormRef{Plugin: "Skyrim.esm", FormId: 60}, GraphEpoch: 1}}})
 	var sent *wire.SkeletonPose
+	var sentFace *wire.FacePose
 	for i := range 4 {
 		pose := testPose(t, int16(i))
 		skeleton := pose.AppendChange(nil, sent)
 		if (sent != nil) != (skeleton[0] == validate.SkeletonLayoutHumanChange) {
 			t.Fatalf("pose %d has layout %d", i, skeleton[0])
 		}
-		a.send(posedCheckpoint(uint64(i+1), skeleton))
-		sent = pose
+		face := testFace(t, uint8(i/2+1))
+		a.send(facedCheckpoint(uint64(i+1), skeleton, face.AppendChange(nil, sentFace)))
+		sent, sentFace = pose, face
 	}
 
 	var received *wire.SkeletonPose
+	var receivedFace *wire.FacePose
 	for sequence := uint64(0); sequence < 4; {
 		m := b.receive()
 		if enter := m.GetPeerEnter(); enter.GetSlot() == slotA {
 			if len(enter.GetState().GetSkeleton()) != 0 {
 				t.Fatal("PeerEnter carries a pose")
 			}
-			received, sequence = nil, enter.GetState().GetSequence()
+			received, receivedFace, sequence = nil, nil, enter.GetState().GetSequence()
 		}
 		for _, state := range m.GetPeerStates().GetStates() {
 			if state.GetPlayer() != slotA {
@@ -69,7 +86,11 @@ func TestPosesTravelAsChanges(t *testing.T) {
 			if want := testPose(t, int16(state.GetSequence()-1)); !bytes.Equal(pose.Append(nil), want.Append(nil)) {
 				t.Fatalf("checkpoint %d carries another pose", state.GetSequence())
 			}
-			received, sequence = pose, state.GetSequence()
+			face, ok := wire.ResolveFacePose(state.GetFace(), receivedFace)
+			if want := testFace(t, uint8((state.GetSequence()-1)/2+1)); !ok || *face != *want {
+				t.Fatalf("face of checkpoint %d does not resolve to its own", state.GetSequence())
+			}
+			received, receivedFace, sequence = pose, face, state.GetSequence()
 		}
 	}
 }

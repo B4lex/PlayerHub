@@ -60,6 +60,9 @@ namespace VoiceChatSync
     // Whether a peer's voice plays this pass. Main-loop thread, like the overlay.
     [[nodiscard]] bool IsSpeaking(Multiplayer::PeerSlot a_playerID);
 
+    // Whether the player's lip sync holds its mouth open.
+    [[nodiscard]] bool IsLocalMouthOpen();
+
     [[nodiscard]] LocalStatus GetLocalStatus();
 
     void CopyDeviceNames(bool a_capture, std::vector<std::string>& a_names);

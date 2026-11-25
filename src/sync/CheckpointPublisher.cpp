@@ -12,6 +12,7 @@
 #include "sync/shapeshift/ShapeshiftSync.h"
 #include "sync/skeleton/SkeletonSync.h"
 #include "sync/voice/VoiceSync.h"
+#include "sync/voicechat/VoiceChatSync.h"
 
 #include <chrono>
 #include <cmath>
@@ -75,6 +76,8 @@ namespace CheckpointPublisher
             .swimming = movement.swimming,
             .transformed = form != Multiplayer::Shapeshift::kNone });
 
+        const auto pose = SkeletonSync::SampleLocalPose(a_local, VoiceChatSync::IsLocalMouthOpen());
+
         const Network::PlayerTransform checkpoint{ .x = movement.position.x,
             .y = movement.position.y,
             .z = movement.position.z,
@@ -105,7 +108,8 @@ namespace CheckpointPublisher
             .graphEpoch = a_graphEpoch,
             .sequence = sequence,
             .sampleTime = GetSampleTime(),
-            .skeleton = SkeletonSync::SampleLocalSkeleton(a_local) };
+            .skeleton = pose.skeleton,
+            .face = pose.face };
         Network::PublishLocalPlayerTransform(checkpoint);
         return Publication{ .status = Status::kPublished, .checkpoint = checkpoint };
     }

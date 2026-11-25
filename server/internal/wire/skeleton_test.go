@@ -192,7 +192,7 @@ func TestPosedEntriesEncodeWithoutAllocating(t *testing.T) {
 	reference := randomPose(random, allSkeletonBones)
 	entry := NewEntry(1, &pb.Checkpoint{Sequence: 1, Skeleton: nudge(random, reference, 2).Append(nil)})
 	b := make([]byte, 0, 512)
-	if allocations := testing.AllocsPerRun(100, func() { b = entry.Append(b[:0], reference) }); allocations != 0 {
+	if allocations := testing.AllocsPerRun(100, func() { b = entry.Append(b[:0], Pose{Skeleton: reference}) }); allocations != 0 {
 		t.Fatalf("%v allocations per entry", allocations)
 	}
 }

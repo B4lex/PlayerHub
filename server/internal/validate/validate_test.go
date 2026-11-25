@@ -66,15 +66,24 @@ func TestCheckpoint(t *testing.T) {
 			c.Flags |= uint32(pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUTING | pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_TWO_WORDS |
 				pb.CheckpointFlag_CHECKPOINT_FLAG_SHOUT_THREE_WORDS)
 		},
-		"skeleton layout":    func(c *pb.Checkpoint) { c.Skeleton[0] = 1 },
-		"skeleton bone 63":   func(c *pb.Checkpoint) { c.Skeleton = skeleton(1<<63|allSkeletonBones, 0) },
-		"skeleton long mask": func(c *pb.Checkpoint) { c.Skeleton = append([]byte{SkeletonLayoutHuman, 0x80, 0}, c.Skeleton[2:]...) },
-		"skeleton too short": func(c *pb.Checkpoint) { c.Skeleton = c.Skeleton[:len(c.Skeleton)-1] },
-		"skeleton too long":  func(c *pb.Checkpoint) { c.Skeleton = append(c.Skeleton, 0) },
-		"skeleton no header": func(c *pb.Checkpoint) { c.Skeleton = []byte{SkeletonLayoutHuman} },
+		"skeleton layout":       func(c *pb.Checkpoint) { c.Skeleton[0] = 1 },
+		"skeleton bone 63":      func(c *pb.Checkpoint) { c.Skeleton = skeleton(1<<63|allSkeletonBones, 0) },
+		"skeleton long mask":    func(c *pb.Checkpoint) { c.Skeleton = append([]byte{SkeletonLayoutHuman, 0x80, 0}, c.Skeleton[2:]...) },
+		"skeleton too short":    func(c *pb.Checkpoint) { c.Skeleton = c.Skeleton[:len(c.Skeleton)-1] },
+		"skeleton too long":     func(c *pb.Checkpoint) { c.Skeleton = append(c.Skeleton, 0) },
+		"skeleton no header":    func(c *pb.Checkpoint) { c.Skeleton = []byte{SkeletonLayoutHuman} },
+		"face without skeleton": func(c *pb.Checkpoint) { c.Skeleton = nil },
+		"face change":           func(c *pb.Checkpoint) { c.Face[0] = FaceLayoutChange },
+		"face zero weight":      func(c *pb.Checkpoint) { c.Face[len(c.Face)-1] = 0 },
+		"face too short":        func(c *pb.Checkpoint) { c.Face = c.Face[:len(c.Face)-1] },
+		"face too long":         func(c *pb.Checkpoint) { c.Face = append(c.Face, 1) },
+		"face weight 50":        func(c *pb.Checkpoint) { c.Face = []byte{FaceLayoutWhole, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02, 1} },
+		"face long mask":        func(c *pb.Checkpoint) { c.Face = []byte{FaceLayoutWhole, 0x80, 0} },
 	}
 	// Bones 0 and 62 present: 29 and 26 bits of rotations.
 	valid.Skeleton = skeleton(allSkeletonBones&^(1|1<<62), 7)
+	// Weights 0 and 47.
+	valid.Face = []byte{FaceLayoutWhole, 0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01, 4, 255}
 	if err := Checkpoint(valid); err != nil {
 		t.Fatalf("valid checkpoint rejected: %v", err)
 	}

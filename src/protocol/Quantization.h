@@ -3,6 +3,7 @@
 #include "protocol/FormReference.h"
 #include "protocol/MovementState.h"
 #include "protocol/PlayerState.h"
+#include "protocol/FacePose.h"
 #include "protocol/SkeletonPose.h"
 
 #include <algorithm>
@@ -66,6 +67,7 @@ namespace Network
         std::uint32_t flags{ 0 };
         std::uint32_t time{ 0 };
         EncodedSkeletonPose skeleton;
+        EncodedFacePose face;
     };
 
     struct CheckpointContext
@@ -182,11 +184,12 @@ namespace Network
             .direction = static_cast<std::uint32_t>(std::lround(direction * kDirectionSteps)) % kDirectionSteps,
             .flags = flags,
             .time = a_transform.sampleTime % kSampleTimeModulus,
-            .skeleton = a_transform.skeleton };
+            .skeleton = a_transform.skeleton,
+            .face = a_transform.face };
     }
 
-    // Leaves out the skeleton pose: a received one may be a change from an earlier pose, which
-    // the connection resolves (ServerClient).
+    // Leaves out the skeleton pose and face: a received one may be a change from an earlier one,
+    // which the connection resolves (ServerClient).
     [[nodiscard]] inline bool IsValidQuantizedCheckpoint(const QuantizedCheckpoint& a_checkpoint) noexcept
     {
         using namespace CheckpointFlags;
@@ -261,6 +264,7 @@ namespace Network
             .graphEpoch = a_context.graphEpoch,
             .sequence = a_checkpoint.sequence,
             .sampleTime = a_checkpoint.time,
-            .skeleton = a_checkpoint.skeleton };
+            .skeleton = a_checkpoint.skeleton,
+            .face = a_checkpoint.face };
     }
 }

@@ -2,8 +2,9 @@
 
 ## Status
 
-Not run in game: the server's [skeleton pose](#skeleton-pose) limit with more
-posed players than `interest.max_posed`; dropping edge probes before a window;
+Not run in game: [face](#face) blinks; the server's
+[skeleton pose](#skeleton-pose) limit with more posed players than
+`interest.max_posed`; dropping edge probes before a window;
 [reaction windows](#source-window) for staggers and kill moves (a paralysis
 knockdown has run); [knock isolation](#knockdowns);
 [solid remote actors](#solid-remote-actors), the non-default value of
@@ -16,7 +17,8 @@ another world. This system owns what makes it one: spawning and registration,
 readiness, the per-actor engine update, the animation firewall, graph recovery,
 survival, isolation from the local world in both directions, the budget of
 scene lights its torches and spells take, showing its player's custom
-animations through the [skeleton pose](#skeleton-pose), and the engine side of
+animations through the [skeleton pose](#skeleton-pose) and [face](#face), and
+the engine side of
 its [voice](#voice). The local world neither fights, moves, nor is moved by a
 remote actor, and the actor's own AI does not react to the local world.
 
@@ -49,10 +51,11 @@ is decided by the [sync pipeline](sync-pipeline.md#actor-lifecycle).
 | `actor/ActorLipSync`, `actor/VoiceOcclusion` | Mouth openness and head-to-head occlusion rays ([Voice](#voice)) |
 | `runtime/RemoteActorActivation` | The local player's activation of a remote actor: the dead body's prompt and the player menu request |
 | `actor/ActorSkeleton` | Reads the local player's third-person bone rotations; blends a remote actor's network pose over its graph's output |
+| `actor/ActorFace` | Reads the local player's face weights; blends a remote actor's network face over its head's own ([Face](#face)) |
 | `actor/ModdedGraph` | Reads the local player's graph layout and its active modded states |
 | `actor/GraphVocabulary`, `actor/VanillaGraphNames.h` | The vanilla event prefix and the generated vanilla machine, state, and event name hashes ([Source window](#source-window)) |
 | `sync/skeleton/PoseWindow` | Opens, holds, and closes the local player's pose window |
-| `sync/skeleton/SkeletonSync` | Samples the local pose inside a window; interpolates and blends a remote actor's pose |
+| `sync/skeleton/SkeletonSync` | Samples the local pose and face inside a window; interpolates and blends a remote actor's pose and face |
 | `runtime/CodeDetour` | Entry and call-site detours ([Detours](#detours)) |
 
 ## Spawn
@@ -586,8 +589,9 @@ light budget` logs the limit and counts whenever they change.
 (`GameThread::Require`) from `VoiceChatSync::UpdatePeers`, and `ActorLipSync`
 also on the player from `VoiceChatSync::UpdateLocal`:
 
-- `ActorLipSync::Apply` takes an openness from 0 to 1 and writes `Aah` (0.75 of
-  it) and `BigAah` (0.45 of its square) in the actor's
+- `ActorLipSync::Apply` takes a speech level from 0 to 1, scales it by 1.2 to
+  an openness clamped to 1, and writes `Aah` (0.8 of it) and `BigAah` (0.5 of
+  its square) in the actor's
   `BSFaceGenAnimationData::phenomeKeyFrame` under its `lock`, as the console's
   `mfg phoneme` does; 0 closes the mouth. An actor without face data, or a
   keyframe with fewer phonemes, is left alone.
@@ -608,7 +612,8 @@ through the graph and a viewer's replacers apply. Viewers with and without the
 mod see the same pose. The graph keeps running the vanilla reproduction
 underneath, so weapon draws, sounds, footsteps, and spell art still come from
 it, and bones the pose leaves out keep the graph's output. Positions stay on
-checkpoints.
+checkpoints. The head shows the source's [face](#face) with the pose, for
+animations that drive facial expressions.
 
 Non-goals:
 
@@ -631,7 +636,7 @@ Non-goals:
 ### Source window
 
 `sync/skeleton/PoseWindow` decides when the local player's checkpoints carry a
-pose; `SkeletonSync::SampleLocalSkeleton` returns an empty pose outside a
+pose; `SkeletonSync::SampleLocalPose` returns an empty pose outside a
 window. Every client shares its windows; the server bounds what each recipient
 is sent ([Interest and delivery](interest-and-delivery.md#skeleton-poses)).
 
@@ -746,7 +751,7 @@ is sent ([Interest and delivery](interest-and-delivery.md#skeleton-poses)).
   same events.
 - **Ragdoll.** While the player is ragdolled (`IsInRagdollState`), Skyrim
   moves the reference with the body while COM's local stays nearly fixed, so
-  bone locals alone carry neither tilt nor fall. `SampleLocalSkeleton` then
+  bone locals alone carry neither tilt nor fall. `SampleLocalPose` then
   reads COM in `ActorSkeleton::RootSpace::kReference`: its world transform
   relative to an upright frame at the actor's position and heading, translation
   divided by its parent's world scale. The receiver applies it as COM's local
@@ -775,11 +780,60 @@ is sent ([Interest and delivery](interest-and-delivery.md#skeleton-poses)).
   shared, skipped by an atomic count while no actor has a pose; the main loop
   replaces an actor's pose each pass exclusively.
 
+### Face
+
+Animations that drive the face through `BSFaceGenAnimationData` (expression,
+modifier, and phoneme keyframes, as MFG console functions set them) show on a
+posed peer's head during its window, blinks included, and phonemes combine
+with its [voice](voice-chat.md#speaking-levels-and-lip-sync) lip sync.
+
+Non-goals: eye direction outside the look modifiers (`eyesHeading`,
+`eyesPitch`), faces outside pose windows, and beast heads, which hold no
+window.
+
+- **Source.** `SkeletonSync::SampleLocalPose` reads the player's final
+  keyframes (`expression3`, `modifier3`, `phoneme3`) under the face data's
+  `lock` through `ActorFace::ReadFace`, with each posed checkpoint, and sends
+  them as [face weights](network.md#face-weights). While the player's own lip sync holds its mouth open
+  (`VoiceChatSync::IsLocalMouthOpen`), `Aah` and `BigAah` are sent as 0, since
+  viewers lip-sync the voice themselves; otherwise the viewer's mouth would
+  follow two copies of the speech, the received one behind by the checkpoint
+  delay. A player without face data sends none.
+- **Receiver.** `SkeletonSync` decodes the face with the pose by sequence,
+  interpolates each weight linearly toward the next checkpoint's at
+  `RemotePose.fraction` when both carry one, and passes it to
+  `ActorFace::SetFace` with the pose's blend weight, so the face blends in and
+  out with the skeleton. A posed checkpoint without a face, and the pose's
+  release, call `ActorFace::ClearFace`.
+- **Blend.** Over the head's own finals, each weight moves toward the received
+  one by the blend weight; a phoneme moves toward the larger of the two, so
+  voice lip sync shows through. A final the engine marks unset (outside
+  (0, 1], such as `FLT_MAX`) counts as 0. The blinks are modifiers like the
+  others, so a fully shown face blinks only with its source; a blink lasts
+  about 0.37 s (`fBlinkDownTime` 0.2 plus `fBlinkUpTime` 0.17), several
+  checkpoints.
+- **Hook.** `ActorFace` wraps the face update (ID 26598, SE 25983) at its only
+  call, ID 26998 + 0xAD (SE 26417 + 0xAD), `BSFaceGenNiNode`'s update, which
+  queues the head's morph update when the call returns true. Skyrim copies an
+  input keyframe into its final only while one of the input's values is in
+  (0, 1], so a final otherwise keeps whatever was last written. A shown face
+  therefore restores the head's own finals, saved after the previous update,
+  before calling the update, saves them again after it, then writes the
+  blended finals and returns true while they changed. A cleared face restores
+  them once more on its next update before its slot goes; `ForgetFace`, from
+  `ActorRegistry::Unregister`, drops it at once.
+- **Threads.** Slots keyed like `ActorRegistry` and by the face data's address
+  (compared only) live under a mutex the hook takes briefly before and after
+  the update, skipped by an atomic count while no face is shown; the hook holds
+  the face data's recursive `lock` across the restore, the update, and the
+  write. A rebuilt head (a new face data address) starts without saved finals.
+
 ### Budget
 
 A whole pose is 211 B and a [change](network.md#pose-changes) averaged 87 B on
 a recorded window, so a posed pair costs about 1.8 KB/s at 20 Hz, only during
-windows. At the default `max_posed` of 32 a client receives about 56 KB/s of
+windows. A face adds two bytes for an unchanged face and one per changed
+weight. At the default `max_posed` of 32 a client receives about 56 KB/s of
 poses at most (135 KB/s were every pose whole), however many players pose
 around it.
 
@@ -876,6 +930,15 @@ around it.
     (ID 37279) leaves `kWantToSheathe` when the sheathe is refused and turns it
     into `kDrawn` on a draw request. SE is assumed to share this procedure.
 
+20. [Face](#face): the face update (ID 26598, SE 25983) takes the face data
+    in `rcx`, the frame delta in `xmm1`, and whether to blink in `r8b`, holds
+    the data's `lock` itself, and returns in `al` whether the finals changed.
+    It writes the blink into `modifier3`'s values 0 and 1 before copying the
+    inputs. Its only call is at ID 26998 + 0xAD (SE 26417 + 0xAD), which queues
+    the morph update on true and skips the call while bit 2 of the node's
+    +0x160 flags is clear. In first person the player's third-person head keeps
+    updating its finals.
+
 ## Acceptance criteria
 
 1. Bandits, draugr, and predators never detect, draw on, or attack a remote
@@ -938,6 +1001,11 @@ around it.
 22. Pushing a remote actor or its mount with Get Out of My Way, or catching it
     in a local explosion, neither staggers nor ragdolls it (`Suppressed knock of
     remote actor`); local NPCs are still pushed.
+23. A source whose animation or MFG console call sets an expression, brows, or
+    mouth shapes during a pose window shows them on viewers with and without
+    the animation mod, blended in and out with the pose; the viewer's actor
+    blinks with the source, speaks over the mouth shapes while its player
+    talks, and returns to its own face after the window.
 
 ## Known limitations
 

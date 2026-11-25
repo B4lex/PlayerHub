@@ -212,6 +212,9 @@ namespace Network::Wire
             static_assert(sizeof(a_checkpoint.skeleton.bytes) == kMaximumSkeletonPoseBytes);
             std::copy_n(a_checkpoint.skeleton.bytes, a_checkpoint.skeleton.size, result.skeleton.bytes.begin());
             result.skeleton.size = static_cast<std::uint16_t>(a_checkpoint.skeleton.size);
+            static_assert(sizeof(a_checkpoint.face.bytes) == kMaximumFacePoseBytes);
+            std::copy_n(a_checkpoint.face.bytes, a_checkpoint.face.size, result.face.bytes.begin());
+            result.face.size = static_cast<std::uint8_t>(a_checkpoint.face.size);
             return result;
         }
 
@@ -1211,6 +1214,8 @@ namespace Network::Wire
             .look_pitch = a_checkpoint.lookPitch };
         checkpoint.skeleton.size = a_checkpoint.skeleton.size;
         std::copy_n(a_checkpoint.skeleton.bytes.begin(), a_checkpoint.skeleton.size, checkpoint.skeleton.bytes);
+        checkpoint.face.size = a_checkpoint.face.size;
+        std::copy_n(a_checkpoint.face.bytes.begin(), a_checkpoint.face.size, checkpoint.face.bytes);
         return EncodeClientMessage(playerhub_v1_ClientMessage_checkpoint_tag, playerhub_v1_Checkpoint_fields, &checkpoint);
     }
 
