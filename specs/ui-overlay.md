@@ -69,7 +69,7 @@ src/ui/
   widgets/ItemPicker          # item dropdown
   widgets/TextShadow          # soft shadow under drawn text, from copies of its vertices
   preview/ItemPreview         # 3D item model, spinning and turned by dragging, and cached thumbnails
-  render/Gpu                  # frame target, runtime-compiled full-screen passes, image blend modes
+  render/GPU                  # frame target, runtime-compiled full-screen passes, image blend modes
   render/Backdrop             # the game's frame blurred and darkened behind a full-screen window
 src/sync/chat/ChatSync        # send to a target and why it failed, the server's rejections, lines to display
 src/sync/chat/ChatRoster      # connected players by name, completion, mentions in a line, whisper partners, the list's copy, the server's roles and their marks
@@ -83,9 +83,9 @@ src/runtime/PluginTime        # plugin time per pass; with the time_breakdown op
 src/text/Text                 # the languages, the game's language, text lookup, formatting, plural forms, field splitting
 src/text/Gettext              # PO file parsing and Plural-Forms rules for the translations read at startup
 locale/                       # gettext sources: the English template, one .po per shipped translation, deployed to PlayerHub/locale/
-locale/generate.lua           # checks the translations and writes Text::Id and the English catalog
+locale/generate.lua           # checks the translations and writes Text::ID and the English catalog
 locale/xmake.lua              # the `locale` rule that runs it and compiles its output
-src/text/Utf8Case             # capitals of Latin and Cyrillic letters in UTF-8
+src/text/UTF8Case             # capitals of Latin and Cyrillic letters in UTF-8
 assets/fonts/                 # Sovngarde Light and Bold with their license, the logo font, deployed beside the DLL
 assets/logo/                  # the logo's, Discord's, and Ko-fi's SVGs and the script that makes their font
 assets/icons/                 # SVGs of the icons in the logo font
@@ -117,7 +117,7 @@ trade window places the chat through `trade/TradeDock`, which both include
   (`Overlay::HasWork`), the popup blur, `ImGui_ImplDX11_RenderDrawData`, and
   the render target swap are skipped. The ImGui frame itself is still built
   every frame.
-- The overlay draws on the frame target (`Gpu::GetFrameTarget`): the engine's
+- The overlay draws on the frame target (`GPU::GetFrameTarget`): the engine's
   `kFRAMEBUFFER` render target view, where the menus draw, or the swap chain's
   view (`renderWindows[0].renderView`) when that is null. In vanilla both are
   the back buffer. Community Shaders' HDR output points `kFRAMEBUFFER` at a UI
@@ -152,7 +152,7 @@ after the setting applies.
 ### Backdrop
 
 `Backdrop::GetBlur` gives the finished game frame, blurred, as a texture
-with the UV of each display pixel (`Blur::ToUv`). `Backdrop::Draw` covers the
+with the UV of each display pixel (`Blur::ToUV`). `Backdrop::Draw` covers the
 display behind every overlay window (ImGui's background draw list) with it,
 darkened by `kTint`; the [trade window](#trade-window) draws it each frame.
 `Backdrop::DrawBlur` puts it in a rounded rectangle and `BlurPopups` under
@@ -165,7 +165,7 @@ at most once a frame however many callers ask for it.
 - It copies the scene (`Frame::scene`), reduces it to a quarter in each
   dimension, and blurs that with a separable Gaussian, so the blur scales with
   the resolution.
-- `Gpu` (`ui/render/Gpu`) holds what the overlay's own GPU passes share: the
+- `GPU` (`ui/render/GPU`) holds what the overlay's own GPU passes share: the
   frame target, its texture, and the scene (`GetFrame`), render targets,
   pixel shaders compiled at runtime by `D3DCompile` (`vs_4_0`, `ps_4_0`, from
   the `d3dcompiler_47.dll` the plugin already links), and `AddImage` with an
@@ -1390,7 +1390,7 @@ chat (mute covers chat), and admin moderation.
 - `PlayerFilters` (`sync/filters/`) holds the current server's entries by
   session ID: a name, `friended` ([Friends](#friends)), `muted`, and
   `vanished`, each independent of the others. It reads them from
-  `Network::PlayerFilterStore` for `Network::GetServerUrl` and again
+  `Network::PlayerFilterStore` for `Network::GetServerURL` and again
   whenever the connection generation changes, so a session is never looked
   up on another server's list ([Network](network.md#player-filters)). A
   revision, the sum of its own change count and the generation, tells
@@ -1519,7 +1519,7 @@ trade window, or notices; and a setting that hides roles.
 
 - `ChatRoster` holds the server's roles with the roster. On each roster
   revision it makes every role's `RoleMark`: the role's color and its
-  letter, the name's first character in upper case (`Utf8Case::AppendUpper`,
+  letter, the name's first character in upper case (`UTF8Case::AppendUpper`,
   so of the scripts it covers; any other character as it is).
   `FindRoleMark` gives the mark of a role ID and `FindRole` the role, both
   empty for 0 and for an ID the server no longer lists.
@@ -1842,7 +1842,7 @@ tooltip left in the window is Accept's blocker.
   child sizes to whole pixels and could find a fitting card a pixel too
   tall, and its scrollbar would then narrow the text into more lines. It
   shows the item's [details](trade.md#item-details):
-  - the name in capitals (`Utf8Case`), with the count after it for more than
+  - the name in capitals (`UTF8Case`), with the count after it for more than
     one, as the vanilla item list writes counts;
   - in `Theme::kWarning`, why a row cannot be offered (the
     [offer blocks](trade.md#offers-and-acceptance)), before the stats, so it
@@ -1951,7 +1951,7 @@ peers keep seeing the player.
   for a choice, a button showing the key for a key
   ([Key bindings](#key-bindings)), and swatches for a color
   ([Accent color](#accent-color)). Group comments head their rows in muted
-  capitals (`Utf8Case::AppendUpper`)
+  capitals (`UTF8Case::AppendUpper`)
   ([Configuration](configuration.md#settings)). `[UI] Language` is a combo of
   the loaded languages ([Localization](#localization)).
   `[Connection] DisplayName` is drawn beside the connection button instead of
@@ -2340,10 +2340,10 @@ picker's panel) or as cached thumbnails for many cells.
   one, copies the rectangle out, and puts the saved pixels back.
 - The model is rendered twice, cleared to black and to white, so its
   coverage can be told from the frame target's alpha, which is not coverage.
-  A `Separate` pass ([Gpu](#backdrop) helpers) takes alpha as one minus the
+  A `Separate` pass ([GPU](#backdrop) helpers) takes alpha as one minus the
   mean difference of the two and keeps the color over black, which is
   already multiplied by it, in a 2048² texture drawn with a premultiplied
-  blend (`Gpu::Blend::kPremultiplied`), so the model floats with
+  blend (`GPU::Blend::kPremultiplied`), so the model floats with
   anti-aliased edges over the backdrop or the picker's panel.
 - The model is captured at twice the pixels it is drawn at
   (`kSupersample`), not at the size the inventory scene gives it: before
@@ -2540,7 +2540,7 @@ none does.
   cached with the language they were made in and made again after a switch. Text already composed
   keeps the language it was made in: chat lines and notes, notices, trade
   rejection reasons, and the item card's unknown effect line.
-- Every displayed text has a `Text::Id`. Its text comes from `Text::Get`,
+- Every displayed text has a `Text::ID`. Its text comes from `Text::Get`,
   `Format`, or `FormatPlural`. English is complete and is the fallback for any
   ID a translation leaves untranslated, marks fuzzy, or has rejected.
 - `Text::Initialize` runs once, on the overlay's first frame before the fonts
@@ -2599,7 +2599,7 @@ at startup rather than compiled in, so a community translator can make, fix,
 and share a language without a plugin build.
 
 - `locale/playerhub.pot` is the English source and the list of IDs. Each entry's
-  `msgctxt` is its `Text::Id` without the `k` prefix, `msgid` its English text,
+  `msgctxt` is its `Text::ID` without the `k` prefix, `msgid` its English text,
   and `msgid_plural` the plural form, if any. A `#.` comment tells translators
   what each field is. An entry with fields needs the `c++-format` flag, so
   `msgfmt -c` checks the translations' fields. The header's `Plural-Forms` is
@@ -2624,7 +2624,7 @@ and share a language without a plugin build.
   4 MiB; when it does not parse; or when its `Plural-Forms` is missing, has
   more than 6 forms, or gives a form out of range or divides by zero for any
   count from 0 to 9999.
-- Within a file, `msgctxt` matches an entry to its `Text::Id`. An entry with
+- Within a file, `msgctxt` matches an entry to its `Text::ID`. An entry with
   no such ID, or one listed twice, is skipped with a warning. A fuzzy or
   untranslated entry is not used, as gettext does not use one. An entry that
   translates another English text than the template's (a different `msgid`
@@ -2644,14 +2644,14 @@ and share a language without a plugin build.
 - The `locale` rule (`locale/xmake.lua`, added to the plugin target) runs
   `generate.lua` in xmake's prepare stage, before anything compiles. Its output
   goes to `rules/locale/text/locale/` in the target's autogen directory, which
-  is on the include path, so code includes `text/locale/TextId.h`. The rule
+  is on the include path, so code includes `text/locale/TextID.h`. The rule
   adds the generated `English.cpp` to the target at load with `always_added`,
   as it does not exist until the prepare stage. A file is written only when
   its content changes, so editing a translation recompiles nothing, and only
-  a change to the template's IDs recompiles the users of `TextId.h`.
+  a change to the template's IDs recompiles the users of `TextID.h`.
   Nothing generated is committed, and the generator is xmake Lua because the
   Windows build runs under wine without Python.
-- The output is `TextId.h` (`Text::Id` in template order, then `kCount`),
+- The output is `TextID.h` (`Text::ID` in template order, then `kCount`),
   `English.h`, and `English.cpp` with `Text::Catalogs::GetEnglish`: each
   entry's ID, key, text, and plural form, and the template's `Plural-Forms`,
   which `Text.cpp` parses at startup as it does a translation's.

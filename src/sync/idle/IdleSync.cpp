@@ -6,7 +6,7 @@
 #include "network/ServerClient.h"
 #include "runtime/FrameTime.h"
 #include "runtime/Profiling.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <algorithm>
 #include <array>
@@ -51,7 +51,7 @@ namespace IdleSync
         // and the idle machine's return to its initial state at furniture entry.
         constexpr bool IsSystemIdleEvent(std::string_view a_name) noexcept
         {
-            return AsciiCase::Equals(a_name, "IdleForceDefaultState") || AsciiCase::Equals(a_name, "IdlePlayer");
+            return ASCIICase::Equals(a_name, "IdleForceDefaultState") || ASCIICase::Equals(a_name, "IdlePlayer");
         }
 
         constexpr bool IsCapturedEvent(std::string_view a_name) noexcept
@@ -63,8 +63,8 @@ namespace IdleSync
         // IdleStop, IdleStopInstant, IdleOffsetStop, IdleMesmerizeStop, OffsetStop.
         constexpr bool IsExitEvent(std::string_view a_name) noexcept
         {
-            return AsciiCase::Contains(a_name, "Exit") || AsciiCase::EndsWith(a_name, "Stop")
-                || AsciiCase::EndsWith(a_name, "StopInstant");
+            return ASCIICase::Contains(a_name, "Exit") || ASCIICase::EndsWith(a_name, "Stop")
+                || ASCIICase::EndsWith(a_name, "StopInstant");
         }
 
         static_assert(IsCapturedEvent("IdleLaugh") && IsCapturedEvent("offsetStop"));
@@ -392,7 +392,7 @@ namespace IdleSync
                 }
                 continue;
             }
-            if (AsciiCase::Equals(name, Multiplayer::kOffsetStopEvent))
+            if (ASCIICase::Equals(name, Multiplayer::kOffsetStopEvent))
             {
                 name = Multiplayer::kOffsetStopEvent;
             }

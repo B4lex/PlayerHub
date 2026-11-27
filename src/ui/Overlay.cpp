@@ -18,7 +18,7 @@
 #include "ui/hud/VoiceIndicator.h"
 #include "ui/preview/ItemPreview.h"
 #include "ui/render/Backdrop.h"
-#include "ui/render/Gpu.h"
+#include "ui/render/GPU.h"
 #include "ui/settings/SettingsWindow.h"
 #include "ui/trade/TradePrompt.h"
 #include "ui/trade/TradeWindow.h"
@@ -157,7 +157,7 @@ namespace UI::Overlay
 
             auto& data = renderer->GetRuntimeData();
             const auto& window = data.renderWindows[0];
-            auto* const frameTarget = Gpu::GetFrameTarget();
+            auto* const frameTarget = GPU::GetFrameTarget();
             if (!window.swapChain || !frameTarget || (!initialized && !Initialize(data)))
             {
                 return;

@@ -7,7 +7,7 @@
 
 namespace PluginFiles
 {
-    [[nodiscard]] std::string ToUtf8(const std::filesystem::path& a_path);
+    [[nodiscard]] std::string ToUTF8(const std::filesystem::path& a_path);
 
     [[nodiscard]] std::optional<std::string> ReadFile(const std::filesystem::path& a_path);
 

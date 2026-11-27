@@ -1,8 +1,8 @@
 #include "actor/RaceMenuOverlays.h"
-#include "actor/SkeeInterfaces.h"
+#include "actor/SKEEInterfaces.h"
 #include "forms/TextureFiles.h"
 #include "runtime/GameThread.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <algorithm>
 #include <array>
@@ -19,8 +19,8 @@ namespace RaceMenuOverlays
 {
     namespace
     {
-        using SkeeInterfaces::IOverlayInterface;
-        using SkeeInterfaces::IOverrideInterface;
+        using SKEEInterfaces::IOverlayInterface;
+        using SKEEInterfaces::IOverrideInterface;
 
         // NiOverride keys, as RaceMenu.psc sets them on overlay nodes. Keys other
         // than the texture take index -1.
@@ -142,7 +142,7 @@ namespace RaceMenuOverlays
         bool IsDefaultTexture(std::string_view a_path)
         {
             constexpr std::string_view kTexturesFolder = "textures";
-            if (AsciiCase::StartsWith(a_path, kTexturesFolder) && a_path.size() > kTexturesFolder.size()
+            if (ASCIICase::StartsWith(a_path, kTexturesFolder) && a_path.size() > kTexturesFolder.size()
                 && (a_path[kTexturesFolder.size()] == '\\' || a_path[kTexturesFolder.size()] == '/'))
             {
                 a_path.remove_prefix(kTexturesFolder.size() + 1);
@@ -152,7 +152,7 @@ namespace RaceMenuOverlays
                 return false;
             }
             return std::ranges::equal(a_path, kDefaultTexture, [](char a_left, char a_right) {
-                return AsciiCase::ToLower(a_left == '/' ? '\\' : a_left) == a_right;
+                return ASCIICase::ToLower(a_left == '/' ? '\\' : a_left) == a_right;
             });
         }
 
@@ -176,7 +176,7 @@ namespace RaceMenuOverlays
         bool ReadValue(RE::Actor& a_actor, bool a_female, const char* a_node, std::uint16_t a_key,
             std::uint8_t a_index, ValueReader& a_reader)
         {
-            auto* overrides = SkeeInterfaces::GetOverrides();
+            auto* overrides = SKEEInterfaces::GetOverrides();
             return overrides->GetNodeOverride(std::addressof(a_actor), a_female, a_node, a_key, a_index, a_reader)
                 || overrides->GetNodeProperty(std::addressof(a_actor), false, a_node, a_key, a_index, a_reader);
         }
@@ -190,7 +190,7 @@ namespace RaceMenuOverlays
     std::vector<AppearanceOverlay> Capture(RE::Actor& a_player)
     {
         std::vector<AppearanceOverlay> result;
-        auto* overlays = SkeeInterfaces::GetOverlays();
+        auto* overlays = SKEEInterfaces::GetOverlays();
         const auto* base = a_player.GetActorBase();
         if (!overlays || !base)
         {
@@ -251,8 +251,8 @@ namespace RaceMenuOverlays
 
     void Apply(RE::Actor& a_actor, std::span<const AppearanceOverlay> a_overlays)
     {
-        auto* overlays = SkeeInterfaces::GetOverlays();
-        auto* overrides = SkeeInterfaces::GetOverrides();
+        auto* overlays = SKEEInterfaces::GetOverlays();
+        auto* overrides = SKEEInterfaces::GetOverrides();
         const auto* base = a_actor.GetActorBase();
         if (!overlays || a_overlays.empty() || !base || !GameThread::Require("RaceMenuOverlays::Apply"))
         {
@@ -315,7 +315,7 @@ namespace RaceMenuOverlays
             return;
         }
         // SKEE saves both lists in its co-save, keyed by the reference.
-        SkeeInterfaces::GetOverrides()->RemoveAllNodeOverridesByReference(a_actor);
-        SkeeInterfaces::GetOverlays()->RemoveOverlays(a_actor, true);
+        SKEEInterfaces::GetOverrides()->RemoveAllNodeOverridesByReference(a_actor);
+        SKEEInterfaces::GetOverlays()->RemoveOverlays(a_actor, true);
     }
 }

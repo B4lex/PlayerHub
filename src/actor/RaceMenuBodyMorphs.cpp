@@ -1,5 +1,5 @@
 #include "actor/RaceMenuBodyMorphs.h"
-#include "actor/SkeeInterfaces.h"
+#include "actor/SKEEInterfaces.h"
 #include "runtime/FrameTime.h"
 #include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
@@ -24,7 +24,7 @@ namespace RaceMenuBodyMorphs
     {
         using Multiplayer::AppearanceBodyMorph;
         using Multiplayer::PlayerAppearance;
-        using SkeeInterfaces::IBodyMorphInterface;
+        using SKEEInterfaces::IBodyMorphInterface;
 
         constexpr const char* kMorphKey = "PlayerHub";
         // OBody NG assigns its preset from a Character::Load3D hook, which may apply
@@ -148,7 +148,7 @@ namespace RaceMenuBodyMorphs
     std::vector<AppearanceBodyMorph> Capture(RE::Actor& a_player)
     {
         std::vector<AppearanceBodyMorph> result;
-        auto* bodyMorphs = SkeeInterfaces::GetBodyMorphs();
+        auto* bodyMorphs = SKEEInterfaces::GetBodyMorphs();
         if (!bodyMorphs || !bodyMorphs->HasMorphs(std::addressof(a_player)))
         {
             return result;
@@ -196,7 +196,7 @@ namespace RaceMenuBodyMorphs
 
     void Apply(RE::Actor& a_actor, std::span<const AppearanceBodyMorph> a_morphs)
     {
-        auto* bodyMorphs = SkeeInterfaces::GetBodyMorphs();
+        auto* bodyMorphs = SKEEInterfaces::GetBodyMorphs();
         if (!bodyMorphs || !GameThread::Require("RaceMenuBodyMorphs::Apply"))
         {
             return;
@@ -210,7 +210,7 @@ namespace RaceMenuBodyMorphs
 
     void Maintain(RE::Actor& a_actor, float a_delta)
     {
-        auto* bodyMorphs = SkeeInterfaces::GetBodyMorphs();
+        auto* bodyMorphs = SKEEInterfaces::GetBodyMorphs();
         const auto found = bodyMorphs ? s_entries.find(a_actor.GetHandle().native_handle()) : s_entries.end();
         if (found == s_entries.end())
         {
@@ -241,7 +241,7 @@ namespace RaceMenuBodyMorphs
     void Release(RE::ActorHandle a_handle, RE::Actor* a_actor)
     {
         s_entries.erase(a_handle.native_handle());
-        auto* bodyMorphs = SkeeInterfaces::GetBodyMorphs();
+        auto* bodyMorphs = SKEEInterfaces::GetBodyMorphs();
         // SKEE's co-save writes every reference that has morphs.
         if (bodyMorphs && a_actor && bodyMorphs->HasMorphs(a_actor))
         {

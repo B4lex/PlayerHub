@@ -1,5 +1,5 @@
 #include "forms/ItemDetails.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 #include "text/Text.h"
 
 #include <algorithm>
@@ -124,15 +124,15 @@ namespace Forms
                 return;
             }
             const auto fillTag = [&](std::string_view a_tag) {
-                if (AsciiCase::Equals(a_tag, "mag"))
+                if (ASCIICase::Equals(a_tag, "mag"))
                 {
                     return std::format("{}", GetDisplayedMagnitude(a_effect, a_magnitude));
                 }
-                if (AsciiCase::Equals(a_tag, "dur"))
+                if (ASCIICase::Equals(a_tag, "dur"))
                 {
                     return std::format("{}", a_duration);
                 }
-                if (AsciiCase::Equals(a_tag, "area"))
+                if (ASCIICase::Equals(a_tag, "area"))
                 {
                     return std::format("{}", a_area);
                 }
@@ -159,7 +159,7 @@ namespace Forms
                 if (ingredient && (ingredient->gamedata.knownEffectFlags & (1U << i)) == 0)
                 {
                     a_effects.push_back(
-                        ItemEffect{ .text = std::string{ Text::Get(Text::Id::kItemUnknownEffect) }, .known = false });
+                        ItemEffect{ .text = std::string{ Text::Get(Text::ID::kItemUnknownEffect) }, .known = false });
                     continue;
                 }
                 AddEffect(a_effects, *effect->baseEffect, effect->effectItem.magnitude, effect->effectItem.area,

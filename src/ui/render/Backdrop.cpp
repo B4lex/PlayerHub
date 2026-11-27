@@ -2,7 +2,7 @@
 #include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 #include "ui/Theme.h"
-#include "ui/render/Gpu.h"
+#include "ui/render/GPU.h"
 
 #include <imgui_internal.h>
 
@@ -20,7 +20,7 @@ namespace UI::Backdrop
 {
     namespace
     {
-        using Gpu::ComPtr;
+        using GPU::ComPtr;
 
         constexpr std::uint32_t kDownscale = 4;
         // The blurred frame keeps 60% of its brightness.
@@ -89,8 +89,8 @@ float4 BlurVertical(Vertex input) : SV_Target
             ComPtr<REX::W32::ID3D11Texture2D> copy;
             ComPtr<REX::W32::ID3D11ShaderResourceView> copyView;
             REX::W32::D3D11_TEXTURE2D_DESC copyDescription{};
-            Gpu::RenderTarget reduced;
-            Gpu::RenderTarget blurred;
+            GPU::RenderTarget reduced;
+            GPU::RenderTarget blurred;
         };
 
         Shaders shaders;
@@ -118,9 +118,9 @@ float4 BlurVertical(Vertex input) : SV_Target
             {
                 return true;
             }
-            shaders.downsample = Gpu::CompilePixelShader(a_device, kSource, "Downsample");
-            shaders.horizontal = Gpu::CompilePixelShader(a_device, kSource, "BlurHorizontal");
-            shaders.vertical = Gpu::CompilePixelShader(a_device, kSource, "BlurVertical");
+            shaders.downsample = GPU::CompilePixelShader(a_device, kSource, "Downsample");
+            shaders.horizontal = GPU::CompilePixelShader(a_device, kSource, "BlurHorizontal");
+            shaders.vertical = GPU::CompilePixelShader(a_device, kSource, "BlurVertical");
             return shaders.downsample.Get() && shaders.horizontal.Get() && shaders.vertical.Get();
         }
 
@@ -152,9 +152,9 @@ float4 BlurVertical(Vertex input) : SV_Target
             }
             const auto width = (a_backBuffer.width + kDownscale - 1) / kDownscale;
             const auto height = (a_backBuffer.height + kDownscale - 1) / kDownscale;
-            return Gpu::EnsureRenderTarget(
+            return GPU::EnsureRenderTarget(
                        a_device, textures.reduced, width, height, REX::W32::DXGI_FORMAT_R8G8B8A8_UNORM)
-                && Gpu::EnsureRenderTarget(
+                && GPU::EnsureRenderTarget(
                     a_device, textures.blurred, width, height, REX::W32::DXGI_FORMAT_R8G8B8A8_UNORM);
         }
 
@@ -163,7 +163,7 @@ float4 BlurVertical(Vertex input) : SV_Target
         {
             PROFILE_SCOPE("Backdrop");
             PLUGIN_TIME_STAGE("Backdrop");
-            const auto frame = Gpu::GetFrame();
+            const auto frame = GPU::GetFrame();
             if (!frame)
             {
                 return false;
@@ -192,7 +192,7 @@ float4 BlurVertical(Vertex input) : SV_Target
                     std::format("its textures could not be created: format={}", static_cast<int>(description.format)));
             }
             frame->context.CopyResource(textures.copy.Get(), frame->scene.Get());
-            Gpu::PassScope passes{ *frame };
+            GPU::PassScope passes{ *frame };
             if (!passes.IsReady())
             {
                 return Disable("its pipeline states could not be created");
@@ -221,7 +221,7 @@ float4 BlurVertical(Vertex input) : SV_Target
         const auto& display = ImGui::GetIO().DisplaySize;
         if (const auto blur = GetBlur())
         {
-            drawList.AddImage(blur->texture, origin, display, blur->ToUv(origin), blur->ToUv(display), blur->tint);
+            drawList.AddImage(blur->texture, origin, display, blur->ToUV(origin), blur->ToUV(display), blur->tint);
             return;
         }
         drawList.AddRectFilled(origin, display, kDim);
@@ -263,7 +263,7 @@ float4 BlurVertical(Vertex input) : SV_Target
         }
         auto tint = ImGui::ColorConvertU32ToFloat4(blur->tint);
         tint.w *= a_alpha;
-        a_list.AddImageRounded(blur->texture, a_min, a_max, blur->ToUv(a_min), blur->ToUv(a_max),
+        a_list.AddImageRounded(blur->texture, a_min, a_max, blur->ToUV(a_min), blur->ToUV(a_max),
             ImGui::ColorConvertFloat4ToU32(tint), a_rounding);
     }
 
@@ -300,7 +300,7 @@ float4 BlurVertical(Vertex input) : SV_Target
             list._ResetForNewFrame();
             list.PushClipRectFullScreen();
             const ImVec2 max{ window->Pos.x + window->Size.x, window->Pos.y + window->Size.y };
-            list.AddImageRounded(blur->texture, window->Pos, max, blur->ToUv(window->Pos), blur->ToUv(max), blur->tint,
+            list.AddImageRounded(blur->texture, window->Pos, max, blur->ToUV(window->Pos), blur->ToUV(max), blur->tint,
                 window->WindowRounding);
             list._PopUnusedDrawCmd();
             // Drawn just before the popup's own list, so over every window under it.

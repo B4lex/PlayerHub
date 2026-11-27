@@ -115,7 +115,7 @@ namespace Text::Gettext
             {
                 kNone,
                 kContext,
-                kId,
+                kID,
                 kPlural,
                 kForm
             };
@@ -128,7 +128,7 @@ namespace Text::Gettext
 
             bool Finish()
             {
-                if (current && current->hasId)
+                if (current && current->hasID)
                 {
                     file.messages.push_back(std::move(current->message));
                 }
@@ -143,7 +143,7 @@ namespace Text::Gettext
 
             bool Start()
             {
-                if (current && current->hasId && !Finish())
+                if (current && current->hasID && !Finish())
                 {
                     return false;
                 }
@@ -228,13 +228,13 @@ namespace Text::Gettext
                 auto& message = current->message;
                 if (keyword == "msgid")
                 {
-                    if (current->hasId)
+                    if (current->hasID)
                     {
                         return Fail("second msgid in one entry");
                     }
                     message.id = *value;
-                    current->hasId = true;
-                    target = Target::kId;
+                    current->hasID = true;
+                    target = Target::kID;
                     return true;
                 }
                 if (keyword == "msgid_plural")
@@ -282,7 +282,7 @@ namespace Text::Gettext
                 {
                     case Target::kContext:
                         return message.context;
-                    case Target::kId:
+                    case Target::kID:
                         return message.id;
                     case Target::kPlural:
                         return message.plural;
@@ -319,7 +319,7 @@ namespace Text::Gettext
                 Message message;
                 std::vector<bool> given;
                 bool hasContext{ false };
-                bool hasId{ false };
+                bool hasID{ false };
             };
 
             File file;

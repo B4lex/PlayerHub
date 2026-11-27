@@ -20,7 +20,7 @@ namespace UI
 {
     namespace
     {
-        using Text::Id;
+        using Text::ID;
 
         constexpr float kDetailsWaitSeconds = 2.0F;
         constexpr float kMaximumFrameSeconds = 0.1F;
@@ -30,7 +30,7 @@ namespace UI
 
         std::string FormatLevel(const PlayerDetails::Details& a_details)
         {
-            return a_details.level != 0 ? Text::Format(Id::kPlayerMenuLevel, a_details.level) : std::string{};
+            return a_details.level != 0 ? Text::Format(ID::kPlayerMenuLevel, a_details.level) : std::string{};
         }
 
         std::string FormatPlace(const PlayerDetails::Details& a_details)
@@ -41,9 +41,9 @@ namespace UI
             }
             if (!a_details.place)
             {
-                return std::string{ Text::Get(Id::kPlayerMenuOutOfWorld) };
+                return std::string{ Text::Get(ID::kPlayerMenuOutOfWorld) };
             }
-            return a_details.place->empty() ? std::string{ Text::Get(Id::kPlayerMenuUnknownPlace) } : *a_details.place;
+            return a_details.place->empty() ? std::string{ Text::Get(ID::kPlayerMenuUnknownPlace) } : *a_details.place;
         }
 
         void DrawPlace(const std::string& a_place)
@@ -86,7 +86,7 @@ namespace UI
     {
         DrawHeading();
         // An offline player has no slot to whisper.
-        const bool whisper = ImGui::MenuItem(Text::GetCString(Id::kPlayerMenuWhisper), nullptr, false, player.playerID != 0);
+        const bool whisper = ImGui::MenuItem(Text::GetCString(ID::kPlayerMenuWhisper), nullptr, false, player.playerID != 0);
         DrawTradeItems();
         DrawFilterItems();
         return whisper;
@@ -158,25 +158,25 @@ namespace UI
         }
         if (TradeSync::GetInvitingPlayer() == player.playerID)
         {
-            if (ImGui::MenuItem(Text::GetCString(Id::kPlayerMenuAcceptTrade)))
+            if (ImGui::MenuItem(Text::GetCString(ID::kPlayerMenuAcceptTrade)))
             {
                 TradeSync::AnswerInvitation(true);
             }
-            if (ImGui::MenuItem(Text::GetCString(Id::kPlayerMenuDeclineTrade)))
+            if (ImGui::MenuItem(Text::GetCString(ID::kPlayerMenuDeclineTrade)))
             {
                 TradeSync::AnswerInvitation(false);
             }
             return;
         }
         const bool idle = TradeSync::GetPhase() == TradeSession::Phase::kIdle;
-        if (ImGui::MenuItem(Text::GetCString(Id::kPlayerMenuTrade), nullptr, false, idle && inTradeRange))
+        if (ImGui::MenuItem(Text::GetCString(ID::kPlayerMenuTrade), nullptr, false, idle && inTradeRange))
         {
             TradeSync::RequestTrade(player);
         }
-        const auto tooltip = !idle ? Id::kPlayerMenuTradeBusy
-            : inTradeRange         ? Id::kPlayerMenuTradeHint
-            : pending              ? Id::kPlayerMenuTradeChecking
-                                   : Id::kPlayerMenuTradeTooFar;
+        const auto tooltip = !idle ? ID::kPlayerMenuTradeBusy
+            : inTradeRange         ? ID::kPlayerMenuTradeHint
+            : pending              ? ID::kPlayerMenuTradeChecking
+                                   : ID::kPlayerMenuTradeTooFar;
         ImGui::SetItemTooltip("%s", Text::GetCString(tooltip));
     }
 
@@ -187,25 +187,25 @@ namespace UI
             return;
         }
         const bool friended = PlayerFilters::IsFriend(player.session);
-        if (ImGui::MenuItem(Text::GetCString(friended ? Id::kPlayerMenuRemoveFriend : Id::kPlayerMenuAddFriend)))
+        if (ImGui::MenuItem(Text::GetCString(friended ? ID::kPlayerMenuRemoveFriend : ID::kPlayerMenuAddFriend)))
         {
             PlayerFilters::SetFriend(player, !friended);
         }
         ImGui::SetItemTooltip(
-            "%s", Text::GetCString(friended ? Id::kPlayerMenuRemoveFriendHint : Id::kPlayerMenuAddFriendHint));
+            "%s", Text::GetCString(friended ? ID::kPlayerMenuRemoveFriendHint : ID::kPlayerMenuAddFriendHint));
         ImGui::Separator();
         const bool muted = PlayerFilters::IsMuted(player.session);
-        if (ImGui::MenuItem(Text::GetCString(muted ? Id::kPlayersUnmute : Id::kPlayerMenuMute)))
+        if (ImGui::MenuItem(Text::GetCString(muted ? ID::kPlayersUnmute : ID::kPlayerMenuMute)))
         {
             PlayerFilters::SetMuted(player, !muted);
         }
-        ImGui::SetItemTooltip("%s", Text::GetCString(muted ? Id::kPlayerMenuUnmuteHint : Id::kPlayerMenuMuteHint));
+        ImGui::SetItemTooltip("%s", Text::GetCString(muted ? ID::kPlayerMenuUnmuteHint : ID::kPlayerMenuMuteHint));
         const bool vanished = PlayerFilters::IsVanished(player.session);
-        if (ImGui::MenuItem(Text::GetCString(vanished ? Id::kPlayersUnvanish : Id::kPlayerMenuVanish)))
+        if (ImGui::MenuItem(Text::GetCString(vanished ? ID::kPlayersUnvanish : ID::kPlayerMenuVanish)))
         {
             PlayerFilters::SetVanished(player, !vanished);
         }
         ImGui::SetItemTooltip(
-            "%s", Text::GetCString(vanished ? Id::kPlayerMenuUnvanishHint : Id::kPlayerMenuVanishHint));
+            "%s", Text::GetCString(vanished ? ID::kPlayerMenuUnvanishHint : ID::kPlayerMenuVanishHint));
     }
 }

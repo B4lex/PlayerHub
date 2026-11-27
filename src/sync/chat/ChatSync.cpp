@@ -20,13 +20,13 @@ namespace ChatSync
             switch (a_rejection)
             {
                 case Multiplayer::ChatRejection::kRateLimited:
-                    return std::string{ Text::Get(Text::Id::kChatRateLimited) };
+                    return std::string{ Text::Get(Text::ID::kChatRateLimited) };
                 case Multiplayer::ChatRejection::kNotInWorld:
-                    return std::string{ Text::Get(Text::Id::kChatNotInWorld) };
+                    return std::string{ Text::Get(Text::ID::kChatNotInWorld) };
                 case Multiplayer::ChatRejection::kUnknownRecipient:
-                    return std::string{ Text::Get(Text::Id::kChatRecipientGone) };
+                    return std::string{ Text::Get(Text::ID::kChatRecipientGone) };
                 default:
-                    return std::string{ Text::Get(Text::Id::kChatRejected) };
+                    return std::string{ Text::Get(Text::ID::kChatRejected) };
             }
         }
 
@@ -42,7 +42,7 @@ namespace ChatSync
             {
                 return SenderLabel{ .text = PlayerLabel::Format(a_message.sender.name) };
             }
-            const auto format = a_message.outgoing ? Text::Id::kChatTo : Text::Id::kChatFrom;
+            const auto format = a_message.outgoing ? Text::ID::kChatTo : Text::ID::kChatFrom;
             const auto& other = a_message.outgoing ? a_message.recipient : a_message.sender;
             // A translation may put the name anywhere in the label.
             const auto field = Text::Get(format).find("{}");
@@ -60,19 +60,19 @@ namespace ChatSync
         }
         if (!Multiplayer::IsValidChatText(text))
         {
-            return std::unexpected{ std::string{ Text::Get(Text::Id::kChatInvalidText) } };
+            return std::unexpected{ std::string{ Text::Get(Text::ID::kChatInvalidText) } };
         }
         Multiplayer::PeerSlot recipient = 0;
         if (a_target.channel == Multiplayer::ChatChannel::kWhisper)
         {
             if (!Network::IsConnected())
             {
-                return std::unexpected{ std::string{ Text::Get(Text::Id::kNotConnected) } };
+                return std::unexpected{ std::string{ Text::Get(Text::ID::kNotConnected) } };
             }
             const auto player = ChatRoster::Resolve(a_target.player);
             if (!player)
             {
-                return std::unexpected{ Text::Format(Text::Id::kChatPlayerOffline, a_target.player.name) };
+                return std::unexpected{ Text::Format(Text::ID::kChatPlayerOffline, a_target.player.name) };
             }
             recipient = player->playerID;
         }
@@ -82,7 +82,7 @@ namespace ChatSync
                 s_rejections.push_back(std::move(rejection));
             }))
         {
-            return std::unexpected{ std::string{ Text::Get(Text::Id::kNotConnected) } };
+            return std::unexpected{ std::string{ Text::Get(Text::ID::kNotConnected) } };
         }
         logs::debug("Chat sent: channel={} recipient={} bytes={}", static_cast<int>(a_target.channel), recipient,
             text.size());

@@ -77,14 +77,14 @@ namespace Network::VoiceTransport
         }
 
         // AES-256-GCM through Windows CNG. A key handle is used by one thread at a time.
-        class AesGcm
+        class AESGCM
         {
         public:
-            AesGcm() = default;
-            AesGcm(const AesGcm&) = delete;
-            AesGcm& operator=(const AesGcm&) = delete;
+            AESGCM() = default;
+            AESGCM(const AESGCM&) = delete;
+            AESGCM& operator=(const AESGCM&) = delete;
 
-            ~AesGcm()
+            ~AESGCM()
             {
                 if (key)
                 {
@@ -204,11 +204,11 @@ namespace Network::VoiceTransport
             // The socket is set once by the session's thread before state can become kConnected.
             std::atomic<SOCKET> socket{ INVALID_SOCKET };
             std::mutex sendLock;
-            AesGcm sealer;
+            AESGCM sealer;
             std::atomic_uint32_t counter{ 0 };
 
             // The session's thread only.
-            AesGcm opener;
+            AESGCM opener;
             ReplayWindow window;
         };
 

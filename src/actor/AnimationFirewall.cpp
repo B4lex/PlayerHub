@@ -4,7 +4,7 @@
 #include "actor/AnimationEvents.h"
 #include "actor/RemoteActor.h"
 #include "runtime/Profiling.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <atomic>
 #include <cmath>
@@ -44,7 +44,7 @@ namespace AnimationFirewall
                     // Raises and lowers the left arm for a carried torch.
                     "torchEquip", "torchUnequip" })
             {
-                if (AsciiCase::Equals(a_eventName, name))
+                if (ASCIICase::Equals(a_eventName, name))
                 {
                     return true;
                 }
@@ -55,13 +55,13 @@ namespace AnimationFirewall
         // Locomotion requests Skyrim's own movement logic may send a remote mount.
         constexpr bool IsMountGaitEvent(std::string_view a_eventName) noexcept
         {
-            using AsciiCase::Equals;
+            using ASCIICase::Equals;
             return Equals(a_eventName, "moveStart") || Equals(a_eventName, "moveStop")
                 || Equals(a_eventName, "SprintStart") || Equals(a_eventName, "SprintStop")
                 || Equals(a_eventName, "moveForward") || Equals(a_eventName, "moveBackward")
                 || Equals(a_eventName, "BrakeStart") || Equals(a_eventName, "BrakeStop")
                 || Equals(a_eventName, "turnLeft") || Equals(a_eventName, "turnRight")
-                || Equals(a_eventName, "turnStop") || AsciiCase::StartsWith(a_eventName, "cannedTurn");
+                || Equals(a_eventName, "turnStop") || ASCIICase::StartsWith(a_eventName, "cannedTurn");
         }
 
         // Flight requests, the events of Skyrim.esm's dragon flight idles (FlyStartTakeOff,
@@ -69,10 +69,10 @@ namespace AnimationFirewall
         // may send a remote flying mount.
         constexpr bool IsFlightEvent(std::string_view a_eventName) noexcept
         {
-            using AsciiCase::StartsWith;
+            using ASCIICase::StartsWith;
             return StartsWith(a_eventName, "TakeOff") || StartsWith(a_eventName, "FlyStart")
                 || StartsWith(a_eventName, "FlyStop") || StartsWith(a_eventName, "HoverStart")
-                || StartsWith(a_eventName, "HoverStop") || AsciiCase::Equals(a_eventName, "HoverToCruise");
+                || StartsWith(a_eventName, "HoverStop") || ASCIICase::Equals(a_eventName, "HoverToCruise");
         }
 
         static_assert(IsFlightEvent("FlyStopDefault"));
@@ -117,7 +117,7 @@ namespace AnimationFirewall
                 const bool isWeaponTransitionEnd
                     = IsWeaponTransitionEndEvent(eventView, true) || IsWeaponTransitionEndEvent(eventView, false);
                 const bool shouldTraceWeaponEvent = IsWeaponTransitionTraceEvent(eventView);
-                const bool isBashExit = AsciiCase::Equals(eventView, "bashExit");
+                const bool isBashExit = ASCIICase::Equals(eventView, "bashExit");
                 if (!isJumpLandEnd && !isWeaponTransitionEnd && !shouldTraceWeaponEvent && !isBashExit)
                 {
                     return RE::BSEventNotifyControl::kContinue;
@@ -198,8 +198,8 @@ namespace AnimationFirewall
                     blockMountGaitEvent = (registration->gaitDriven && !registration->mounted
                                               && IsMountGaitEvent(eventView))
                         || (registration->flightDriven && IsFlightEvent(eventView));
-                    isSwimStartEvent = AsciiCase::Equals(eventView, "SwimStart");
-                    isSwimStopEvent = AsciiCase::Equals(eventView, "swimStop");
+                    isSwimStartEvent = ASCIICase::Equals(eventView, "SwimStart");
+                    isSwimStopEvent = ASCIICase::Equals(eventView, "swimStop");
                 }
 
                 // Filtering graph construction and do-nothing package setup events can

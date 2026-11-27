@@ -10,7 +10,7 @@
 // RaceMenu's SKEE interfaces as it publishes them in ModderResource/IPluginInterface.h.
 // Only the vtable order matters; the functions the plugin never calls keep their
 // slots with simplified parameters.
-namespace SkeeInterfaces
+namespace SKEEInterfaces
 {
     class IPluginInterface
     {
@@ -142,13 +142,13 @@ namespace SkeeInterfaces
     // SKEE's SKEEFixedString: an MSVC std::string followed by a hash that SKEE's
     // string table and value maps look names up by. SKEE only reads it and copies the
     // string with its own allocator.
-    class SkeeString
+    class SKEEString
     {
     public:
-        explicit SkeeString(std::string_view a_text);
+        explicit SKEEString(std::string_view a_text);
 
-        SkeeString(SkeeString&&) noexcept = default;
-        SkeeString& operator=(SkeeString&&) noexcept = default;
+        SKEEString(SKEEString&&) noexcept = default;
+        SKEEString& operator=(SKEEString&&) noexcept = default;
 
         struct Layout
         {
@@ -181,8 +181,8 @@ namespace SkeeInterfaces
     class IFaceMorphInterface : public IPluginInterface
     {
     public:
-        virtual float GetMorphValueByName(RE::TESNPC* a_npc, const SkeeString::Layout& a_name) = 0;
-        virtual void SetMorphValue(RE::TESNPC* a_npc, const SkeeString::Layout& a_name, float a_value) = 0;
+        virtual float GetMorphValueByName(RE::TESNPC* a_npc, const SKEEString::Layout& a_name) = 0;
+        virtual void SetMorphValue(RE::TESNPC* a_npc, const SKEEString::Layout& a_name, float a_value) = 0;
     };
 
     // Asks SKEE for its interfaces; at SKSE's kPostPostLoad, once every plugin listens.

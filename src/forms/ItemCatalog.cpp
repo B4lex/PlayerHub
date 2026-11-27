@@ -1,5 +1,5 @@
 #include "forms/ItemCatalog.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <algorithm>
 #include <atomic>
@@ -18,13 +18,13 @@ namespace Forms
         {
             for (const auto character : a_text)
             {
-                a_result += AsciiCase::ToLower(character);
+                a_result += ASCIICase::ToLower(character);
             }
         }
 
         bool ReferenceLess(const FormReference& a_left, const FormReference& a_right)
         {
-            const auto plugin = AsciiCase::Compare(a_left.plugin, a_right.plugin);
+            const auto plugin = ASCIICase::Compare(a_left.plugin, a_right.plugin);
             return plugin != 0 ? plugin < 0 : a_left.localFormID < a_right.localFormID;
         }
     }
@@ -33,7 +33,7 @@ namespace Forms
         : items(std::move(a_items))
     {
         std::ranges::sort(items, [](const CatalogItem& a_left, const CatalogItem& a_right) {
-            const auto name = AsciiCase::Compare(a_left.name, a_right.name);
+            const auto name = ASCIICase::Compare(a_left.name, a_right.name);
             return name != 0 ? name < 0 : ReferenceLess(a_left.reference, a_right.reference);
         });
 
@@ -77,8 +77,8 @@ namespace Forms
     bool ItemCatalog::IsPluginLoaded(std::string_view a_plugin) const
     {
         const auto found = std::ranges::lower_bound(loadedPlugins, a_plugin,
-            [](std::string_view a_left, std::string_view a_right) { return AsciiCase::Compare(a_left, a_right) < 0; });
-        return found != loadedPlugins.end() && AsciiCase::Compare(*found, a_plugin) == 0;
+            [](std::string_view a_left, std::string_view a_right) { return ASCIICase::Compare(a_left, a_right) < 0; });
+        return found != loadedPlugins.end() && ASCIICase::Compare(*found, a_plugin) == 0;
     }
 
     void ItemCatalog::Search(

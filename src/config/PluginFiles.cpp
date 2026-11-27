@@ -11,7 +11,7 @@ namespace PluginFiles
         constexpr std::string_view kTemporaryExtension = ".tmp";
     }
 
-    std::string ToUtf8(const std::filesystem::path& a_path)
+    std::string ToUTF8(const std::filesystem::path& a_path)
     {
         const auto text = a_path.u8string();
         return { text.begin(), text.end() };
@@ -45,7 +45,7 @@ namespace PluginFiles
         std::filesystem::rename(temporaryPath, a_path, error);
         if (error)
         {
-            logs::warn("Could not replace {}: {}", ToUtf8(a_path), error.message());
+            logs::warn("Could not replace {}: {}", ToUTF8(a_path), error.message());
             std::filesystem::remove(temporaryPath, error);
             return false;
         }

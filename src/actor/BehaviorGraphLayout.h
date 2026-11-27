@@ -9,10 +9,10 @@ namespace BehaviorGraphLayout
 {
     // Havok 2010 layouts that CommonLib keeps private or unnamed.
     // hkbStateMachine::StateInfo stores its name (hkStringPtr) at 0x60 and its
-    // stateId at 0x68.
+    // stateID at 0x68.
     inline constexpr std::size_t kStateNameOffset = 0x60;
-    inline constexpr std::size_t kStateIdOffset = 0x68;
-    static_assert(sizeof(RE::hkbStateMachine::StateInfo) > kStateIdOffset);
+    inline constexpr std::size_t kStateIDOffset = 0x68;
+    static_assert(sizeof(RE::hkbStateMachine::StateInfo) > kStateIDOffset);
     // hkbVariableValueSet stores its word-sized values (bool, int, real) in the
     // hkArray that follows hkReferencedObject, indexed like
     // hkbBehaviorGraphData::variableInfos.
@@ -38,7 +38,7 @@ namespace BehaviorGraphLayout
     {
         for (const auto* stateInfo : a_machine.states)
         {
-            if (stateInfo && ReadAt<std::int32_t>(stateInfo, kStateIdOffset) == a_machine.currentStateID)
+            if (stateInfo && ReadAt<std::int32_t>(stateInfo, kStateIDOffset) == a_machine.currentStateID)
             {
                 return GetName(ReadAt<RE::hkStringPtr>(stateInfo, kStateNameOffset));
             }

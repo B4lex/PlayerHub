@@ -90,7 +90,7 @@ namespace UI
 
             void DrawContent() const
             {
-                using Text::Id;
+                using Text::ID;
                 const auto& controls = Config::Get()->controls;
                 Line message;
                 Line hints;
@@ -100,22 +100,22 @@ namespace UI
                     // answer arrives.
                     case Phase::kRequesting:
                     case Phase::kInviting:
-                        AddMessage(message, Text::Get(Id::kTradePromptWaiting), view.peer.name);
-                        AddKey(hints, controls.tradeDeclineKey, Text::Get(Id::kTradePromptWithdraw));
+                        AddMessage(message, Text::Get(ID::kTradePromptWaiting), view.peer.name);
+                        AddKey(hints, controls.tradeDeclineKey, Text::Get(ID::kTradePromptWithdraw));
                         break;
                     case Phase::kInvited:
-                        AddMessage(message, Text::Get(Id::kTradePromptInvited), view.peer.name);
-                        AddKey(hints, controls.tradeAcceptKey, Text::Get(Id::kTradePromptAccept));
-                        AddKey(hints, controls.tradeDeclineKey, Text::Get(Id::kTradePromptDecline));
+                        AddMessage(message, Text::Get(ID::kTradePromptInvited), view.peer.name);
+                        AddKey(hints, controls.tradeAcceptKey, Text::Get(ID::kTradePromptAccept));
+                        AddKey(hints, controls.tradeDeclineKey, Text::Get(ID::kTradePromptDecline));
                         break;
                     default:
                         return;
                 }
 
                 // Short enough for the small-string buffer, so no allocation per frame.
-                const auto seconds = Text::Format(Id::kTradePromptSeconds, view.secondsLeft);
+                const auto seconds = Text::Format(ID::kTradePromptSeconds, view.secondsLeft);
                 const auto longest = Text::Format(
-                    Id::kTradePromptSeconds, static_cast<std::uint32_t>(std::ceil(TradeSession::kInviteSeconds)));
+                    ID::kTradePromptSeconds, static_cast<std::uint32_t>(std::ceil(TradeSession::kInviteSeconds)));
                 // Laid out at the width of the longest count, so the centered line does not shift
                 // as the count loses a digit.
                 hints.Add(seconds, Tone::kDisabled, hints.count == 0 ? 0.0F : ImGui::GetStyle().ItemSpacing.x,

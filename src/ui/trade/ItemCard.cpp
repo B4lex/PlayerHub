@@ -1,7 +1,7 @@
 #include "ui/trade/ItemCard.h"
 #include "forms/ItemDetails.h"
 #include "text/Text.h"
-#include "text/Utf8Case.h"
+#include "text/UTF8Case.h"
 #include "ui/Fonts.h"
 #include "ui/Theme.h"
 
@@ -337,7 +337,7 @@ namespace UI
         {
             const auto& details = *a_card.details;
             s_title.clear();
-            Utf8Case::AppendUpper(s_title, a_card.name);
+            UTF8Case::AppendUpper(s_title, a_card.name);
             if (a_card.count > 1)
             {
                 std::format_to(std::back_inserter(s_title), " ({})", a_card.count);
@@ -367,17 +367,17 @@ namespace UI
             {
                 const auto end = std::format_to_n(rating.data(), rating.size(), "{}", details.ratingValue).out;
                 stats[statCount++] = Stat{ .label = Text::Get(details.rating == Forms::ItemDetails::Rating::kDamage
-                                                   ? Text::Id::kItemCardDamage
-                                                   : Text::Id::kItemCardArmor),
+                                                   ? Text::ID::kItemCardDamage
+                                                   : Text::ID::kItemCardArmor),
                     .value = std::string_view{ rating.data(), end } };
             }
             const auto count = (std::max)(a_card.count, 1U);
-            stats[statCount++] = Stat{ .label = Text::Get(Text::Id::kItemCardWeight),
+            stats[statCount++] = Stat{ .label = Text::Get(Text::ID::kItemCardWeight),
                 .value = FormatWeight(details.weight * static_cast<float>(count), weight) };
             const auto valueEnd
                 = std::format_to_n(value.data(), value.size(), "{}", static_cast<long long>(details.value) * count).out;
             stats[statCount++]
-                = Stat{ .label = Text::Get(Text::Id::kItemCardValue), .value = std::string_view{ value.data(), valueEnd } };
+                = Stat{ .label = Text::Get(Text::ID::kItemCardValue), .value = std::string_view{ value.data(), valueEnd } };
             Stats(a_pen, a_faces, std::span{ stats.data(), statCount });
 
             if (!details.effects.empty() || details.maximumCharge > 0)
@@ -405,7 +405,7 @@ namespace UI
                     {
                         Gap(a_pen, kParagraphGapFonts);
                     }
-                    Text::FormatTo(s_charge, Text::Id::kItemCardCharge, details.charge, details.maximumCharge);
+                    Text::FormatTo(s_charge, Text::ID::kItemCardCharge, details.charge, details.maximumCharge);
                     Paragraph(a_pen, s_charge, a_faces.body, &a_faces.highlight);
                 }
             }

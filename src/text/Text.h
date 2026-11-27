@@ -1,6 +1,6 @@
 #pragma once
 
-#include "text/locale/TextId.h"
+#include "text/locale/TextID.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -52,27 +52,27 @@ namespace Text
     [[nodiscard]] Language GetGameLanguage();
 
     // The view is NUL-terminated.
-    [[nodiscard]] std::string_view Get(Id a_id);
+    [[nodiscard]] std::string_view Get(ID a_id);
 
     // Whatever the game's language.
-    [[nodiscard]] std::string_view GetEnglish(Id a_id);
+    [[nodiscard]] std::string_view GetEnglish(ID a_id);
 
-    [[nodiscard]] inline const char* GetCString(Id a_id)
+    [[nodiscard]] inline const char* GetCString(ID a_id)
     {
         return Get(a_id).data();
     }
 
-    // The form for a_count of an Id whose English text lists plural forms.
-    [[nodiscard]] std::string_view GetPlural(Id a_id, std::uint64_t a_count);
+    // The form for a_count of an ID whose English text lists plural forms.
+    [[nodiscard]] std::string_view GetPlural(ID a_id, std::uint64_t a_count);
 
     template <class... Args>
-    [[nodiscard]] std::string Format(Id a_id, const Args&... a_args)
+    [[nodiscard]] std::string Format(ID a_id, const Args&... a_args)
     {
         return std::vformat(Get(a_id), std::make_format_args(a_args...));
     }
 
     template <class... Args>
-    void FormatTo(std::string& a_out, Id a_id, const Args&... a_args)
+    void FormatTo(std::string& a_out, ID a_id, const Args&... a_args)
     {
         a_out.clear();
         std::vformat_to(std::back_inserter(a_out), Get(a_id), std::make_format_args(a_args...));
@@ -80,7 +80,7 @@ namespace Text
 
     // The count is argument 0, before a_args.
     template <class... Args>
-    [[nodiscard]] std::string FormatPlural(Id a_id, std::uint64_t a_count, const Args&... a_args)
+    [[nodiscard]] std::string FormatPlural(ID a_id, std::uint64_t a_count, const Args&... a_args)
     {
         return std::vformat(GetPlural(a_id, a_count), std::make_format_args(a_count, a_args...));
     }

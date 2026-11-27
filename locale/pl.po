@@ -71,11 +71,11 @@ msgstr ""
 "Adres własnego serwera: nazwa hosta lub adres IPv4, z :port, jeśli port jest "
 "inny niż 14201. Używany tylko, gdy własny serwer jest włączony."
 
-msgctxt "ConnectionServerTls"
+msgctxt "ConnectionServerTLS"
 msgid "Use TLS"
 msgstr "Używaj TLS"
 
-msgctxt "ConnectionServerTlsComment"
+msgctxt "ConnectionServerTLSComment"
 msgid ""
 "Connects to the custom server over TLS, as a server behind an HTTPS proxy requires."
 msgstr ""

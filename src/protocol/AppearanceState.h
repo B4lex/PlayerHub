@@ -1,7 +1,7 @@
 #pragma once
 
 #include "protocol/FormReference.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <algorithm>
 #include <array>
@@ -223,7 +223,7 @@ namespace Multiplayer
     [[nodiscard]] constexpr bool IsValidTexturePath(std::string_view a_path) noexcept
     {
         if (a_path.empty() || a_path.size() > PlayerAppearance::kMaximumTexturePathLength
-            || !AsciiCase::EndsWith(a_path, ".dds") || a_path.front() == '\\' || a_path.front() == '/')
+            || !ASCIICase::EndsWith(a_path, ".dds") || a_path.front() == '\\' || a_path.front() == '/')
         {
             return false;
         }

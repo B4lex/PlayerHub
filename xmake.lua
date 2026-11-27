@@ -187,8 +187,8 @@ target("PlayerHub")
     -- the generator version in proto/generate.sh, which produces the code in
     -- src/network/proto.
     add_files("lib/nanopb/*.c")
-    add_headerfiles("src/**.h")
-    add_includedirs("src", "src/network/proto", "lib/nanopb")
+    add_headerfiles("src/**.h", "include/**.h")
+    add_includedirs("src", "include", "src/network/proto", "lib/nanopb")
     add_packages("ixwebsocket-patched", "imgui", "simpleini", "libopus-dnn", "miniaudio", "rnnoise", "nlohmann_json")
     add_syslinks("ws2_32")
     on_config(function (target)

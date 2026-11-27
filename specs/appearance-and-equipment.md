@@ -30,7 +30,7 @@ the settings in [Configuration](configuration.md#settings).
 | Module | Responsibility |
 | --- | --- |
 | `sync/appearance/AppearanceSync` | Capture and publish; receive, build the actor base, respawn requests, hair, skin, face tint, and overlay presentation |
-| `actor/SkeeInterfaces` | RaceMenu's SKEE interfaces: the exchange at `kPostPostLoad`, the local declarations, and a version check per interface |
+| `actor/SKEEInterfaces` | RaceMenu's SKEE interfaces: the exchange at `kPostPostLoad`, the local declarations, and a version check per interface |
 | `actor/RaceMenuOverlays` | SKEE's overlay and override interfaces: capture the player's overlays, apply them to a remote actor, and release them ([Overlays](#overlays)) |
 | `actor/RaceMenuBodyMorphs` | SKEE's body morph interface: capture the player's morphs, replace a remote actor's with the source's, keep them after a 3D rebuild, and release them ([Body morphs](#body-morphs)) |
 | `actor/RaceMenuSliderCatalog` | The value sliders RaceMenu's `FaceGenMorphs` folders give each race and sex ([Face sliders](#face-sliders)) |
@@ -251,7 +251,7 @@ texture, with the source's color, transparency, and glow. Other NiOverride data
 (node transforms, armor and skin overrides) is out of scope; body morphs have
 [their own section](#body-morphs).
 
-- **Interfaces:** `SkeeInterfaces::Initialize` runs at SKSE's
+- **Interfaces:** `SKEEInterfaces::Initialize` runs at SKSE's
   `kPostPostLoad`. It dispatches SKEE's interface exchange
   (`0x9E3779B9`) to `skee` and queries `Overlay` and `Override` from the
   returned map, both at version 2 or later, `BodyMorph`, and `FaceMorph`; one

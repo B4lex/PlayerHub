@@ -5,7 +5,7 @@
 #include "actor/RemoteActor.h"
 #include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <algorithm>
 #include <atomic>
@@ -355,7 +355,7 @@ namespace ActorRegistry
     void ObserveFurnitureExitGraphOutput(const RE::TESObjectREFR* a_holder, std::string_view a_eventName)
     {
         if (!a_holder || s_nativeFurnitureExitCount.load(std::memory_order_relaxed) == 0
-            || !AsciiCase::Equals(a_eventName, "IdleFurnitureExit"))
+            || !ASCIICase::Equals(a_eventName, "IdleFurnitureExit"))
         {
             return;
         }
@@ -681,7 +681,7 @@ namespace ActorRegistry
             registration->observeWeaponTransitionEndEvent = false;
             observation.actorHandle = registration->actorHandle;
         }
-        if (AsciiCase::Equals(a_eventName, "bashExit"))
+        if (ASCIICase::Equals(a_eventName, "bashExit"))
         {
             ++registration->pendingBashExits;
             observation.bashExitCount = ++registration->bashExitCount;

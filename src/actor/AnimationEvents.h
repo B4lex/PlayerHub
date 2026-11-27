@@ -1,6 +1,6 @@
 #pragma once
 
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <cstddef>
 #include <string_view>
@@ -33,12 +33,12 @@ namespace AnimationEvents
     {
         for (const std::string_view prefix : { "MLh_", "MRh_", "DualMagic_", "RitualSpell" })
         {
-            if (AsciiCase::Equals(a_eventName.substr(0, prefix.size()), prefix))
+            if (ASCIICase::Equals(a_eventName.substr(0, prefix.size()), prefix))
             {
                 return true;
             }
         }
-        return AsciiCase::Contains(a_eventName, "Cast");
+        return ASCIICase::Contains(a_eventName, "Cast");
     }
 
     static_assert(IsCastAnimationEvent("MLH_SpellRelease_event"));
@@ -52,7 +52,7 @@ namespace AnimationEvents
     // shoutStop.
     constexpr bool IsVoiceAnimationEvent(std::string_view a_eventName) noexcept
     {
-        return AsciiCase::Contains(a_eventName, "shout") || AsciiCase::Contains(a_eventName, "BreathExhale");
+        return ASCIICase::Contains(a_eventName, "shout") || ASCIICase::Contains(a_eventName, "BreathExhale");
     }
 
     static_assert(IsVoiceAnimationEvent("shoutStart"));
@@ -71,13 +71,13 @@ namespace AnimationEvents
     constexpr AttackEventHand GetAttackEventHand(std::string_view a_eventName) noexcept
     {
         // attackPowerStartH2HCombo is the power attack of both fists.
-        if (AsciiCase::Contains(a_eventName, "DualWield") || AsciiCase::Contains(a_eventName, "H2HCombo"))
+        if (ASCIICase::Contains(a_eventName, "DualWield") || ASCIICase::Contains(a_eventName, "H2HCombo"))
         {
             return AttackEventHand::kDual;
         }
         // attackPowerStartLeft is a right-hand power attack toward the left, so only
         // the hand suffixes count.
-        if (AsciiCase::EndsWith(a_eventName, "LeftHand") || AsciiCase::EndsWith(a_eventName, "H2HLeft"))
+        if (ASCIICase::EndsWith(a_eventName, "LeftHand") || ASCIICase::EndsWith(a_eventName, "H2HLeft"))
         {
             return AttackEventHand::kLeft;
         }
@@ -113,25 +113,25 @@ namespace AnimationEvents
         std::string_view name = a_eventName;
         for (const std::string_view handSuffix : { "LeftHand", "RightHand" })
         {
-            if (AsciiCase::EndsWith(name, handSuffix))
+            if (ASCIICase::EndsWith(name, handSuffix))
             {
                 name.remove_suffix(handSuffix.size());
                 break;
             }
         }
-        if (AsciiCase::Contains(name, "Forward") || AsciiCase::Contains(name, "Sprint"))
+        if (ASCIICase::Contains(name, "Forward") || ASCIICase::Contains(name, "Sprint"))
         {
             return PowerAttackEventDirection::kForward;
         }
-        if (AsciiCase::Contains(name, "Back"))
+        if (ASCIICase::Contains(name, "Back"))
         {
             return PowerAttackEventDirection::kBackward;
         }
-        if (AsciiCase::EndsWith(name, "Left"))
+        if (ASCIICase::EndsWith(name, "Left"))
         {
             return PowerAttackEventDirection::kLeft;
         }
-        if (AsciiCase::EndsWith(name, "Right"))
+        if (ASCIICase::EndsWith(name, "Right"))
         {
             return PowerAttackEventDirection::kRight;
         }

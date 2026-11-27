@@ -1,6 +1,6 @@
 #include "ui/Fonts.h"
 #include "config/PluginConfig.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 #include "text/Text.h"
 
 #include <REX/W32/KERNEL32.h>
@@ -94,13 +94,13 @@ namespace UI::Fonts
         // Macau, and the Hant script, and Simplified otherwise, as for every other language.
         HanOrder GetHanOrder(std::string_view a_code)
         {
-            if (AsciiCase::StartsWith(a_code, "ja"))
+            if (ASCIICase::StartsWith(a_code, "ja"))
             {
                 return HanOrder::kJapanese;
             }
-            if (AsciiCase::StartsWith(a_code, "zh")
-                && (AsciiCase::Contains(a_code, "_TW") || AsciiCase::Contains(a_code, "_HK")
-                    || AsciiCase::Contains(a_code, "_MO") || AsciiCase::Contains(a_code, "Hant")))
+            if (ASCIICase::StartsWith(a_code, "zh")
+                && (ASCIICase::Contains(a_code, "_TW") || ASCIICase::Contains(a_code, "_HK")
+                    || ASCIICase::Contains(a_code, "_MO") || ASCIICase::Contains(a_code, "Hant")))
             {
                 return HanOrder::kTraditionalChinese;
             }

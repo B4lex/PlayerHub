@@ -1,10 +1,10 @@
-#include "ui/render/Gpu.h"
+#include "ui/render/GPU.h"
 
 #include <REX/W32/D3DCOMPILER.h>
 
 #include <string>
 
-namespace UI::Gpu
+namespace UI::GPU
 {
     namespace
     {

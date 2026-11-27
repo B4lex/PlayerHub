@@ -66,11 +66,11 @@ msgid ""
 "is not 14201. Used only while the custom server is on."
 msgstr ""
 
-msgctxt "ConnectionServerTls"
+msgctxt "ConnectionServerTLS"
 msgid "Use TLS"
 msgstr ""
 
-msgctxt "ConnectionServerTlsComment"
+msgctxt "ConnectionServerTLSComment"
 msgid ""
 "Connects to the custom server over TLS, as a server behind an HTTPS proxy requires."
 msgstr ""

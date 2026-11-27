@@ -10,7 +10,7 @@
 #include "actor/ReactionSuppression.h"
 #include "actor/RemoteCollision.h"
 #include "actor/ScenePackageSuppression.h"
-#include "actor/SkeeInterfaces.h"
+#include "actor/SKEEInterfaces.h"
 #include "actor/SpellIsolation.h"
 #include "actor/SurvivalPolicy.h"
 #include "config/PluginConfig.h"
@@ -27,6 +27,7 @@
 #include "sync/equipment/EquipmentSync.h"
 #include "sync/look/DefaultLook.h"
 #include "sync/presence/PresenceSync.h"
+#include "sync/skeleton/PoseWindow.h"
 #include "sync/trade/TradeSync.h"
 #include "sync/voice/VoiceSync.h"
 #include "sync/voicechat/VoiceChatSync.h"
@@ -102,7 +103,7 @@ namespace PluginStartup
             switch (a_message->type)
             {
                 case SKSE::MessagingInterface::kPostPostLoad:
-                    SkeeInterfaces::Initialize();
+                    SKEEInterfaces::Initialize();
                     break;
                 case SKSE::MessagingInterface::kDataLoaded:
                     OnDataLoaded();
@@ -110,8 +111,10 @@ namespace PluginStartup
                 case SKSE::MessagingInterface::kNewGame:
                     // SKSE passes the quest the new game starts.
                     VanillaIntro::OnNewGame(a_message->data);
+                    PoseWindow::ReleaseHolds("new-game");
                     break;
                 case SKSE::MessagingInterface::kPreLoadGame:
+                    PoseWindow::ReleaseHolds("game-load");
                     PresenceSync::OnGameLoadStarted();
                     VanillaIntro::OnGameLoadStarted();
                     break;

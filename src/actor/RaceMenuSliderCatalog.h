@@ -1,6 +1,6 @@
 #pragma once
 
-#include "actor/SkeeInterfaces.h"
+#include "actor/SKEEInterfaces.h"
 
 #include <RE/Skyrim.h>
 
@@ -12,7 +12,7 @@ namespace RaceMenuSliderCatalog
     struct Slider
     {
         std::string name;
-        SkeeInterfaces::SkeeString key;
+        SKEEInterfaces::SKEEString key;
     };
 
     // The value sliders (SKEE types Slider and Preset) that RaceMenu's FaceGenMorphs

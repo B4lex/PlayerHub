@@ -1,7 +1,7 @@
 #include "config/SettingsSchema.h"
 #include "protocol/Session.h"
 #include "runtime/KeyState.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 #include "text/Text.h"
 
 #include <algorithm>
@@ -18,7 +18,7 @@ namespace Config
         using Multiplayer::FormReference;
         using KeyboardKey = RE::BSKeyboardDevice::Key;
         using MouseKey = RE::BSWin32MouseDevice::Key;
-        using Text::Id;
+        using Text::ID;
 
         // DIK_OEM_102, the key between left Shift and Z on ISO keyboards.
         constexpr std::uint32_t kIntlBackslash = 0x56;
@@ -36,19 +36,19 @@ namespace Config
             "HandToHandMelee", "OneHandSword", "OneHandDagger", "OneHandAxe", "OneHandMace", "TwoHandSword",
             "TwoHandAxe", "Bow", "Staff", "Crossbow"
         };
-        constexpr std::array<Id, DefaultLookSettings::kArmorSlotCount> kArmorSlotLabels{ Id::kLookHead,
-            Id::kLookBody, Id::kLookHands, Id::kLookAmulet, Id::kLookFeet, Id::kLookShield,
-            Id::kLookCirclet, Id::kLookBackpack };
+        constexpr std::array<ID, DefaultLookSettings::kArmorSlotCount> kArmorSlotLabels{ ID::kLookHead,
+            ID::kLookBody, ID::kLookHands, ID::kLookAmulet, ID::kLookFeet, ID::kLookShield,
+            ID::kLookCirclet, ID::kLookBackpack };
         constexpr std::array<bool, DefaultLookSettings::kArmorSlotCount> kArmorSlotAllowsNone{ true, false, false,
             false, false, false, true, true };
         // Unarmed has no setting. TwoHandAxe covers warhammers too.
-        constexpr std::array<Id, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> kWeaponTypeLabels{ Id::kNone,
-            Id::kLookSword, Id::kLookDagger, Id::kLookWarAxe, Id::kLookMace, Id::kLookGreatsword,
-            Id::kLookBattleaxe, Id::kLookBow, Id::kLookStaff, Id::kLookCrossbow };
-        constexpr std::array<Id, UISettings::kFrameColorNames.size()> kFrameColorLabels{ Id::kUIBorderVanilla,
-            Id::kUIBorderAccent };
-        constexpr std::array<Id, VoiceSettings::kModeNames.size()> kVoiceModeLabels{ Id::kVoiceModePushToTalk,
-            Id::kVoiceModeVoiceActivation };
+        constexpr std::array<ID, Multiplayer::PlayerEquipment::kMaximumWeaponType + 1> kWeaponTypeLabels{ ID::kNone,
+            ID::kLookSword, ID::kLookDagger, ID::kLookWarAxe, ID::kLookMace, ID::kLookGreatsword,
+            ID::kLookBattleaxe, ID::kLookBow, ID::kLookStaff, ID::kLookCrossbow };
+        constexpr std::array<ID, UISettings::kFrameColorNames.size()> kFrameColorLabels{ ID::kUIBorderVanilla,
+            ID::kUIBorderAccent };
+        constexpr std::array<ID, VoiceSettings::kModeNames.size()> kVoiceModeLabels{ ID::kVoiceModePushToTalk,
+            ID::kVoiceModeVoiceActivation };
         struct BindableKey
         {
             std::string_view name;
@@ -56,7 +56,7 @@ namespace Config
             std::string_view label;
             std::uint32_t code;
             // Replaces the label for keys named by a word.
-            Id word{ Id::kNone };
+            ID word{ ID::kNone };
         };
 
         constexpr std::array<BindableKey, 97> kBindableKeys{ {
@@ -119,22 +119,22 @@ namespace Config
             { "Comma", ",", KeyboardKey::kComma },
             { "Period", ".", KeyboardKey::kPeriod },
             { "Slash", "/", KeyboardKey::kSlash },
-            { "Space", "Space", KeyboardKey::kSpacebar, Id::kKeySpace },
-            { "Enter", "Enter", KeyboardKey::kEnter, Id::kKeyEnter },
-            { "CapsLock", "Caps Lock", KeyboardKey::kCapsLock, Id::kKeyCapsLock },
-            { "Insert", "Insert", KeyboardKey::kInsert, Id::kKeyInsert },
-            { "Delete", "Delete", KeyboardKey::kDelete, Id::kKeyDelete },
-            { "Home", "Home", KeyboardKey::kHome, Id::kKeyHome },
-            { "End", "End", KeyboardKey::kEnd, Id::kKeyEnd },
-            { "PageUp", "Page Up", KeyboardKey::kPageUp, Id::kKeyPageUp },
-            { "PageDown", "Page Down", KeyboardKey::kPageDown, Id::kKeyPageDown },
-            { "Up", "Up", KeyboardKey::kUp, Id::kKeyUp },
-            { "Down", "Down", KeyboardKey::kDown, Id::kKeyDown },
-            { "Left", "Left", KeyboardKey::kLeft, Id::kKeyLeft },
-            { "Right", "Right", KeyboardKey::kRight, Id::kKeyRight },
-            { "Pause", "Pause", KeyboardKey::kPause, Id::kKeyPause },
-            { "ScrollLock", "Scroll Lock", KeyboardKey::kScrollLock, Id::kKeyScrollLock },
-            { "NumLock", "Num Lock", KeyboardKey::kNumLock, Id::kKeyNumLock },
+            { "Space", "Space", KeyboardKey::kSpacebar, ID::kKeySpace },
+            { "Enter", "Enter", KeyboardKey::kEnter, ID::kKeyEnter },
+            { "CapsLock", "Caps Lock", KeyboardKey::kCapsLock, ID::kKeyCapsLock },
+            { "Insert", "Insert", KeyboardKey::kInsert, ID::kKeyInsert },
+            { "Delete", "Delete", KeyboardKey::kDelete, ID::kKeyDelete },
+            { "Home", "Home", KeyboardKey::kHome, ID::kKeyHome },
+            { "End", "End", KeyboardKey::kEnd, ID::kKeyEnd },
+            { "PageUp", "Page Up", KeyboardKey::kPageUp, ID::kKeyPageUp },
+            { "PageDown", "Page Down", KeyboardKey::kPageDown, ID::kKeyPageDown },
+            { "Up", "Up", KeyboardKey::kUp, ID::kKeyUp },
+            { "Down", "Down", KeyboardKey::kDown, ID::kKeyDown },
+            { "Left", "Left", KeyboardKey::kLeft, ID::kKeyLeft },
+            { "Right", "Right", KeyboardKey::kRight, ID::kKeyRight },
+            { "Pause", "Pause", KeyboardKey::kPause, ID::kKeyPause },
+            { "ScrollLock", "Scroll Lock", KeyboardKey::kScrollLock, ID::kKeyScrollLock },
+            { "NumLock", "Num Lock", KeyboardKey::kNumLock, ID::kKeyNumLock },
             { "Numpad0", "Num 0", KeyboardKey::kKP_0 },
             { "Numpad1", "Num 1", KeyboardKey::kKP_1 },
             { "Numpad2", "Num 2", KeyboardKey::kKP_2 },
@@ -150,13 +150,13 @@ namespace Config
             { "NumpadMinus", "Num -", KeyboardKey::kKP_Subtract },
             { "NumpadMultiply", "Num *", KeyboardKey::kKP_Multiply },
             { "NumpadDivide", "Num /", KeyboardKey::kKP_Divide },
-            { "NumpadEnter", "Num Enter", KeyboardKey::kKP_Enter, Id::kKeyNumpadEnter },
-            { "Mouse3", "Middle Mouse", KeyState::FromMouse(MouseKey::kMiddleButton), Id::kKeyMouseMiddle },
-            { "Mouse4", "Mouse 4", KeyState::FromMouse(MouseKey::kButton3), Id::kKeyMouse4 },
-            { "Mouse5", "Mouse 5", KeyState::FromMouse(MouseKey::kButton4), Id::kKeyMouse5 },
-            { "Mouse6", "Mouse 6", KeyState::FromMouse(MouseKey::kButton5), Id::kKeyMouse6 },
-            { "Mouse7", "Mouse 7", KeyState::FromMouse(MouseKey::kButton6), Id::kKeyMouse7 },
-            { "Mouse8", "Mouse 8", KeyState::FromMouse(MouseKey::kButton7), Id::kKeyMouse8 },
+            { "NumpadEnter", "Num Enter", KeyboardKey::kKP_Enter, ID::kKeyNumpadEnter },
+            { "Mouse3", "Middle Mouse", KeyState::FromMouse(MouseKey::kMiddleButton), ID::kKeyMouseMiddle },
+            { "Mouse4", "Mouse 4", KeyState::FromMouse(MouseKey::kButton3), ID::kKeyMouse4 },
+            { "Mouse5", "Mouse 5", KeyState::FromMouse(MouseKey::kButton4), ID::kKeyMouse5 },
+            { "Mouse6", "Mouse 6", KeyState::FromMouse(MouseKey::kButton5), ID::kKeyMouse6 },
+            { "Mouse7", "Mouse 7", KeyState::FromMouse(MouseKey::kButton6), ID::kKeyMouse7 },
+            { "Mouse8", "Mouse 8", KeyState::FromMouse(MouseKey::kButton7), ID::kKeyMouse8 },
         } };
 
         const BindableKey* FindKey(std::uint32_t a_key)
@@ -243,40 +243,40 @@ namespace Config
 
         void DescribeConnection(ConnectionSettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("Connection", Id::kSectionConnection, Id::kNone);
-            a_visitor.String("DisplayName", Id::kConnectionDisplayName, a_settings.displayName,
-                Id::kConnectionDisplayNameComment, IsValidDisplayName);
-            a_visitor.Bool("ConnectAutomatically", Id::kConnectionAutoConnect, a_settings.autoConnect,
-                Id::kConnectionAutoConnectComment);
-            a_visitor.Bool("CustomServer", Id::kConnectionCustomServer, a_settings.customServer,
-                Id::kConnectionCustomServerComment);
+            a_visitor.Section("Connection", ID::kSectionConnection, ID::kNone);
+            a_visitor.String("DisplayName", ID::kConnectionDisplayName, a_settings.displayName,
+                ID::kConnectionDisplayNameComment, IsValidDisplayName);
+            a_visitor.Bool("ConnectAutomatically", ID::kConnectionAutoConnect, a_settings.autoConnect,
+                ID::kConnectionAutoConnectComment);
+            a_visitor.Bool("CustomServer", ID::kConnectionCustomServer, a_settings.customServer,
+                ID::kConnectionCustomServerComment);
             a_visitor.ShowNextIf(a_settings.customServer);
-            a_visitor.String("ServerAddress", Id::kConnectionServerAddress, a_settings.serverAddress,
-                Id::kConnectionServerAddressComment, IsValidServerAddress);
+            a_visitor.String("ServerAddress", ID::kConnectionServerAddress, a_settings.serverAddress,
+                ID::kConnectionServerAddressComment, IsValidServerAddress);
             a_visitor.ShowNextIf(a_settings.customServer);
             a_visitor.Bool(
-                "ServerTls", Id::kConnectionServerTls, a_settings.serverTls, Id::kConnectionServerTlsComment);
+                "ServerTls", ID::kConnectionServerTLS, a_settings.serverTLS, ID::kConnectionServerTLSComment);
         }
 
         void DescribeDefaultLook(DefaultLookSettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("DefaultLook", Id::kSectionDefaultLook, Id::kLookComment);
+            a_visitor.Section("DefaultLook", ID::kSectionDefaultLook, ID::kLookComment);
             const auto& defaults = GetDefaultConfig().defaultLook;
 
-            a_visitor.Bool("AlwaysUse", Id::kLookAlwaysUse, a_settings.alwaysUse, Id::kLookAlwaysUseComment);
+            a_visitor.Bool("AlwaysUse", ID::kLookAlwaysUse, a_settings.alwaysUse, ID::kLookAlwaysUseComment);
 
-            a_visitor.Comment(Id::kLookGroupCharacter);
-            a_visitor.Form("Race", Id::kLookRace, a_settings.race, defaults.race, kLookRaceFilter, false);
-            a_visitor.Preset("Preset", Id::kLookPreset, a_settings.preset, Id::kLookPresetComment);
+            a_visitor.Comment(ID::kLookGroupCharacter);
+            a_visitor.Form("Race", ID::kLookRace, a_settings.race, defaults.race, kLookRaceFilter, false);
+            a_visitor.Preset("Preset", ID::kLookPreset, a_settings.preset, ID::kLookPresetComment);
 
-            a_visitor.Comment(Id::kLookGroupApparel);
+            a_visitor.Comment(ID::kLookGroupApparel);
             for (std::size_t slot = 0; slot < a_settings.armor.size(); ++slot)
             {
                 a_visitor.Form(GetLookArmorKey(slot), kArmorSlotLabels[slot], a_settings.armor[slot],
                     defaults.armor[slot], GetLookArmorFilter(slot), kArmorSlotAllowsNone[slot]);
             }
 
-            a_visitor.Comment(Id::kLookGroupWeapons);
+            a_visitor.Comment(ID::kLookGroupWeapons);
             for (std::size_t type = Multiplayer::PlayerEquipment::kMinimumWeaponType; type < a_settings.weapons.size();
                 ++type)
             {
@@ -284,146 +284,146 @@ namespace Config
                     defaults.weapons[type], GetLookWeaponFilter(type), false);
             }
 
-            a_visitor.Comment(Id::kLookGroupMiscellaneous);
-            a_visitor.Form("Arrow", Id::kLookArrow, a_settings.arrow, defaults.arrow, kLookArrowFilter, false);
-            a_visitor.Form("Bolt", Id::kLookBolt, a_settings.bolt, defaults.bolt, kLookBoltFilter, false);
+            a_visitor.Comment(ID::kLookGroupMiscellaneous);
+            a_visitor.Form("Arrow", ID::kLookArrow, a_settings.arrow, defaults.arrow, kLookArrowFilter, false);
+            a_visitor.Form("Bolt", ID::kLookBolt, a_settings.bolt, defaults.bolt, kLookBoltFilter, false);
         }
 
         void DescribeUI(UISettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("UI", Id::kSectionUI, Id::kNone);
-            a_visitor.Comment(Id::kUIGroupDisplay);
-            a_visitor.Language("Language", Id::kUILanguage, a_settings.language, Id::kUILanguageComment);
-            a_visitor.Percent("Scale", Id::kUIScale, a_settings.scale, Id::kUIScaleComment, UISettings::kMinimumScale,
+            a_visitor.Section("UI", ID::kSectionUI, ID::kNone);
+            a_visitor.Comment(ID::kUIGroupDisplay);
+            a_visitor.Language("Language", ID::kUILanguage, a_settings.language, ID::kUILanguageComment);
+            a_visitor.Percent("Scale", ID::kUIScale, a_settings.scale, ID::kUIScaleComment, UISettings::kMinimumScale,
                 UISettings::kMaximumScale, UISettings::kScaleStep);
-            a_visitor.Color("AccentColor", Id::kUIAccentColor, a_settings.accentColor, Id::kUIAccentColorComment,
+            a_visitor.Color("AccentColor", ID::kUIAccentColor, a_settings.accentColor, ID::kUIAccentColorComment,
                 UISettings::kAccentSwatches);
-            a_visitor.Choice("BorderColor", Id::kUIBorderColor, a_settings.frameColor, Id::kUIBorderColorComment,
+            a_visitor.Choice("BorderColor", ID::kUIBorderColor, a_settings.frameColor, ID::kUIBorderColorComment,
                 UISettings::kFrameColorNames, kFrameColorLabels);
-            a_visitor.Percent("BorderThickness", Id::kUIBorderThickness, a_settings.frameThickness,
-                Id::kUIBorderThicknessComment, UISettings::kMinimumFrameThickness, UISettings::kMaximumFrameThickness,
+            a_visitor.Percent("BorderThickness", ID::kUIBorderThickness, a_settings.frameThickness,
+                ID::kUIBorderThicknessComment, UISettings::kMinimumFrameThickness, UISettings::kMaximumFrameThickness,
                 1);
-            a_visitor.Percent("BackgroundOpacity", Id::kUIBackgroundOpacity, a_settings.backgroundOpacity,
-                Id::kUIBackgroundOpacityComment, UISettings::kMinimumBackgroundOpacity,
+            a_visitor.Percent("BackgroundOpacity", ID::kUIBackgroundOpacity, a_settings.backgroundOpacity,
+                ID::kUIBackgroundOpacityComment, UISettings::kMinimumBackgroundOpacity,
                 UISettings::kMaximumBackgroundOpacity, UISettings::kBackgroundOpacityStep);
 
-            a_visitor.Comment(Id::kUIGroupPlayers);
-            a_visitor.Bool("Nameplates", Id::kUINameplates, a_settings.nameplates, Id::kUINameplatesComment);
-            a_visitor.Unsigned("NameplateDistance", Id::kUINameplateDistance, a_settings.nameplateDistance,
-                Id::kUINameplateDistanceComment, UISettings::kMaximumNameplateDistance, Id::kNone, 1);
+            a_visitor.Comment(ID::kUIGroupPlayers);
+            a_visitor.Bool("Nameplates", ID::kUINameplates, a_settings.nameplates, ID::kUINameplatesComment);
+            a_visitor.Unsigned("NameplateDistance", ID::kUINameplateDistance, a_settings.nameplateDistance,
+                ID::kUINameplateDistanceComment, UISettings::kMaximumNameplateDistance, ID::kNone, 1);
 
-            a_visitor.Comment(Id::kUIGroupChat);
+            a_visitor.Comment(ID::kUIGroupChat);
             a_visitor.Bool(
-                "CloseChatOnSend", Id::kUICloseChatOnSend, a_settings.closeChatOnSend, Id::kUICloseChatOnSendComment);
+                "CloseChatOnSend", ID::kUICloseChatOnSend, a_settings.closeChatOnSend, ID::kUICloseChatOnSendComment);
             a_visitor.Layout("ChatWidth", a_settings.chatWidth,
                 "Width of the chat in font sizes. Dragging the open chat's left or right edge sets it.",
                 UISettings::kMinimumChatWidth, UISettings::kMaximumChatWidth);
             a_visitor.Layout("ChatLines", a_settings.chatLines,
                 "Lines of history the open chat shows. Dragging its top or bottom edge sets it.",
                 UISettings::kMinimumChatLines, UISettings::kMaximumChatLines);
-            a_visitor.FinePercent("ChatPositionHorizontal", Id::kUIChatHorizontal, a_settings.chatPositionHorizontal,
-                Id::kUIChatHorizontalComment, UISettings::kMaximumChatPosition);
-            a_visitor.FinePercent("ChatPositionVertical", Id::kUIChatVertical, a_settings.chatPositionVertical,
-                Id::kUIChatVerticalComment, UISettings::kMaximumChatPosition);
+            a_visitor.FinePercent("ChatPositionHorizontal", ID::kUIChatHorizontal, a_settings.chatPositionHorizontal,
+                ID::kUIChatHorizontalComment, UISettings::kMaximumChatPosition);
+            a_visitor.FinePercent("ChatPositionVertical", ID::kUIChatVertical, a_settings.chatPositionVertical,
+                ID::kUIChatVerticalComment, UISettings::kMaximumChatPosition);
 
-            a_visitor.Comment(Id::kUIGroupItems);
-            a_visitor.Bool("ItemPreview", Id::kUIItemPreview, a_settings.itemPreview, Id::kUIItemPreviewComment);
+            a_visitor.Comment(ID::kUIGroupItems);
+            a_visitor.Bool("ItemPreview", ID::kUIItemPreview, a_settings.itemPreview, ID::kUIItemPreviewComment);
         }
 
         void DescribeControls(ControlsSettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("Controls", Id::kSectionControls, Id::kNone);
-            a_visitor.Key("OpenSettings", Id::kControlsOpenSettings, a_settings.settingsKey,
-                Id::kControlsOpenSettingsComment, kDefaultSettingsKey);
+            a_visitor.Section("Controls", ID::kSectionControls, ID::kNone);
+            a_visitor.Key("OpenSettings", ID::kControlsOpenSettings, a_settings.settingsKey,
+                ID::kControlsOpenSettingsComment, kDefaultSettingsKey);
             a_visitor.Key(
-                "OpenChat", Id::kControlsOpenChat, a_settings.chatKey, Id::kControlsOpenChatComment, kDefaultChatKey);
-            a_visitor.Key("ManagePlayers", Id::kControlsManagePlayers, a_settings.playersKey,
-                Id::kControlsManagePlayersComment, 0);
-            a_visitor.Key("AcceptTrade", Id::kControlsAcceptTrade, a_settings.tradeAcceptKey,
-                Id::kControlsAcceptTradeComment, 0);
-            a_visitor.Key("DeclineTrade", Id::kControlsDeclineTrade, a_settings.tradeDeclineKey,
-                Id::kControlsDeclineTradeComment, 0);
-            a_visitor.Key("Microphone", Id::kControlsMicrophone, a_settings.microphoneKey,
-                Id::kControlsMicrophoneComment, 0);
+                "OpenChat", ID::kControlsOpenChat, a_settings.chatKey, ID::kControlsOpenChatComment, kDefaultChatKey);
+            a_visitor.Key("ManagePlayers", ID::kControlsManagePlayers, a_settings.playersKey,
+                ID::kControlsManagePlayersComment, 0);
+            a_visitor.Key("AcceptTrade", ID::kControlsAcceptTrade, a_settings.tradeAcceptKey,
+                ID::kControlsAcceptTradeComment, 0);
+            a_visitor.Key("DeclineTrade", ID::kControlsDeclineTrade, a_settings.tradeDeclineKey,
+                ID::kControlsDeclineTradeComment, 0);
+            a_visitor.Key("Microphone", ID::kControlsMicrophone, a_settings.microphoneKey,
+                ID::kControlsMicrophoneComment, 0);
         }
 
         void DescribeVoice(VoiceSettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("Voice", Id::kSectionVoice, Id::kVoiceComment);
-            a_visitor.Comment(Id::kVoiceGroupMicrophone);
+            a_visitor.Section("Voice", ID::kSectionVoice, ID::kVoiceComment);
+            a_visitor.Comment(ID::kVoiceGroupMicrophone);
             // First, so hiding the rows below does not move the combo that hid them.
-            a_visitor.AudioDevice("InputDevice", Id::kVoiceInputDevice, a_settings.inputDevice,
-                Id::kVoiceInputDeviceComment, true);
+            a_visitor.AudioDevice("InputDevice", ID::kVoiceInputDevice, a_settings.inputDevice,
+                ID::kVoiceInputDeviceComment, true);
             const bool microphone = a_settings.inputDevice != VoiceSettings::kNoInputDevice;
             a_visitor.ShowNextIf(microphone);
-            a_visitor.Choice("Mode", Id::kVoiceMode, a_settings.mode, Id::kVoiceModeComment, VoiceSettings::kModeNames,
+            a_visitor.Choice("Mode", ID::kVoiceMode, a_settings.mode, ID::kVoiceModeComment, VoiceSettings::kModeNames,
                 kVoiceModeLabels);
             a_visitor.ShowNextIf(microphone);
-            a_visitor.InputMeter(Id::kVoiceInputLevel, a_settings.activationLevel);
+            a_visitor.InputMeter(ID::kVoiceInputLevel, a_settings.activationLevel);
             a_visitor.ShowNextIf(microphone && a_settings.mode == VoiceSettings::kVoiceActivation);
-            a_visitor.Percent("ActivationLevel", Id::kVoiceActivationLevel, a_settings.activationLevel,
-                Id::kVoiceActivationLevelComment, 0, VoiceSettings::kMaximumActivationLevel, 1);
+            a_visitor.Percent("ActivationLevel", ID::kVoiceActivationLevel, a_settings.activationLevel,
+                ID::kVoiceActivationLevelComment, 0, VoiceSettings::kMaximumActivationLevel, 1);
             a_visitor.ShowNextIf(microphone);
-            a_visitor.Percent("InputVolume", Id::kVoiceInputVolume, a_settings.inputVolume, Id::kVoiceInputVolumeComment,
+            a_visitor.Percent("InputVolume", ID::kVoiceInputVolume, a_settings.inputVolume, ID::kVoiceInputVolumeComment,
                 VoiceSettings::kMinimumInputVolume, VoiceSettings::kMaximumInputVolume, VoiceSettings::kVolumeStep);
             a_visitor.ShowNextIf(microphone);
-            a_visitor.Bool("NoiseSuppression", Id::kVoiceNoiseSuppression, a_settings.noiseSuppression,
-                Id::kVoiceNoiseSuppressionComment);
+            a_visitor.Bool("NoiseSuppression", ID::kVoiceNoiseSuppression, a_settings.noiseSuppression,
+                ID::kVoiceNoiseSuppressionComment);
 
-            a_visitor.Comment(Id::kVoiceGroupPlayers);
-            a_visitor.AudioDevice("OutputDevice", Id::kVoiceOutputDevice, a_settings.outputDevice,
-                Id::kVoiceOutputDeviceComment, false);
-            a_visitor.Percent("OutputVolume", Id::kVoiceOutputVolume, a_settings.outputVolume,
-                Id::kVoiceOutputVolumeComment, 0, VoiceSettings::kMaximumVolume, VoiceSettings::kVolumeStep);
+            a_visitor.Comment(ID::kVoiceGroupPlayers);
+            a_visitor.AudioDevice("OutputDevice", ID::kVoiceOutputDevice, a_settings.outputDevice,
+                ID::kVoiceOutputDeviceComment, false);
+            a_visitor.Percent("OutputVolume", ID::kVoiceOutputVolume, a_settings.outputVolume,
+                ID::kVoiceOutputVolumeComment, 0, VoiceSettings::kMaximumVolume, VoiceSettings::kVolumeStep);
 
-            a_visitor.Comment(Id::kVoiceGroupIndicator);
-            a_visitor.Bool("Indicator", Id::kVoiceIndicator, a_settings.indicator, Id::kVoiceIndicatorComment);
+            a_visitor.Comment(ID::kVoiceGroupIndicator);
+            a_visitor.Bool("Indicator", ID::kVoiceIndicator, a_settings.indicator, ID::kVoiceIndicatorComment);
             a_visitor.ShowNextIf(a_settings.indicator);
-            a_visitor.FinePercent("IndicatorPositionHorizontal", Id::kVoiceIndicatorHorizontal,
-                a_settings.indicatorPositionHorizontal, Id::kVoiceIndicatorHorizontalComment,
+            a_visitor.FinePercent("IndicatorPositionHorizontal", ID::kVoiceIndicatorHorizontal,
+                a_settings.indicatorPositionHorizontal, ID::kVoiceIndicatorHorizontalComment,
                 VoiceSettings::kMaximumIndicatorPosition);
             a_visitor.ShowNextIf(a_settings.indicator);
-            a_visitor.FinePercent("IndicatorPositionVertical", Id::kVoiceIndicatorVertical,
-                a_settings.indicatorPositionVertical, Id::kVoiceIndicatorVerticalComment,
+            a_visitor.FinePercent("IndicatorPositionVertical", ID::kVoiceIndicatorVertical,
+                a_settings.indicatorPositionVertical, ID::kVoiceIndicatorVerticalComment,
                 VoiceSettings::kMaximumIndicatorPosition);
         }
 
         void DescribeGameplay(GameplaySettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("Gameplay", Id::kSectionGameplay, Id::kNone);
-            a_visitor.Comment(Id::kGameplayGroupEffects);
-            a_visitor.Bool("ShowSpellEffects", Id::kGameplayShowSpellEffects, a_settings.showSpellEffects,
-                Id::kGameplayShowSpellEffectsComment);
-            a_visitor.Bool("ShowShoutEffects", Id::kGameplayShowShoutEffects, a_settings.showShoutEffects,
-                Id::kGameplayShowShoutEffectsComment);
+            a_visitor.Section("Gameplay", ID::kSectionGameplay, ID::kNone);
+            a_visitor.Comment(ID::kGameplayGroupEffects);
+            a_visitor.Bool("ShowSpellEffects", ID::kGameplayShowSpellEffects, a_settings.showSpellEffects,
+                ID::kGameplayShowSpellEffectsComment);
+            a_visitor.Bool("ShowShoutEffects", ID::kGameplayShowShoutEffects, a_settings.showShoutEffects,
+                ID::kGameplayShowShoutEffectsComment);
 
-            a_visitor.Comment(Id::kGameplayGroupIsolation);
-            a_visitor.Bool("IsolateSpellEffects", Id::kGameplayIsolateSpellEffects, a_settings.isolateSpellEffects,
-                Id::kGameplayIsolateSpellEffectsComment);
-            a_visitor.Bool("IsolateShoutEffects", Id::kGameplayIsolateShoutEffects, a_settings.isolateShoutEffects,
-                Id::kGameplayIsolateShoutEffectsComment);
-            a_visitor.Bool("DisableCollision", Id::kGameplayDisableCollision, a_settings.disableCollision,
-                Id::kGameplayDisableCollisionComment);
+            a_visitor.Comment(ID::kGameplayGroupIsolation);
+            a_visitor.Bool("IsolateSpellEffects", ID::kGameplayIsolateSpellEffects, a_settings.isolateSpellEffects,
+                ID::kGameplayIsolateSpellEffectsComment);
+            a_visitor.Bool("IsolateShoutEffects", ID::kGameplayIsolateShoutEffects, a_settings.isolateShoutEffects,
+                ID::kGameplayIsolateShoutEffectsComment);
+            a_visitor.Bool("DisableCollision", ID::kGameplayDisableCollision, a_settings.disableCollision,
+                ID::kGameplayDisableCollisionComment);
 
-            a_visitor.UnsyncedLocations(Id::kGameplayUnsyncedLocationsManage, Id::kGameplayUnsyncedLocationsComment);
+            a_visitor.UnsyncedLocations(ID::kGameplayUnsyncedLocationsManage, ID::kGameplayUnsyncedLocationsComment);
         }
 
         void DescribeAdvanced(AdvancedSettings& a_settings, SettingsVisitor& a_visitor)
         {
-            a_visitor.Section("Advanced", Id::kSectionAdvanced, Id::kNone);
-            a_visitor.Comment(Id::kAdvancedGroupPerformance);
-            a_visitor.Unsigned("ViewRadius", Id::kAdvancedViewRadius, a_settings.viewRadius,
-                Id::kAdvancedViewRadiusComment, AdvancedSettings::kMaximumViewRadius, Id::kAdvancedViewRadiusAuto,
+            a_visitor.Section("Advanced", ID::kSectionAdvanced, ID::kNone);
+            a_visitor.Comment(ID::kAdvancedGroupPerformance);
+            a_visitor.Unsigned("ViewRadius", ID::kAdvancedViewRadius, a_settings.viewRadius,
+                ID::kAdvancedViewRadiusComment, AdvancedSettings::kMaximumViewRadius, ID::kAdvancedViewRadiusAuto,
                 AdvancedSettings::kViewRadiusStep);
-            a_visitor.Unsigned("SpawnsPerSecond", Id::kAdvancedSpawnsPerSecond, a_settings.spawnsPerSecond,
-                Id::kAdvancedSpawnsPerSecondComment, AdvancedSettings::kMaximumSpawnsPerSecond,
-                Id::kAdvancedSpawnsUnlimited, 1);
-            a_visitor.Unsigned("LightsLimit", Id::kAdvancedRemoteLights, a_settings.remoteLights,
-                Id::kAdvancedRemoteLightsComment, AdvancedSettings::kMaximumRemoteLights, Id::kNone, 1);
+            a_visitor.Unsigned("SpawnsPerSecond", ID::kAdvancedSpawnsPerSecond, a_settings.spawnsPerSecond,
+                ID::kAdvancedSpawnsPerSecondComment, AdvancedSettings::kMaximumSpawnsPerSecond,
+                ID::kAdvancedSpawnsUnlimited, 1);
+            a_visitor.Unsigned("LightsLimit", ID::kAdvancedRemoteLights, a_settings.remoteLights,
+                ID::kAdvancedRemoteLightsComment, AdvancedSettings::kMaximumRemoteLights, ID::kNone, 1);
 
-            a_visitor.Comment(Id::kAdvancedGroupDiagnostics);
+            a_visitor.Comment(ID::kAdvancedGroupDiagnostics);
             a_visitor.Bool(
-                "StatusPanel", Id::kAdvancedStatusPanel, a_settings.statusPanel, Id::kAdvancedStatusPanelComment);
+                "StatusPanel", ID::kAdvancedStatusPanel, a_settings.statusPanel, ID::kAdvancedStatusPanelComment);
         }
 
         PluginConfig MakeDefaultConfig()
@@ -518,7 +518,7 @@ namespace Config
             return std::nullopt;
         }
         return ServerAddress{
-            .host = std::string{ address->host }, .port = address->port, .tls = a_settings.serverTls
+            .host = std::string{ address->host }, .port = address->port, .tls = a_settings.serverTLS
         };
     }
 
@@ -531,14 +531,14 @@ namespace Config
     {
         for (const auto name : { "true", "yes", "on", "1" })
         {
-            if (AsciiCase::Equals(a_value, name))
+            if (ASCIICase::Equals(a_value, name))
             {
                 return true;
             }
         }
         for (const auto name : { "false", "no", "off", "0" })
         {
-            if (AsciiCase::Equals(a_value, name))
+            if (ASCIICase::Equals(a_value, name))
             {
                 return false;
             }
@@ -607,7 +607,7 @@ namespace Config
     std::optional<std::uint32_t> ParseChoice(std::string_view a_value, std::span<const std::string_view> a_options)
     {
         const auto option = std::ranges::find_if(
-            a_options, [a_value](std::string_view a_option) { return AsciiCase::Equals(a_option, a_value); });
+            a_options, [a_value](std::string_view a_option) { return ASCIICase::Equals(a_option, a_value); });
         return option == a_options.end() ? std::nullopt
                                          : std::optional{ static_cast<std::uint32_t>(option - a_options.begin()) };
     }
@@ -641,7 +641,7 @@ namespace Config
     std::optional<std::uint32_t> ParseKey(std::string_view a_value)
     {
         const auto key = std::ranges::find_if(
-            kBindableKeys, [a_value](const BindableKey& a_key) { return AsciiCase::Equals(a_key.name, a_value); });
+            kBindableKeys, [a_value](const BindableKey& a_key) { return ASCIICase::Equals(a_key.name, a_value); });
         return key == kBindableKeys.end() ? std::nullopt : std::optional{ key->code };
     }
 
@@ -658,7 +658,7 @@ namespace Config
         {
             return {};
         }
-        return key->word == Id::kNone ? key->label : Text::Get(key->word);
+        return key->word == ID::kNone ? key->label : Text::Get(key->word);
     }
 
     std::string_view GetLookArmorKey(std::size_t a_slotIndex)

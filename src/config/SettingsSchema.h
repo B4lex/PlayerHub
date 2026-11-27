@@ -3,7 +3,7 @@
 #include "config/PluginConfig.h"
 #include "forms/ItemFilter.h"
 #include "protocol/FormReference.h"
-#include "text/locale/TextId.h"
+#include "text/locale/TextID.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -19,56 +19,56 @@ namespace Config
     public:
         virtual ~SettingsVisitor() = default;
 
-        virtual void Section(std::string_view a_name, Text::Id a_title, Text::Id a_comment) = 0;
-        virtual void Comment(Text::Id a_comment) = 0;
+        virtual void Section(std::string_view a_name, Text::ID a_title, Text::ID a_comment) = 0;
+        virtual void Comment(Text::ID a_comment) = 0;
         // Applies to the next setting. Only the settings window hides one.
         virtual void ShowNextIf(bool) {}
-        virtual void Bool(std::string_view a_key, Text::Id a_label, bool& a_value, Text::Id a_comment) = 0;
+        virtual void Bool(std::string_view a_key, Text::ID a_label, bool& a_value, Text::ID a_comment) = 0;
         // Only the settings window's slider keeps to the step; any value up to the maximum is valid.
-        virtual void Unsigned(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
-            std::uint32_t a_maximum, Text::Id a_zeroName, std::uint32_t a_step) = 0;
+        virtual void Unsigned(std::string_view a_key, Text::ID a_label, std::uint32_t& a_value, Text::ID a_comment,
+            std::uint32_t a_maximum, Text::ID a_zeroName, std::uint32_t a_step) = 0;
         // Valid values are the minimum plus whole steps.
-        virtual void Percent(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
+        virtual void Percent(std::string_view a_key, Text::ID a_label, std::uint32_t& a_value, Text::ID a_comment,
             std::uint32_t a_minimum, std::uint32_t a_maximum, std::uint32_t a_step) = 0;
         // Any fraction from 0 up to the maximum is valid; the settings window's slider moves in
         // whole percents.
-        virtual void FinePercent(std::string_view a_key, Text::Id a_label, float& a_value, Text::Id a_comment,
+        virtual void FinePercent(std::string_view a_key, Text::ID a_label, float& a_value, Text::ID a_comment,
             float a_maximum) = 0;
-        virtual void String(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment,
+        virtual void String(std::string_view a_key, Text::ID a_label, std::string& a_value, Text::ID a_comment,
             bool (*a_isValid)(std::string_view)) = 0;
         // With a_allowNone, an empty reference is valid and written as an empty value.
-        virtual void Form(std::string_view a_key, Text::Id a_label, Multiplayer::FormReference& a_value,
+        virtual void Form(std::string_view a_key, Text::ID a_label, Multiplayer::FormReference& a_value,
             const Multiplayer::FormReference& a_default, const Forms::ItemFilter& a_filter, bool a_allowNone) = 0;
         // a_options are the INI values; a_optionLabels are shown for them.
-        virtual void Choice(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
-            std::span<const std::string_view> a_options, std::span<const Text::Id> a_optionLabels) = 0;
+        virtual void Choice(std::string_view a_key, Text::ID a_label, std::uint32_t& a_value, Text::ID a_comment,
+            std::span<const std::string_view> a_options, std::span<const Text::ID> a_optionLabels) = 0;
         // A Text::LanguageInfo code, or empty for the game's language.
-        virtual void Language(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment) = 0;
-        virtual void Color(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
+        virtual void Language(std::string_view a_key, Text::ID a_label, std::string& a_value, Text::ID a_comment) = 0;
+        virtual void Color(std::string_view a_key, Text::ID a_label, std::uint32_t& a_value, Text::ID a_comment,
             std::span<const std::uint32_t> a_swatches) = 0;
-        virtual void Key(std::string_view a_key, Text::Id a_label, std::uint32_t& a_value, Text::Id a_comment,
+        virtual void Key(std::string_view a_key, Text::ID a_label, std::uint32_t& a_value, Text::ID a_comment,
             std::uint32_t a_cleared) = 0;
         // Not shown in the settings window, so the comment is only English.
         virtual void Layout(std::string_view a_key, std::uint32_t& a_value, std::string_view a_comment,
             std::uint32_t a_minimum, std::uint32_t a_maximum) = 0;
 
-        virtual void AudioDevice(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment,
+        virtual void AudioDevice(std::string_view a_key, Text::ID a_label, std::string& a_value, Text::ID a_comment,
             bool a_capture)
         {
             (void)a_capture;
             String(a_key, a_label, a_value, a_comment, IsValidAudioDeviceName);
         }
         // A RaceMenu preset's file stem, or empty for none.
-        virtual void Preset(std::string_view a_key, Text::Id a_label, std::string& a_value, Text::Id a_comment)
+        virtual void Preset(std::string_view a_key, Text::ID a_label, std::string& a_value, Text::ID a_comment)
         {
             String(a_key, a_label, a_value, a_comment, IsValidPreset);
         }
         // The microphone's level against a_threshold, which the next setting holds; the settings
         // window alone draws it.
-        virtual void InputMeter(Text::Id, std::uint32_t) {}
+        virtual void InputMeter(Text::ID, std::uint32_t) {}
         // A button that opens the interiors where remote players are hidden. The list is not in this file,
         // so only the settings window draws it.
-        virtual void UnsyncedLocations(Text::Id /*a_button*/, Text::Id /*a_comment*/) {}
+        virtual void UnsyncedLocations(Text::ID /*a_button*/, Text::ID /*a_comment*/) {}
 
         [[nodiscard]] static bool IsValidAudioDeviceName(std::string_view a_value);
         [[nodiscard]] static bool IsValidPreset(std::string_view a_value);

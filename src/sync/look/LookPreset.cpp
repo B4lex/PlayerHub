@@ -1,7 +1,7 @@
 #include "sync/look/LookPreset.h"
 #include "config/PluginConfig.h"
 #include "config/PluginFiles.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <nlohmann/json.hpp>
 
@@ -27,14 +27,14 @@ namespace LookPreset
         constexpr std::int64_t kUnsetFacePartByte = 255;
         constexpr std::int64_t kUnsetFacePartWord = 0xFFFFFFFF;
 
-        using Json = nlohmann::json;
+        using JSON = nlohmann::json;
 
         std::filesystem::path ToPath(std::string_view a_utf8)
         {
             return std::filesystem::path{ std::u8string{ a_utf8.begin(), a_utf8.end() } };
         }
 
-        const Json* Find(const Json& a_object, std::string_view a_key)
+        const JSON* Find(const JSON& a_object, std::string_view a_key)
         {
             if (!a_object.is_object())
             {
@@ -44,7 +44,7 @@ namespace LookPreset
             return found == a_object.end() ? nullptr : &*found;
         }
 
-        std::optional<std::uint64_t> GetUnsigned(const Json* a_value)
+        std::optional<std::uint64_t> GetUnsigned(const JSON* a_value)
         {
             // nlohmann::json keeps every non-negative integer as unsigned.
             if (!a_value || !a_value->is_number_unsigned())
@@ -54,14 +54,14 @@ namespace LookPreset
             return a_value->get<std::uint64_t>();
         }
 
-        bool HasContent(const Json* a_value)
+        bool HasContent(const JSON* a_value)
         {
             return a_value && !a_value->is_null() && !(a_value->is_structured() && a_value->empty());
         }
 
         // SKEE writes "Plugin.esp|0ABCDE": the form ID without the plugin's load order
         // bits, in hexadecimal.
-        std::optional<Multiplayer::FormReference> ParseFormIdentifier(const Json* a_value)
+        std::optional<Multiplayer::FormReference> ParseFormIdentifier(const JSON* a_value)
         {
             if (!a_value || !a_value->is_string())
             {
@@ -95,7 +95,7 @@ namespace LookPreset
                 .blue = static_cast<std::uint8_t>(a_rgb & 0xFF) };
         }
 
-        void ReadHeadParts(const Json* a_parts, PresetFace& a_face)
+        void ReadHeadParts(const JSON* a_parts, PresetFace& a_face)
         {
             if (!a_parts || !a_parts->is_array())
             {
@@ -116,7 +116,7 @@ namespace LookPreset
             }
         }
 
-        void ReadActor(const Json* a_actor, PresetFace& a_face)
+        void ReadActor(const JSON* a_actor, PresetFace& a_face)
         {
             if (!a_actor)
             {
@@ -140,7 +140,7 @@ namespace LookPreset
             }
         }
 
-        void ReadMorphs(const Json* a_morphs, PresetFace& a_face)
+        void ReadMorphs(const JSON* a_morphs, PresetFace& a_face)
         {
             const auto* defaults = a_morphs ? Find(*a_morphs, "default") : nullptr;
             const auto* morphs = defaults ? Find(*defaults, "morphs") : nullptr;
@@ -182,7 +182,7 @@ namespace LookPreset
                                                                           || HasContent(Find(*a_morphs, "sculpt"))));
         }
 
-        void ReadTints(const Json* a_tints, PresetFace& a_face)
+        void ReadTints(const JSON* a_tints, PresetFace& a_face)
         {
             if (!a_tints || !a_tints->is_array())
             {
@@ -217,18 +217,18 @@ namespace LookPreset
             entry.increment(error))
         {
             if (!entry->is_regular_file(error)
-                || !AsciiCase::Equals(PluginFiles::ToUtf8(entry->path().extension()), kExtension))
+                || !ASCIICase::Equals(PluginFiles::ToUTF8(entry->path().extension()), kExtension))
             {
                 continue;
             }
-            auto name = PluginFiles::ToUtf8(entry->path().stem());
+            auto name = PluginFiles::ToUTF8(entry->path().stem());
             if (Config::DefaultLookSettings::IsValidPresetName(name))
             {
                 names.push_back(std::move(name));
             }
         }
         std::ranges::sort(names, [](const std::string& a_left, const std::string& a_right) {
-            return AsciiCase::Compare(a_left, a_right) < 0;
+            return ASCIICase::Compare(a_left, a_right) < 0;
         });
         return names;
     }
@@ -260,7 +260,7 @@ namespace LookPreset
 
     std::expected<PresetFace, std::string> Parse(std::string_view a_text)
     {
-        const auto root = Json::parse(a_text, nullptr, false);
+        const auto root = JSON::parse(a_text, nullptr, false);
         if (root.is_discarded() || !root.is_object())
         {
             return std::unexpected("not JSON");

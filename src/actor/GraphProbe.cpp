@@ -212,7 +212,7 @@ namespace GraphProbe
             if (const auto* machine = skyrim_cast<const RE::hkbStateMachine*>(&a_node))
             {
                 a_sample.machines.push_back({ .machine = machine,
-                    .stateId = machine->currentStateID,
+                    .stateID = machine->currentStateID,
                     .name = GetName(machine->name),
                     .stateName = GetCurrentStateName(*machine) });
             }

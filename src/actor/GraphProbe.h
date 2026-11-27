@@ -18,7 +18,7 @@ namespace GraphProbe
     struct TraceMachine
     {
         const RE::hkbStateMachine* machine{ nullptr };
-        std::int32_t stateId{ 0 };
+        std::int32_t stateID{ 0 };
         const char* name{ nullptr };
         const char* stateName{ nullptr };
     };

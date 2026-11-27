@@ -1,6 +1,6 @@
 #include "actor/RaceMenuFaceSliders.h"
 #include "actor/RaceMenuSliderCatalog.h"
-#include "actor/SkeeInterfaces.h"
+#include "actor/SKEEInterfaces.h"
 #include "forms/DynamicForm.h"
 #include "runtime/GameThread.h"
 #include "runtime/Profiling.h"
@@ -39,11 +39,11 @@ namespace RaceMenuFaceSliders
         // that no value uses allocates the entry and its removal scans the whole table.
         // Zero values on a base that no actor uses hold every catalog name. SKEE
         // reverts every base's values when a save loads, which clears the marker too.
-        void HoldCatalogNames(SkeeInterfaces::IFaceMorphInterface& a_faceMorphs)
+        void HoldCatalogNames(SKEEInterfaces::IFaceMorphInterface& a_faceMorphs)
         {
             static RE::TESNPC* holder = nullptr;
             static bool unavailable = false;
-            static const SkeeInterfaces::SkeeString marker{ "PlayerHub" };
+            static const SKEEInterfaces::SKEEString marker{ "PlayerHub" };
             if (!holder && !unavailable)
             {
                 holder = DynamicForm::Create<RE::TESNPC>();
@@ -72,7 +72,7 @@ namespace RaceMenuFaceSliders
     {
         PROFILE_FUNCTION();
         std::vector<AppearanceFaceSlider> result;
-        auto* faceMorphs = SkeeInterfaces::GetFaceMorphs();
+        auto* faceMorphs = SKEEInterfaces::GetFaceMorphs();
         if (!faceMorphs || !GameThread::Require("RaceMenuFaceSliders::Capture"))
         {
             return result;
@@ -119,7 +119,7 @@ namespace RaceMenuFaceSliders
 
     void Apply(RE::TESNPC& a_base, std::span<const AppearanceFaceSlider> a_sliders)
     {
-        auto* faceMorphs = SkeeInterfaces::GetFaceMorphs();
+        auto* faceMorphs = SKEEInterfaces::GetFaceMorphs();
         if (!faceMorphs || a_sliders.empty() || !GameThread::Require("RaceMenuFaceSliders::Apply"))
         {
             return;
@@ -127,7 +127,7 @@ namespace RaceMenuFaceSliders
         PROFILE_FUNCTION();
         for (const auto& slider : a_sliders)
         {
-            const SkeeInterfaces::SkeeString name{ slider.name };
+            const SKEEInterfaces::SKEEString name{ slider.name };
             faceMorphs->SetMorphValue(
                 std::addressof(a_base), name.Get(), static_cast<float>(slider.value) / AppearanceFaceSlider::kScale);
         }

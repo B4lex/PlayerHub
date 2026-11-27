@@ -37,9 +37,9 @@ namespace UI
                 if (MenuFrame::BeginPrompt("##DisplayNameHint"))
                 {
                     const std::array<std::string_view, 2> arguments{
-                        Config::FormatKeyLabel(config->controls.settingsKey), Text::Get(Text::Id::kSectionConnection)
+                        Config::FormatKeyLabel(config->controls.settingsKey), Text::Get(Text::ID::kSectionConnection)
                     };
-                    Controls::AccentedText(Text::Get(Text::Id::kDisplayNameHint), arguments);
+                    Controls::AccentedText(Text::Get(Text::ID::kDisplayNameHint), arguments);
                 }
                 ImGui::End();
             }

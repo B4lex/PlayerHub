@@ -14,7 +14,7 @@ namespace UI::Backdrop
         ImVec2 uvOrigin;
         ImVec2 uvPerPixel;
 
-        [[nodiscard]] ImVec2 ToUv(const ImVec2& a_position) const
+        [[nodiscard]] ImVec2 ToUV(const ImVec2& a_position) const
         {
             return ImVec2{ uvOrigin.x + a_position.x * uvPerPixel.x, uvOrigin.y + a_position.y * uvPerPixel.y };
         }

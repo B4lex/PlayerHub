@@ -1,6 +1,6 @@
 #pragma once
 
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <cstddef>
 #include <memory>
@@ -40,7 +40,7 @@ namespace Multiplayer
     [[nodiscard]] constexpr bool IsValidHeldIdleEvent(std::string_view a_name) noexcept
     {
         if (a_name.size() <= kIdleEventPrefix.size() || a_name.size() > kMaximumIdleEventLength
-            || !AsciiCase::StartsWith(a_name, kIdleEventPrefix))
+            || !ASCIICase::StartsWith(a_name, kIdleEventPrefix))
         {
             return false;
         }
@@ -56,7 +56,7 @@ namespace Multiplayer
 
     [[nodiscard]] constexpr bool IsValidIdleActionEvent(std::string_view a_name) noexcept
     {
-        return IsValidHeldIdleEvent(a_name) || AsciiCase::Equals(a_name, kOffsetStopEvent);
+        return IsValidHeldIdleEvent(a_name) || ASCIICase::Equals(a_name, kOffsetStopEvent);
     }
 
     static_assert(IsValidHeldIdleEvent("IdleLaugh") && IsValidHeldIdleEvent("idleLooseSweepingStart"));

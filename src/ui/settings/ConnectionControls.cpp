@@ -29,7 +29,7 @@ namespace UI::ConnectionControls
         constexpr float kIndicatorGapFonts = 0.5F;
         constexpr float kPulsesPerSecond = 0.8F;
         constexpr float kTwoPi = 6.2831853F;
-        using Text::Id;
+        using Text::ID;
 
         struct Status
         {
@@ -44,18 +44,18 @@ namespace UI::ConnectionControls
                 .refusal = state == ConnectionState::kDisconnected ? Network::GetConnectionRefusal() : std::nullopt };
         }
 
-        Id GetStatusText(ConnectionState a_state)
+        ID GetStatusText(ConnectionState a_state)
         {
             switch (a_state)
             {
                 case ConnectionState::kConnected:
-                    return Id::kConnectionConnected;
+                    return ID::kConnectionConnected;
                 case ConnectionState::kConnecting:
-                    return Id::kConnectionConnecting;
+                    return ID::kConnectionConnecting;
                 case ConnectionState::kDisconnecting:
-                    return Id::kConnectionDisconnecting;
+                    return ID::kConnectionDisconnecting;
                 default:
-                    return Id::kConnectionDisconnected;
+                    return ID::kConnectionDisconnected;
             }
         }
 
@@ -68,10 +68,10 @@ namespace UI::ConnectionControls
             {
                 language = Text::GetLanguage();
                 labels = {
-                    std::format("{}###Connection", Text::Get(Id::kConnectionConnect)),
-                    std::format("{}###Connection", Text::Get(Id::kConnectionCancel)),
-                    std::format("{}###Connection", Text::Get(Id::kConnectionDisconnect)),
-                    std::format("{}###Connection", Text::Get(Id::kConnectionDisconnecting)),
+                    std::format("{}###Connection", Text::Get(ID::kConnectionConnect)),
+                    std::format("{}###Connection", Text::Get(ID::kConnectionCancel)),
+                    std::format("{}###Connection", Text::Get(ID::kConnectionDisconnect)),
+                    std::format("{}###Connection", Text::Get(ID::kConnectionDisconnecting)),
                 };
             }
             return labels;
@@ -138,7 +138,7 @@ namespace UI::ConnectionControls
             if (language != Text::GetLanguage())
             {
                 language = Text::GetLanguage();
-                text = Text::FormatPlural(Id::kConnectionShortName, Multiplayer::kMinimumDisplayNameLength);
+                text = Text::FormatPlural(ID::kConnectionShortName, Multiplayer::kMinimumDisplayNameLength);
             }
             return text;
         }
@@ -148,23 +148,23 @@ namespace UI::ConnectionControls
             switch (a_refusal.reason)
             {
                 case Network::RefusalReason::kClientOutdated:
-                    return std::string{ Text::Get(Id::kRefusalClientOutdated) };
+                    return std::string{ Text::Get(ID::kRefusalClientOutdated) };
                 case Network::RefusalReason::kServerOutdated:
-                    return std::string{ Text::Get(Id::kRefusalServerOutdated) };
+                    return std::string{ Text::Get(ID::kRefusalServerOutdated) };
                 case Network::RefusalReason::kDisplayNameTaken:
-                    return std::string{ Text::Get(Id::kRefusalDisplayNameTaken) };
+                    return std::string{ Text::Get(ID::kRefusalDisplayNameTaken) };
                 case Network::RefusalReason::kDisplayNameInvalid:
-                    return std::string{ Text::Get(Id::kRefusalDisplayNameInvalid) };
+                    return std::string{ Text::Get(ID::kRefusalDisplayNameInvalid) };
                 case Network::RefusalReason::kSessionReplaced:
-                    return std::string{ Text::Get(Id::kRefusalSessionReplaced) };
+                    return std::string{ Text::Get(ID::kRefusalSessionReplaced) };
                 case Network::RefusalReason::kServerFull:
-                    return std::string{ Text::Get(Id::kRefusalServerFull) };
+                    return std::string{ Text::Get(ID::kRefusalServerFull) };
                 case Network::RefusalReason::kTooManyNewSessions:
-                    return std::string{ Text::Get(Id::kRefusalTooManyNewSessions) };
+                    return std::string{ Text::Get(ID::kRefusalTooManyNewSessions) };
                 case Network::RefusalReason::kAddressFull:
-                    return std::string{ Text::Get(Id::kRefusalAddressFull) };
+                    return std::string{ Text::Get(ID::kRefusalAddressFull) };
                 case Network::RefusalReason::kBanned:
-                    return std::string{ Text::Get(Id::kRefusalBanned) };
+                    return std::string{ Text::Get(ID::kRefusalBanned) };
                 case Network::RefusalReason::kKicked:
                     return {};
             }
@@ -240,9 +240,9 @@ namespace UI::ConnectionControls
             case ConnectionState::kDisconnected:
                 return nullptr;
             case ConnectionState::kConnecting:
-                return Text::GetCString(Id::kConnectionCancelToRename);
+                return Text::GetCString(ID::kConnectionCancelToRename);
             default:
-                return Text::GetCString(Id::kConnectionDisconnectToRename);
+                return Text::GetCString(ID::kConnectionDisconnectToRename);
         }
     }
 
@@ -254,11 +254,11 @@ namespace UI::ConnectionControls
         }
         if (VanillaIntro::IsPlaying())
         {
-            return Text::GetCString(Id::kConnectionGameStage);
+            return Text::GetCString(ID::kConnectionGameStage);
         }
         if (!HasServerAddress())
         {
-            return Text::GetCString(Id::kConnectionNoAddress);
+            return Text::GetCString(ID::kConnectionNoAddress);
         }
         return nullptr;
     }

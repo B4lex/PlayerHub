@@ -125,7 +125,7 @@ namespace UI::Theme
             {
                 revision = current;
                 const auto config = Config::Get();
-                palette.accent = FromRgb(config->ui.accentColor);
+                palette.accent = FromRGB(config->ui.accentColor);
                 palette.onAccent
                     = GetContrast(palette.accent, kOnState) >= GetContrast(palette.accent, kText) ? kOnState : kText;
                 palette.frame = config->ui.frameColor == Config::UISettings::kAccentFrame
@@ -181,7 +181,7 @@ namespace UI::Theme
         }
     }
 
-    ImVec4 FromRgb(std::uint32_t a_rgb)
+    ImVec4 FromRGB(std::uint32_t a_rgb)
     {
         constexpr float kChannel = 1.0F / 255.0F;
         return ImVec4{ static_cast<float>((a_rgb >> 16) & 0xFF) * kChannel,

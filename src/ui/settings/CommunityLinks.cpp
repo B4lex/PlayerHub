@@ -32,7 +32,7 @@ namespace UI::CommunityLinks
             const char* id;
             const char* name;
             const wchar_t* url;
-            Text::Id text;
+            Text::ID text;
             // Glyphs of the logo font that share an origin, drawn in order.
             std::span<const Layer> layers;
         };
@@ -44,9 +44,9 @@ namespace UI::CommunityLinks
             Layer{ "\xEE\x80\x8F", IM_COL32(0xFF, 0x64, 0x33, 0xFF) } };
 
         constexpr std::array kLinks{
-            Link{ "##Discord", "Discord invite", L"" PLAYERHUB_DISCORD_INVITE, Text::Id::kSettingsDiscord,
+            Link{ "##Discord", "Discord invite", L"" PLAYERHUB_DISCORD_INVITE, Text::ID::kSettingsDiscord,
                 kDiscordLayers },
-            Link{ "##Kofi", "Ko-fi page", L"" PLAYERHUB_KOFI_URL, Text::Id::kSettingsKofi, kKofiLayers },
+            Link{ "##Kofi", "Ko-fi page", L"" PLAYERHUB_KOFI_URL, Text::ID::kSettingsKofi, kKofiLayers },
         };
 
         constexpr float kLogoFonts = 1.25F;

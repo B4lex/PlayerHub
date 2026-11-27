@@ -9,7 +9,7 @@
 #include <span>
 #include <string_view>
 
-namespace UI::Gpu
+namespace UI::GPU
 {
     using REX::W32::ComPtr;
 

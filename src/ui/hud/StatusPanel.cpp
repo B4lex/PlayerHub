@@ -40,7 +40,7 @@ namespace UI
         {
             if (!a_latency)
             {
-                ImGui::TextColored(kMutedColor, "%s -- ms", Text::GetCString(Text::Id::kStatusPing));
+                ImGui::TextColored(kMutedColor, "%s -- ms", Text::GetCString(Text::ID::kStatusPing));
                 return;
             }
 
@@ -48,7 +48,7 @@ namespace UI
             const auto& color = milliseconds <= kGoodLatencyMilliseconds ? kGoodColor
                 : milliseconds <= kFairLatencyMilliseconds               ? kFairColor
                                                                          : kPoorColor;
-            ImGui::TextColored(color, "%s %lld ms", Text::GetCString(Text::Id::kStatusPing), milliseconds);
+            ImGui::TextColored(color, "%s %lld ms", Text::GetCString(Text::ID::kStatusPing), milliseconds);
         }
 
         void DrawTraffic(std::optional<Network::TrafficRates> a_rates)
@@ -70,13 +70,13 @@ namespace UI
         {
             if (!a_average)
             {
-                ImGui::TextColored(kMutedColor, "%s -- ms", Text::GetCString(Text::Id::kStatusPlugin));
+                ImGui::TextColored(kMutedColor, "%s -- ms", Text::GetCString(Text::ID::kStatusPlugin));
                 return;
             }
 
             const std::chrono::duration<double, std::milli> milliseconds = *a_average;
             ImGui::TextColored(
-                kMutedColor, "%s %.2f ms", Text::GetCString(Text::Id::kStatusPlugin), milliseconds.count());
+                kMutedColor, "%s %.2f ms", Text::GetCString(Text::ID::kStatusPlugin), milliseconds.count());
         }
 
         class StatusPanel final : public Window
@@ -104,7 +104,7 @@ namespace UI
             TextShadow::Draw([&] {
                 if (!connected)
                 {
-                    ImGui::TextColored(kPoorColor, "%s", Text::GetCString(Text::Id::kConnectionDisconnected));
+                    ImGui::TextColored(kPoorColor, "%s", Text::GetCString(Text::ID::kConnectionDisconnected));
                 }
                 else
                 {

@@ -5,7 +5,7 @@
 #include "forms/ItemForms.h"
 #include "forms/RaceForms.h"
 #include "sync/look/LookPreset.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <algorithm>
 #include <array>
@@ -168,7 +168,7 @@ namespace DefaultLook
             }
             for (const auto* asset : *a_faceData->tintMasks)
             {
-                if (asset && AsciiCase::Equals(asset->texture.file.textureName.c_str(), a_texture))
+                if (asset && ASCIICase::Equals(asset->texture.file.textureName.c_str(), a_texture))
                 {
                     return asset;
                 }

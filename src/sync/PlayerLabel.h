@@ -9,6 +9,6 @@ namespace PlayerLabel
 {
     [[nodiscard]] inline std::string Format(std::string_view a_name)
     {
-        return std::string{ a_name.empty() ? Text::Get(Text::Id::kUnknownPlayer) : a_name };
+        return std::string{ a_name.empty() ? Text::Get(Text::ID::kUnknownPlayer) : a_name };
     }
 }

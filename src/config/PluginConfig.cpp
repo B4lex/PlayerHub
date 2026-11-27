@@ -36,7 +36,7 @@ namespace Config
 
         using Multiplayer::FormReference;
         using PluginFiles::ReadFile;
-        using PluginFiles::ToUtf8;
+        using PluginFiles::ToUTF8;
 
         std::string FormatComment(std::initializer_list<std::string_view> a_parts)
         {
@@ -62,11 +62,11 @@ namespace Config
             {
             }
 
-            void Section(std::string_view a_name, Text::Id, Text::Id) override { section = a_name; }
+            void Section(std::string_view a_name, Text::ID, Text::ID) override { section = a_name; }
 
-            void Comment(Text::Id) override {}
+            void Comment(Text::ID) override {}
 
-            void Bool(std::string_view a_key, Text::Id, bool& a_value, Text::Id) override
+            void Bool(std::string_view a_key, Text::ID, bool& a_value, Text::ID) override
             {
                 const auto value = Take(a_key);
                 if (!value)
@@ -81,19 +81,19 @@ namespace Config
                 WarnInvalid(a_key, *value, a_value ? "true" : "false");
             }
 
-            void Unsigned(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id, std::uint32_t a_maximum,
-                Text::Id, std::uint32_t) override
+            void Unsigned(std::string_view a_key, Text::ID, std::uint32_t& a_value, Text::ID, std::uint32_t a_maximum,
+                Text::ID, std::uint32_t) override
             {
                 ReadUnsigned(a_key, a_value, 0, a_maximum);
             }
 
-            void Percent(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id, std::uint32_t a_minimum,
+            void Percent(std::string_view a_key, Text::ID, std::uint32_t& a_value, Text::ID, std::uint32_t a_minimum,
                 std::uint32_t a_maximum, std::uint32_t a_step) override
             {
                 ReadUnsigned(a_key, a_value, a_minimum, a_maximum, a_step);
             }
 
-            void FinePercent(std::string_view a_key, Text::Id, float& a_value, Text::Id, float a_maximum) override
+            void FinePercent(std::string_view a_key, Text::ID, float& a_value, Text::ID, float a_maximum) override
             {
                 const auto value = Take(a_key);
                 if (!value)
@@ -108,7 +108,7 @@ namespace Config
                 WarnInvalid(a_key, *value, std::format("{}", a_value));
             }
 
-            void String(std::string_view a_key, Text::Id, std::string& a_value, Text::Id,
+            void String(std::string_view a_key, Text::ID, std::string& a_value, Text::ID,
                 bool (*a_isValid)(std::string_view)) override
             {
                 auto value = Take(a_key);
@@ -124,7 +124,7 @@ namespace Config
                 WarnInvalid(a_key, *value, a_value);
             }
 
-            void Form(std::string_view a_key, Text::Id, FormReference& a_value, const FormReference&,
+            void Form(std::string_view a_key, Text::ID, FormReference& a_value, const FormReference&,
                 const Forms::ItemFilter&, bool a_allowNone) override
             {
                 const auto value = Take(a_key);
@@ -145,8 +145,8 @@ namespace Config
                 WarnInvalid(a_key, *value, FormatFormReference(a_value));
             }
 
-            void Choice(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id,
-                std::span<const std::string_view> a_options, std::span<const Text::Id>) override
+            void Choice(std::string_view a_key, Text::ID, std::uint32_t& a_value, Text::ID,
+                std::span<const std::string_view> a_options, std::span<const Text::ID>) override
             {
                 const auto value = Take(a_key);
                 if (!value)
@@ -162,7 +162,7 @@ namespace Config
             }
 
             // The translations load later, so a code naming none is only warned of then.
-            void Language(std::string_view a_key, Text::Id, std::string& a_value, Text::Id) override
+            void Language(std::string_view a_key, Text::ID, std::string& a_value, Text::ID) override
             {
                 auto value = Take(a_key);
                 if (!value)
@@ -177,7 +177,7 @@ namespace Config
                 WarnInvalid(a_key, *value, a_value);
             }
 
-            void Color(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id,
+            void Color(std::string_view a_key, Text::ID, std::uint32_t& a_value, Text::ID,
                 std::span<const std::uint32_t>) override
             {
                 const auto value = Take(a_key);
@@ -193,7 +193,7 @@ namespace Config
                 WarnInvalid(a_key, *value, FormatColor(a_value));
             }
 
-            void Key(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id, std::uint32_t a_cleared) override
+            void Key(std::string_view a_key, Text::ID, std::uint32_t& a_value, Text::ID, std::uint32_t a_cleared) override
             {
                 const auto value = Take(a_key);
                 if (!value)
@@ -287,58 +287,58 @@ namespace Config
         class ValueVisitor : public SettingsVisitor
         {
         public:
-            void Bool(std::string_view a_key, Text::Id, bool& a_value, Text::Id a_comment) override
+            void Bool(std::string_view a_key, Text::ID, bool& a_value, Text::ID a_comment) override
             {
                 Write(a_key, a_value ? "true" : "false", Text::GetEnglish(a_comment));
             }
 
-            void Unsigned(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id a_comment, std::uint32_t,
-                Text::Id, std::uint32_t) override
+            void Unsigned(std::string_view a_key, Text::ID, std::uint32_t& a_value, Text::ID a_comment, std::uint32_t,
+                Text::ID, std::uint32_t) override
             {
                 Write(a_key, std::format("{}", a_value), Text::GetEnglish(a_comment));
             }
 
-            void Percent(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id a_comment, std::uint32_t,
+            void Percent(std::string_view a_key, Text::ID, std::uint32_t& a_value, Text::ID a_comment, std::uint32_t,
                 std::uint32_t, std::uint32_t) override
             {
                 Write(a_key, std::format("{}", a_value), Text::GetEnglish(a_comment));
             }
 
-            void FinePercent(std::string_view a_key, Text::Id, float& a_value, Text::Id a_comment, float) override
+            void FinePercent(std::string_view a_key, Text::ID, float& a_value, Text::ID a_comment, float) override
             {
                 Write(a_key, std::format("{}", a_value), Text::GetEnglish(a_comment));
             }
 
-            void String(std::string_view a_key, Text::Id, std::string& a_value, Text::Id a_comment,
+            void String(std::string_view a_key, Text::ID, std::string& a_value, Text::ID a_comment,
                 bool (*)(std::string_view)) override
             {
                 Write(a_key, a_value, Text::GetEnglish(a_comment));
             }
 
-            void Form(std::string_view a_key, Text::Id, FormReference& a_value, const FormReference&,
+            void Form(std::string_view a_key, Text::ID, FormReference& a_value, const FormReference&,
                 const Forms::ItemFilter&, bool) override
             {
                 Write(a_key, FormatFormReference(a_value), {});
             }
 
-            void Choice(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id a_comment,
-                std::span<const std::string_view> a_options, std::span<const Text::Id>) override
+            void Choice(std::string_view a_key, Text::ID, std::uint32_t& a_value, Text::ID a_comment,
+                std::span<const std::string_view> a_options, std::span<const Text::ID>) override
             {
                 Write(a_key, FormatChoice(a_value, a_options), Text::GetEnglish(a_comment));
             }
 
-            void Language(std::string_view a_key, Text::Id, std::string& a_value, Text::Id a_comment) override
+            void Language(std::string_view a_key, Text::ID, std::string& a_value, Text::ID a_comment) override
             {
                 Write(a_key, a_value, Text::GetEnglish(a_comment));
             }
 
-            void Color(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id a_comment,
+            void Color(std::string_view a_key, Text::ID, std::uint32_t& a_value, Text::ID a_comment,
                 std::span<const std::uint32_t>) override
             {
                 Write(a_key, FormatColor(a_value), Text::GetEnglish(a_comment));
             }
 
-            void Key(std::string_view a_key, Text::Id, std::uint32_t& a_value, Text::Id a_comment,
+            void Key(std::string_view a_key, Text::ID, std::uint32_t& a_value, Text::ID a_comment,
                 std::uint32_t) override
             {
                 Write(a_key, FormatKey(a_value), Text::GetEnglish(a_comment));
@@ -359,14 +359,14 @@ namespace Config
         public:
             DefaultFileWriter() { file.SetUnicode(true); }
 
-            void Section(std::string_view a_name, Text::Id, Text::Id a_comment) override
+            void Section(std::string_view a_name, Text::ID, Text::ID a_comment) override
             {
                 section = a_name;
                 const auto comment = TakeComment(Text::GetEnglish(a_comment));
                 file.SetValue(section.c_str(), nullptr, nullptr, comment.empty() ? nullptr : comment.c_str());
             }
 
-            void Comment(Text::Id a_comment) override { pendingComment = Text::GetEnglish(a_comment); }
+            void Comment(Text::ID a_comment) override { pendingComment = Text::GetEnglish(a_comment); }
 
             [[nodiscard]] std::optional<std::string> Save() const
             {
@@ -402,8 +402,8 @@ namespace Config
         class ValueCollector final : public ValueVisitor
         {
         public:
-            void Section(std::string_view, Text::Id, Text::Id) override {}
-            void Comment(Text::Id) override {}
+            void Section(std::string_view, Text::ID, Text::ID) override {}
+            void Comment(Text::ID) override {}
 
             std::vector<std::string> values;
 
@@ -423,13 +423,13 @@ namespace Config
             {
             }
 
-            void Section(std::string_view a_name, Text::Id, Text::Id a_comment) override
+            void Section(std::string_view a_name, Text::ID, Text::ID a_comment) override
             {
                 section = a_name;
                 sectionComment = Text::GetEnglish(a_comment);
             }
 
-            void Comment(Text::Id) override {}
+            void Comment(Text::ID) override {}
 
         protected:
             void Write(std::string_view a_key, std::string_view a_value, std::string_view a_comment) override
@@ -495,10 +495,10 @@ namespace Config
             const auto text = MakeDefaultFileText();
             if (!text || !PluginFiles::ReplaceFile(a_path, *text))
             {
-                logs::warn("Config could not write the default {}; using defaults", ToUtf8(a_path));
+                logs::warn("Config could not write the default {}; using defaults", ToUTF8(a_path));
                 return;
             }
-            logs::info("Config wrote the default {}", ToUtf8(a_path));
+            logs::info("Config wrote the default {}", ToUTF8(a_path));
         }
 
         bool SaveFile(const std::filesystem::path& a_path, PluginConfig a_config)
@@ -546,7 +546,7 @@ namespace Config
         if (error)
         {
             // Writing could truncate a file that exists but cannot be inspected.
-            logs::warn("Config could not access {}: {}; using defaults", ToUtf8(path), error.message());
+            logs::warn("Config could not access {}: {}; using defaults", ToUTF8(path), error.message());
         }
         else if (!exists)
         {
@@ -558,19 +558,19 @@ namespace Config
             file.SetUnicode(true);
             if (file.LoadData(*text) < 0)
             {
-                logs::warn("Config could not parse {}; using defaults", ToUtf8(path));
+                logs::warn("Config could not parse {}; using defaults", ToUTF8(path));
             }
             else
             {
                 SettingsReader reader{ file };
                 Describe(config, reader);
                 reader.ReportUnknownEntries();
-                logs::info("Config loaded {}", ToUtf8(path));
+                logs::info("Config loaded {}", ToUTF8(path));
             }
         }
         else
         {
-            logs::warn("Config could not read {}; using defaults", ToUtf8(path));
+            logs::warn("Config could not read {}; using defaults", ToUTF8(path));
         }
 
         s_config.store(std::make_shared<const PluginConfig>(std::move(config)), std::memory_order_release);
@@ -602,10 +602,10 @@ namespace Config
         if (s_path.empty() || !SaveFile(s_path, *config))
         {
             logs::warn("Config applied revision {} but could not save {}; changes last until restart", revision,
-                ToUtf8(s_path));
+                ToUTF8(s_path));
             return false;
         }
-        logs::debug("Config applied revision {} and saved {}", revision, ToUtf8(s_path));
+        logs::debug("Config applied revision {} and saved {}", revision, ToUTF8(s_path));
         return true;
     }
 }

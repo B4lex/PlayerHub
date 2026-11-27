@@ -5,7 +5,7 @@
 
 // Case folding of ASCII letters only, independent of the C locale, so UTF-8 text
 // compares byte for byte outside A-Z.
-namespace AsciiCase
+namespace ASCIICase
 {
     [[nodiscard]] constexpr char ToLower(char a_character) noexcept
     {

@@ -15,7 +15,7 @@ namespace UI::Theme
     [[nodiscard]] ImVec4 Accent(float a_alpha);
     [[nodiscard]] ImVec4 GetOnAccent();
 
-    [[nodiscard]] ImVec4 FromRgb(std::uint32_t a_rgb);
+    [[nodiscard]] ImVec4 FromRGB(std::uint32_t a_rgb);
 
     constexpr ImVec4 Tint(float a_alpha)
     {

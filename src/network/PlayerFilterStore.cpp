@@ -14,7 +14,7 @@ namespace Network::PlayerFilterStore
 {
     namespace
     {
-        using PluginFiles::ToUtf8;
+        using PluginFiles::ToUTF8;
 
         constexpr std::string_view kFileName = "PlayerHub.players";
         constexpr std::string_view kFileHeader
@@ -89,7 +89,7 @@ namespace Network::PlayerFilterStore
             const auto text = PluginFiles::ReadFile(path);
             if (!text)
             {
-                logs::info("Player filters have no {}; nobody is a friend, muted, or vanished", ToUtf8(path));
+                logs::info("Player filters have no {}; nobody is a friend, muted, or vanished", ToUTF8(path));
                 return;
             }
             PluginFiles::ForEachDataLine(*text, [&path](std::string_view a_line) {
@@ -99,10 +99,10 @@ namespace Network::PlayerFilterStore
                 }
                 else
                 {
-                    logs::warn("Player filters ignored a malformed line of {}", ToUtf8(path));
+                    logs::warn("Player filters ignored a malformed line of {}", ToUTF8(path));
                 }
             });
-            logs::info("Player filters loaded {} players from {}", s_entries.size(), ToUtf8(path));
+            logs::info("Player filters loaded {} players from {}", s_entries.size(), ToUTF8(path));
         }
 
         bool WriteLocked()

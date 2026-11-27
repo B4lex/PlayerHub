@@ -22,7 +22,7 @@ namespace PrecisionIsolation
         // default) before adding actors to its world again.
         constexpr float kWorldChangeReassertSeconds = 1.0F;
 
-        using RequestPluginApi = void* (*)(std::uint8_t);
+        using RequestPluginAPIFunction = void* (*)(std::uint8_t);
         // x64 passes `this` as the first argument, so the member function can be
         // called through its vtable slot.
         using ToggleDisableActor = bool (*)(void*, RE::ActorHandle, bool);
@@ -49,7 +49,7 @@ namespace PrecisionIsolation
             return;
         }
 
-        const auto request = reinterpret_cast<RequestPluginApi>(REX::W32::GetProcAddress(module, "RequestPluginAPI"));
+        const auto request = reinterpret_cast<RequestPluginAPIFunction>(REX::W32::GetProcAddress(module, "RequestPluginAPI"));
         s_precision = request ? request(kInterfaceVersion3) : nullptr;
         if (!s_precision)
         {

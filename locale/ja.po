@@ -69,11 +69,11 @@ msgstr ""
 "カスタムサーバーのアドレス。ホスト名またはIPv4アドレスで、ポートが14201以外なら :ポート "
 "を付けます。カスタムサーバーが有効な間だけ使われます。"
 
-msgctxt "ConnectionServerTls"
+msgctxt "ConnectionServerTLS"
 msgid "Use TLS"
 msgstr "TLSを使用"
 
-msgctxt "ConnectionServerTlsComment"
+msgctxt "ConnectionServerTLSComment"
 msgid ""
 "Connects to the custom server over TLS, as a server behind an HTTPS proxy requires."
 msgstr "カスタムサーバーにTLSで接続します。HTTPSプロキシの背後にあるサーバーではこれが必要です。"

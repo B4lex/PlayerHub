@@ -72,11 +72,11 @@ msgstr ""
 "con :puerto si el puerto no es 14201. Solo se usa mientras el servidor "
 "personalizado está activado."
 
-msgctxt "ConnectionServerTls"
+msgctxt "ConnectionServerTLS"
 msgid "Use TLS"
 msgstr "Usar TLS"
 
-msgctxt "ConnectionServerTlsComment"
+msgctxt "ConnectionServerTLSComment"
 msgid ""
 "Connects to the custom server over TLS, as a server behind an HTTPS proxy requires."
 msgstr ""

@@ -20,7 +20,7 @@ namespace Config
         bool autoConnect{ true };
         bool customServer{ false };
         std::string serverAddress;
-        bool serverTls{ false };
+        bool serverTLS{ false };
 
         bool operator==(const ConnectionSettings&) const = default;
     };

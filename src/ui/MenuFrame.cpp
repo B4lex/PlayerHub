@@ -271,7 +271,7 @@ namespace UI::MenuFrame
                     const auto& vertex = a_frame.vertices[span.firstVertex + i];
                     const auto coverage = (vertex.col >> IM_COL32_A_SHIFT) & 0xFF;
                     const ImVec2 position{ a_min.x + vertex.pos.x, a_min.y + vertex.pos.y };
-                    a_list.PrimWriteVtx(position, a_blur.ToUv(position),
+                    a_list.PrimWriteVtx(position, a_blur.ToUV(position),
                         tintColor | ((coverage * tintAlpha / backingAlpha) << IM_COL32_A_SHIFT));
                 }
             }
@@ -333,20 +333,20 @@ namespace UI::MenuFrame
         void FollowFontSize(float a_fontSize, const ImVec2& a_display)
         {
             auto& storage = *ImGui::GetStateStorage();
-            const auto fontSizeId = ImGui::GetID("##FrameFontSize");
-            const std::array rectIds{ ImGui::GetID("##FrameX"), ImGui::GetID("##FrameY"), ImGui::GetID("##FrameWidth"),
+            const auto fontSizeID = ImGui::GetID("##FrameFontSize");
+            const std::array rectIDs{ ImGui::GetID("##FrameX"), ImGui::GetID("##FrameY"), ImGui::GetID("##FrameWidth"),
                 ImGui::GetID("##FrameHeight") };
-            const auto previous = storage.GetFloat(fontSizeId, a_fontSize);
-            storage.SetFloat(fontSizeId, a_fontSize);
+            const auto previous = storage.GetFloat(fontSizeID, a_fontSize);
+            storage.SetFloat(fontSizeID, a_fontSize);
 
             auto position = ImGui::GetWindowPos();
             auto size = ImGui::GetWindowSize();
             if (previous != a_fontSize)
             {
                 const auto ratio = a_fontSize / previous;
-                const ImVec2 kept{ storage.GetFloat(rectIds[2]), storage.GetFloat(rectIds[3]) };
-                const ImVec2 center{ storage.GetFloat(rectIds[0]) + kept.x * 0.5F,
-                    storage.GetFloat(rectIds[1]) + kept.y * 0.5F };
+                const ImVec2 kept{ storage.GetFloat(rectIDs[2]), storage.GetFloat(rectIDs[3]) };
+                const ImVec2 center{ storage.GetFloat(rectIDs[0]) + kept.x * 0.5F,
+                    storage.GetFloat(rectIDs[1]) + kept.y * 0.5F };
                 size = ImVec2{ std::floor((std::min)(kept.x * ratio, a_display.x)),
                     std::floor((std::min)(kept.y * ratio, a_display.y)) };
                 position = ImVec2{ std::floor(std::clamp(center.x - size.x * 0.5F, 0.0F, a_display.x - size.x)),
@@ -355,10 +355,10 @@ namespace UI::MenuFrame
                 ImGui::SetWindowSize(size);
                 ImGui::SetWindowPos(position);
             }
-            storage.SetFloat(rectIds[0], position.x);
-            storage.SetFloat(rectIds[1], position.y);
-            storage.SetFloat(rectIds[2], size.x);
-            storage.SetFloat(rectIds[3], size.y);
+            storage.SetFloat(rectIDs[0], position.x);
+            storage.SetFloat(rectIDs[1], position.y);
+            storage.SetFloat(rectIDs[2], size.x);
+            storage.SetFloat(rectIDs[3], size.y);
         }
 
         // Before Begin, so the window takes the dragged rect this frame.
@@ -445,7 +445,7 @@ namespace UI::MenuFrame
         if (!text)
         {
             logs::warn(
-                "UI overlay: could not read menu frame {}; windows have a plain border", PluginFiles::ToUtf8(path));
+                "UI overlay: could not read menu frame {}; windows have a plain border", PluginFiles::ToUTF8(path));
             return;
         }
 
@@ -453,10 +453,10 @@ namespace UI::MenuFrame
         if (const auto* problem = Parse(*text, shape))
         {
             logs::warn("UI overlay: could not load menu frame {}: {}; windows have a plain border",
-                PluginFiles::ToUtf8(path), problem);
+                PluginFiles::ToUTF8(path), problem);
             return;
         }
-        logs::debug("UI overlay: menu frame {} with {} polygons, {} points", PluginFiles::ToUtf8(path.filename()),
+        logs::debug("UI overlay: menu frame {} with {} polygons, {} points", PluginFiles::ToUTF8(path.filename()),
             shape.polygons.size(), shape.points.size());
         s_shape = std::move(shape);
     }

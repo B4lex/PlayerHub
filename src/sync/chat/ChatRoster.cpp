@@ -2,7 +2,7 @@
 #include "network/ServerClient.h"
 #include "protocol/AppearanceState.h"
 #include "protocol/Session.h"
-#include "text/Utf8Case.h"
+#include "text/UTF8Case.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -136,7 +136,7 @@ namespace ChatRoster
             const auto lead = static_cast<unsigned char>(a_role.name.front());
             const std::size_t length = lead < 0xC0 ? 1 : lead < 0xE0 ? 2 : lead < 0xF0 ? 3 : 4;
             std::string letter;
-            Utf8Case::AppendUpper(letter, std::string_view{ a_role.name }.substr(0, length));
+            UTF8Case::AppendUpper(letter, std::string_view{ a_role.name }.substr(0, length));
             RoleMark mark{ .color = a_role.color };
             std::copy_n(letter.begin(), (std::min)(letter.size(), mark.letter.size() - 1), mark.letter.begin());
             return mark;

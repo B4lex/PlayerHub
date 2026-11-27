@@ -36,7 +36,7 @@ namespace PlayerFilters
                 return;
             }
             s_generation = generation;
-            s_server = Network::GetServerUrl();
+            s_server = Network::GetServerURL();
             s_entries.clear();
             Network::PlayerFilterStore::Copy(s_server, s_entries);
             std::ranges::sort(s_entries, {}, &Entry::session);
@@ -60,7 +60,7 @@ namespace PlayerFilters
         {
             if (!Network::PlayerFilterStore::Save(a_server, a_entry))
             {
-                Notices::Post(std::string{ Text::Get(Text::Id::kPlayersSaveFailed) });
+                Notices::Post(std::string{ Text::Get(Text::ID::kPlayersSaveFailed) });
             }
         }
 
@@ -161,7 +161,7 @@ namespace PlayerFilters
             case Change::kNone:
                 return;
             case Change::kFull:
-                Notices::Post(Text::FormatPlural(Text::Id::kPlayersVanishLimit, Multiplayer::kMaximumVanishedSessions));
+                Notices::Post(Text::FormatPlural(Text::ID::kPlayersVanishLimit, Multiplayer::kMaximumVanishedSessions));
                 return;
             case Change::kChanged:
                 break;

@@ -70,11 +70,11 @@ msgstr ""
 "Адрес своего сервера: имя хоста или IPv4-адрес, с :порт, если порт не 14201. "
 "Используется, только пока включён свой сервер."
 
-msgctxt "ConnectionServerTls"
+msgctxt "ConnectionServerTLS"
 msgid "Use TLS"
 msgstr "Использовать TLS"
 
-msgctxt "ConnectionServerTlsComment"
+msgctxt "ConnectionServerTLSComment"
 msgid ""
 "Connects to the custom server over TLS, as a server behind an HTTPS proxy requires."
 msgstr ""

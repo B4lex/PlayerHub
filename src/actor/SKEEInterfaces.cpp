@@ -1,10 +1,10 @@
-#include "actor/SkeeInterfaces.h"
+#include "actor/SKEEInterfaces.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <memory>
 
-namespace SkeeInterfaces
+namespace SKEEInterfaces
 {
     namespace
     {
@@ -72,7 +72,7 @@ namespace SkeeInterfaces
         }
     }
 
-    SkeeString::SkeeString(std::string_view a_text)
+    SKEEString::SKEEString(std::string_view a_text)
     {
         layout.size = a_text.size();
         layout.hash = HashLower(a_text);

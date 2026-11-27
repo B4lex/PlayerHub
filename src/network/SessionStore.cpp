@@ -14,7 +14,7 @@ namespace Network::SessionStore
     namespace
     {
         using Multiplayer::SessionToken;
-        using PluginFiles::ToUtf8;
+        using PluginFiles::ToUTF8;
 
         constexpr std::string_view kFileName = "PlayerHub.session";
         constexpr std::string_view kFileHeader
@@ -80,7 +80,7 @@ namespace Network::SessionStore
             const auto text = PluginFiles::ReadFile(path);
             if (!text)
             {
-                logs::info("Session store has no {}; the server will issue a session", ToUtf8(path));
+                logs::info("Session store has no {}; the server will issue a session", ToUTF8(path));
                 return;
             }
             PluginFiles::ForEachDataLine(*text, [&path](std::string_view a_line) {
@@ -88,12 +88,12 @@ namespace Network::SessionStore
                 const auto token = ParseToken(a_line.substr(0, separator));
                 if (!token || separator == std::string_view::npos || separator + 1 == a_line.size())
                 {
-                    logs::warn("Session store ignored a malformed line of {}", ToUtf8(path));
+                    logs::warn("Session store ignored a malformed line of {}", ToUTF8(path));
                     return;
                 }
                 s_entries.push_back(Entry{ .server = std::string{ a_line.substr(separator + 1) }, .token = *token });
             });
-            logs::info("Session store loaded {} sessions from {}", s_entries.size(), ToUtf8(path));
+            logs::info("Session store loaded {} sessions from {}", s_entries.size(), ToUTF8(path));
         }
 
         bool WriteLocked()

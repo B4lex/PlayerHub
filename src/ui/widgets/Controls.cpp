@@ -126,7 +126,7 @@ namespace UI::Controls
     {
         ImGui::SetNextItemWidth(-FLT_MIN);
         return ImGui::InputTextWithHint(
-            a_id, Text::GetCString(Text::Id::kSearchHint), a_buffer.data(), a_buffer.size(),
+            a_id, Text::GetCString(Text::ID::kSearchHint), a_buffer.data(), a_buffer.size(),
             ImGuiInputTextFlags_CallbackCompletion, &KeepTab);
     }
 

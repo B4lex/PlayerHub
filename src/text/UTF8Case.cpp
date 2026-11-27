@@ -1,6 +1,6 @@
-#include "text/Utf8Case.h"
+#include "text/UTF8Case.h"
 
-namespace Utf8Case
+namespace UTF8Case
 {
     namespace
     {

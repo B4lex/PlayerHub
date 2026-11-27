@@ -12,7 +12,7 @@
 #include "runtime/Profiling.h"
 #include "sync/PlayerLabel.h"
 #include "sync/look/DefaultLook.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <algorithm>
 #include <array>
@@ -90,7 +90,7 @@ namespace AppearanceSync
             }
             for (const auto* asset : *a_faceData->tintMasks)
             {
-                if (asset && AsciiCase::Equals(asset->texture.file.textureName.c_str(), maskPath))
+                if (asset && ASCIICase::Equals(asset->texture.file.textureName.c_str(), maskPath))
                 {
                     return asset;
                 }
@@ -939,7 +939,7 @@ namespace AppearanceSync
                     continue;
                 }
                 const auto& assetTexture = asset->texture.file.textureName;
-                const bool assetPath = AsciiCase::Equals(tint.texture, assetTexture.c_str());
+                const bool assetPath = ASCIICase::Equals(tint.texture, assetTexture.c_str());
                 if (!assetPath && !Forms::TextureExists(tint.texture))
                 {
                     firstMissing = firstMissing ? firstMissing : std::addressof(tint);

@@ -4,7 +4,7 @@
 #include "actor/GraphProbe.h"
 #include "actor/GraphVocabulary.h"
 #include "runtime/FrameTime.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -30,7 +30,7 @@ namespace GraphTrace
         struct KnownMachine
         {
             const RE::hkbStateMachine* machine{ nullptr };
-            std::int32_t stateId{ 0 };
+            std::int32_t stateID{ 0 };
             std::string name;
             std::string stateName;
         };
@@ -85,7 +85,7 @@ namespace GraphTrace
         bool IsModdedEvent(std::string_view a_name)
         {
             return std::ranges::any_of(
-                s_moddedEvents, [&](const std::string& a_modded) { return AsciiCase::Equals(a_modded, a_name); });
+                s_moddedEvents, [&](const std::string& a_modded) { return ASCIICase::Equals(a_modded, a_name); });
         }
 
         void RememberMachines()
@@ -94,7 +94,7 @@ namespace GraphTrace
             for (const auto& machine : s_sample.machines)
             {
                 s_machines.push_back({ .machine = machine.machine,
-                    .stateId = machine.stateId,
+                    .stateID = machine.stateID,
                     .name = machine.name,
                     .stateName = machine.stateName });
             }
@@ -142,7 +142,7 @@ namespace GraphTrace
             {
                 const bool modded = IsModdedEvent(name);
                 a_trigger |= modded;
-                if (!s_runEvent.empty() && AsciiCase::Equals(name, s_runEvent))
+                if (!s_runEvent.empty() && ASCIICase::Equals(name, s_runEvent))
                 {
                     ++s_runRepeats;
                     continue;
@@ -165,7 +165,7 @@ namespace GraphTrace
                     s_lines.push_back(std::format("machine {} active in {}", current.name, current.stateName));
                     changed = true;
                 }
-                else if (known->stateId != current.stateId)
+                else if (known->stateID != current.stateID)
                 {
                     s_lines.push_back(
                         std::format("machine {}: {} -> {}", current.name, known->stateName, current.stateName));

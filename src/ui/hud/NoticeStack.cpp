@@ -36,14 +36,14 @@ namespace UI
         constexpr float kGapFonts = 0.375F;
         constexpr float kStripFonts = 0.2F;
 
-        std::optional<Text::Id> GetRefusalNotice(Network::RefusalReason a_reason)
+        std::optional<Text::ID> GetRefusalNotice(Network::RefusalReason a_reason)
         {
             switch (a_reason)
             {
                 case Network::RefusalReason::kAddressFull:
-                    return Text::Id::kNoticeRefusedAddressFull;
+                    return Text::ID::kNoticeRefusedAddressFull;
                 case Network::RefusalReason::kClientOutdated:
-                    return Text::Id::kNoticeRefusedClientOutdated;
+                    return Text::ID::kNoticeRefusedClientOutdated;
                 default:
                     return std::nullopt;
             }
@@ -94,7 +94,7 @@ namespace UI
                     announcedConnection = false;
                     if (GameSession::IsInGame())
                     {
-                        Add(std::string{ Text::Get(Text::Id::kNoticeDisconnected) }, a_now);
+                        Add(std::string{ Text::Get(Text::ID::kNoticeDisconnected) }, a_now);
                     }
                 }
                 if (generation != connectionGeneration)
@@ -103,7 +103,7 @@ namespace UI
                     if (connected)
                     {
                         announcedConnection = true;
-                        Add(std::string{ Text::Get(Text::Id::kNoticeConnected) }, a_now);
+                        Add(std::string{ Text::Get(Text::ID::kNoticeConnected) }, a_now);
                     }
                 }
 
@@ -122,7 +122,7 @@ namespace UI
                 PlayerFilters::CollectArrivedFriends(friends);
                 for (const auto& player : friends)
                 {
-                    Add(Text::Format(Text::Id::kNoticeFriendOnline, player.name), a_now);
+                    Add(Text::Format(Text::ID::kNoticeFriendOnline, player.name), a_now);
                 }
                 friends.clear();
 

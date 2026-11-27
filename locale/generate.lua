@@ -1,4 +1,4 @@
--- Generates the English text catalog and Text::Id from the gettext template beside
+-- Generates the English text catalog and Text::ID from the gettext template beside
 -- this script, and checks every translation the way the plugin does when it loads
 -- them. The locale rule in xmake.lua runs it before every build. To check the files
 -- without building, run `xmake l locale/generate.lua [outdir]`.
@@ -356,7 +356,7 @@ local function _read_template(localedir)
         local where = string.format("%s:%d", file, message.line)
         local key = message.context
         if not key or not key:match("^[A-Z][A-Za-z0-9]*$") then
-            raise("%s: msgctxt must name a Text::Id without its k prefix", where)
+            raise("%s: msgctxt must name a Text::ID without its k prefix", where)
         end
         if keys[key] then
             raise("%s: %s is listed twice", where, key)
@@ -492,7 +492,7 @@ end
 local function _render_ids(sources)
     local lines = {
         string.format(kGenerated, "locale/" .. kTemplate),
-        "#pragma once\n\n#include <cstdint>\n\nnamespace Text\n{\n    enum class Id : std::uint16_t\n    {\n",
+        "#pragma once\n\n#include <cstdint>\n\nnamespace Text\n{\n    enum class ID : std::uint16_t\n    {\n",
         "        kNone,\n",
     }
     for _, source in ipairs(sources) do
@@ -510,7 +510,7 @@ local function _render_english(pluralForms, sources)
         string.format("        constexpr std::array<Entry, %d> kEntries{\n", #sources),
     }
     for _, source in ipairs(sources) do
-        table.insert(lines, string.format("            Entry{ Id::k%s, %s, %s, %s },\n", source.key,
+        table.insert(lines, string.format("            Entry{ ID::k%s, %s, %s, %s },\n", source.key,
             _cpp_string(source.key), _cpp_string(source.forms[1]), _cpp_string(source.forms[2] or "")))
     end
     table.insert(lines, "        };\n    }\n\n")
@@ -523,7 +523,7 @@ end
 local kEnglishHeader = [==[
 #pragma once
 
-#include "text/locale/TextId.h"
+#include "text/locale/TextID.h"
 
 #include <cstddef>
 #include <span>
@@ -535,8 +535,8 @@ namespace Text::Catalogs
 
     struct Entry
     {
-        Id id;
-        // The msgctxt that names the Id in the gettext files.
+        ID id;
+        // The msgctxt that names the ID in the gettext files.
         std::string_view key;
         std::string_view text;
         // Empty unless the text has plural forms.
@@ -565,7 +565,7 @@ function run(outdir)
     local localedir = os.scriptdir()
     local pluralForms, sources = _read_template(localedir)
     local files = {
-        ["TextId.h"] = _render_ids(sources),
+        ["TextID.h"] = _render_ids(sources),
         ["English.h"] = string.format(kGenerated, "locale/generate.lua") .. string.format(kEnglishHeader,
             kMaximumPluralForms),
         ["English.cpp"] = _render_english(pluralForms, sources),

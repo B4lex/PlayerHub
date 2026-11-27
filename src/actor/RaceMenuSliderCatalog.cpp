@@ -1,7 +1,7 @@
 #include "actor/RaceMenuSliderCatalog.h"
 #include "protocol/AppearanceState.h"
 #include "runtime/Profiling.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <algorithm>
 #include <array>
@@ -58,7 +58,7 @@ namespace RaceMenuSliderCatalog
         std::string ToLower(std::string_view a_text)
         {
             std::string result{ a_text };
-            std::ranges::transform(result, result.begin(), AsciiCase::ToLower);
+            std::ranges::transform(result, result.begin(), ASCIICase::ToLower);
             return result;
         }
 
@@ -129,11 +129,11 @@ namespace RaceMenuSliderCatalog
                 if (line.front() == '[')
                 {
                     const auto section = line.substr(1);
-                    if (AsciiCase::StartsWith(section, "Male"))
+                    if (ASCIICase::StartsWith(section, "Male"))
                     {
                         sex = 0;
                     }
-                    else if (AsciiCase::StartsWith(section, "Female"))
+                    else if (ASCIICase::StartsWith(section, "Female"))
                     {
                         sex = 1;
                     }
@@ -151,7 +151,7 @@ namespace RaceMenuSliderCatalog
                 }
                 int category = 0;
                 const auto parsed = std::from_chars(params[0].data(), params[0].data() + params[0].size(), category);
-                const bool valueType = AsciiCase::StartsWith(params[1], "Slider") || AsciiCase::StartsWith(params[1], "Preset");
+                const bool valueType = ASCIICase::StartsWith(params[1], "Slider") || ASCIICase::StartsWith(params[1], "Preset");
                 if (parsed.ec != std::errc{} || !std::ranges::contains(kCategories, category) || !valueType)
                 {
                     continue;
@@ -275,14 +275,14 @@ namespace RaceMenuSliderCatalog
                     }
                     for (const auto& name : sorted)
                     {
-                        entry[sex].push_back(Slider{ .name = name, .key = SkeeInterfaces::SkeeString{ name } });
+                        entry[sex].push_back(Slider{ .name = name, .key = SKEEInterfaces::SKEEString{ name } });
                     }
                     sliderCount += entry[sex].size();
                 }
             }
             for (const auto& [key, name] : allNames)
             {
-                s_catalog.all.push_back(Slider{ .name = name, .key = SkeeInterfaces::SkeeString{ name } });
+                s_catalog.all.push_back(Slider{ .name = name, .key = SKEEInterfaces::SKEEString{ name } });
             }
             logs::info("RaceMenu slider catalog built: raceFiles={} sliderFiles={} races={} sliders={} names={}",
                 raceFiles, files.size(), s_catalog.races.size(), sliderCount, s_catalog.all.size());

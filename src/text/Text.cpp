@@ -1,7 +1,7 @@
 #include "text/Text.h"
 #include "config/PluginConfig.h"
 #include "config/PluginFiles.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 #include "text/Gettext.h"
 #include "text/locale/English.h"
 
@@ -22,7 +22,7 @@ namespace Text
 {
     namespace
     {
-        constexpr std::size_t kIdCount = static_cast<std::size_t>(Id::kCount);
+        constexpr std::size_t kIDCount = static_cast<std::size_t>(ID::kCount);
         constexpr std::size_t kMaximumFields = 8;
         using Catalogs::kMaximumPluralForms;
         constexpr std::size_t kMaximumCodeLength = 32;
@@ -40,12 +40,12 @@ namespace Text
 
         struct Table
         {
-            std::array<std::string_view, kIdCount> text{};
-            // Empty for an Id without plural forms.
-            std::array<Forms, kIdCount> plurals{};
-            // The rule that picks among an Id's forms: its catalog's, or English's where a
+            std::array<std::string_view, kIDCount> text{};
+            // Empty for an ID without plural forms.
+            std::array<Forms, kIDCount> plurals{};
+            // The rule that picks among an ID's forms: its catalog's, or English's where a
             // translation's forms were rejected.
-            std::array<const Gettext::PluralRule*, kIdCount> pluralRules{};
+            std::array<const Gettext::PluralRule*, kIDCount> pluralRules{};
             Language language{ Language::kEnglish };
         };
 
@@ -205,7 +205,7 @@ namespace Text
             for (const auto& entry : Catalogs::GetEnglish().entries)
             {
                 const auto index = static_cast<std::size_t>(entry.id);
-                if (index >= kIdCount)
+                if (index >= kIDCount)
                 {
                     continue;
                 }
@@ -233,7 +233,7 @@ namespace Text
         // Built by Initialize and kept for the session: another thread may still be reading
         // a table after another one is selected. Index 0, English, has no Translation.
         std::vector<LanguageInfo> s_languages{ LanguageInfo{
-            std::string{ kEnglishCode }, std::string{ s_english.text[static_cast<std::size_t>(Id::kLanguageName)] } } };
+            std::string{ kEnglishCode }, std::string{ s_english.text[static_cast<std::size_t>(ID::kLanguageName)] } } };
         std::vector<std::unique_ptr<const Translation>> s_translations(1);
         std::atomic<const Table*> s_active{ &s_english };
         std::atomic<Language> s_gameLanguage{ Language::kEnglish };
@@ -274,7 +274,7 @@ namespace Text
         void CheckEnglish()
         {
             std::size_t missing = 0;
-            for (std::size_t index = 1; index < kIdCount; ++index)
+            for (std::size_t index = 1; index < kIDCount; ++index)
             {
                 if (s_english.text[index].empty())
                 {
@@ -373,7 +373,7 @@ namespace Text
             translation->table = s_english;
             translation->gameName = a_file.GetHeader(kGameLanguageHeader);
             translation->table.language = a_language;
-            std::array<bool, kIdCount> seen{};
+            std::array<bool, kIDCount> seen{};
             std::array<std::size_t, 4> outcomes{};
             for (const auto& message : a_file.messages)
             {
@@ -396,9 +396,9 @@ namespace Text
             const auto fuzzy = outcomes[static_cast<std::size_t>(Outcome::kFuzzy)];
             const auto rejected = outcomes[static_cast<std::size_t>(Outcome::kRejected)];
             const auto summary = std::format("Localization: {} with {} of {} texts translated ({} fuzzy, {} rejected){}",
-                a_name, translated, kIdCount - 1, fuzzy, rejected,
+                a_name, translated, kIDCount - 1, fuzzy, rejected,
                 translation->gameName.empty() ? std::string{} : std::format(" for {}", translation->gameName));
-            if (translated == kIdCount - 1 && fuzzy == 0 && rejected == 0)
+            if (translated == kIDCount - 1 && fuzzy == 0 && rejected == 0)
             {
                 logs::debug("{}", summary);
             }
@@ -417,14 +417,14 @@ namespace Text
                  entry.increment(error))
             {
                 if (entry->is_regular_file(error)
-                    && AsciiCase::Equals(PluginFiles::ToUtf8(entry->path().extension()), kExtension))
+                    && ASCIICase::Equals(PluginFiles::ToUTF8(entry->path().extension()), kExtension))
                 {
                     files.push_back(entry->path());
                 }
             }
             if (error)
             {
-                logs::warn("Localization: could not list {}: {}", PluginFiles::ToUtf8(a_directory), error.message());
+                logs::warn("Localization: could not list {}: {}", PluginFiles::ToUTF8(a_directory), error.message());
             }
             std::ranges::sort(files);
             return files;
@@ -445,12 +445,12 @@ namespace Text
             }
             for (const auto& path : FindFiles(directory))
             {
-                const auto name = PluginFiles::ToUtf8(path.filename());
-                const auto code = PluginFiles::ToUtf8(path.stem());
+                const auto name = PluginFiles::ToUTF8(path.filename());
+                const auto code = PluginFiles::ToUTF8(path.stem());
                 const auto skip = [&](std::string_view a_reason) {
                     logs::warn("Localization: skipping {}: {}", name, a_reason);
                 };
-                if (!IsLanguageCode(code) || AsciiCase::Equals(code, kEnglishCode))
+                if (!IsLanguageCode(code) || ASCIICase::Equals(code, kEnglishCode))
                 {
                     skip("the file name is not a language code other than en");
                     continue;
@@ -492,9 +492,9 @@ namespace Text
                 }
                 const auto language = static_cast<Language>(s_languages.size());
                 auto translation = Load(*file, std::move(*rule), language, name, keys);
-                const auto ownName = translation->table.text[static_cast<std::size_t>(Id::kLanguageName)];
+                const auto ownName = translation->table.text[static_cast<std::size_t>(ID::kLanguageName)];
                 s_languages.push_back(LanguageInfo{ code,
-                    std::string{ ownName == s_english.text[static_cast<std::size_t>(Id::kLanguageName)] ? code : ownName } });
+                    std::string{ ownName == s_english.text[static_cast<std::size_t>(ID::kLanguageName)] ? code : ownName } });
                 s_translations.push_back(std::move(translation));
             }
             std::string codes;
@@ -525,9 +525,9 @@ namespace Text
     bool IsLanguageCode(std::string_view a_code)
     {
         return !a_code.empty() && a_code.size() <= kMaximumCodeLength
-            && AsciiCase::ToLower(a_code.front()) >= 'a' && AsciiCase::ToLower(a_code.front()) <= 'z'
+            && ASCIICase::ToLower(a_code.front()) >= 'a' && ASCIICase::ToLower(a_code.front()) <= 'z'
             && std::ranges::all_of(a_code, [](char a_character) {
-                   const auto lower = AsciiCase::ToLower(a_character);
+                   const auto lower = ASCIICase::ToLower(a_character);
                    return (lower >= 'a' && lower <= 'z') || (a_character >= '0' && a_character <= '9')
                        || a_character == '_' || a_character == '@' || a_character == '-';
                });
@@ -540,10 +540,10 @@ namespace Text
             LoadTranslations();
             const auto gameName = ReadGameLanguage();
             auto language = Language::kEnglish;
-            if (!AsciiCase::Equals(gameName, kEnglishGameName))
+            if (!ASCIICase::Equals(gameName, kEnglishGameName))
             {
                 const auto translation = std::ranges::find_if(s_translations, [&](const auto& a_translation) {
-                    return a_translation && AsciiCase::Equals(a_translation->gameName, gameName);
+                    return a_translation && ASCIICase::Equals(a_translation->gameName, gameName);
                 });
                 if (translation == s_translations.end())
                 {
@@ -567,7 +567,7 @@ namespace Text
     std::optional<Language> FindLanguage(std::string_view a_code)
     {
         const auto found = std::ranges::find_if(
-            s_languages, [&](const LanguageInfo& a_language) { return AsciiCase::Equals(a_language.code, a_code); });
+            s_languages, [&](const LanguageInfo& a_language) { return ASCIICase::Equals(a_language.code, a_code); });
         return found == s_languages.end() ? std::nullopt
                                           : std::optional{ static_cast<Language>(found - s_languages.begin()) };
     }
@@ -583,7 +583,7 @@ namespace Text
         {
             s_unknownCode = a_code;
             logs::warn("Localization: no {}{} in {}; using the game's language", a_code, kExtension,
-                PluginFiles::ToUtf8(std::filesystem::path{ kDirectory }));
+                PluginFiles::ToUTF8(std::filesystem::path{ kDirectory }));
         }
         if (language == GetLanguage())
         {
@@ -604,22 +604,22 @@ namespace Text
         return s_gameLanguage.load(std::memory_order_relaxed);
     }
 
-    std::string_view Get(Id a_id)
+    std::string_view Get(ID a_id)
     {
         const auto index = static_cast<std::size_t>(a_id);
-        return index < kIdCount ? s_active.load(std::memory_order_acquire)->text[index] : std::string_view{ "" };
+        return index < kIDCount ? s_active.load(std::memory_order_acquire)->text[index] : std::string_view{ "" };
     }
 
-    std::string_view GetEnglish(Id a_id)
+    std::string_view GetEnglish(ID a_id)
     {
         const auto index = static_cast<std::size_t>(a_id);
-        return index < kIdCount ? s_english.text[index] : std::string_view{ "" };
+        return index < kIDCount ? s_english.text[index] : std::string_view{ "" };
     }
 
-    std::string_view GetPlural(Id a_id, std::uint64_t a_count)
+    std::string_view GetPlural(ID a_id, std::uint64_t a_count)
     {
         const auto index = static_cast<std::size_t>(a_id);
-        if (index >= kIdCount)
+        if (index >= kIDCount)
         {
             return {};
         }

@@ -1,6 +1,6 @@
 #include "forms/TextureFiles.h"
 #include "runtime/GameThread.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <RE/Skyrim.h>
 
@@ -29,13 +29,13 @@ namespace Forms
 
         std::string path;
         path.reserve(kTexturesFolder.size() + a_path.size());
-        if (!AsciiCase::StartsWith(a_path, kTexturesFolder) && !AsciiCase::StartsWith(a_path, "textures/"))
+        if (!ASCIICase::StartsWith(a_path, kTexturesFolder) && !ASCIICase::StartsWith(a_path, "textures/"))
         {
             path = kTexturesFolder;
         }
         for (const auto character : a_path)
         {
-            path.push_back(character == '/' ? '\\' : AsciiCase::ToLower(character));
+            path.push_back(character == '/' ? '\\' : ASCIICase::ToLower(character));
         }
 
         if (const auto found = s_exists.find(path); found != s_exists.end())

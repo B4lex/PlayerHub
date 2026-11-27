@@ -68,11 +68,11 @@ msgid ""
 msgstr ""
 "自訂伺服器的位址：主機名稱或 IPv4 位址，連接埠不是 14201 時加上 :連接埠。只在啟用自訂伺服器時使用。"
 
-msgctxt "ConnectionServerTls"
+msgctxt "ConnectionServerTLS"
 msgid "Use TLS"
 msgstr "使用 TLS"
 
-msgctxt "ConnectionServerTlsComment"
+msgctxt "ConnectionServerTLSComment"
 msgid ""
 "Connects to the custom server over TLS, as a server behind an HTTPS proxy requires."
 msgstr "透過 TLS 連線到自訂伺服器，位於 HTTPS 代理後方的伺服器需要此設定。"

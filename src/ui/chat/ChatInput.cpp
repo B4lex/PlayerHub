@@ -46,13 +46,13 @@ namespace UI
             switch (a_target.channel)
             {
                 case Multiplayer::ChatChannel::kNearby:
-                    return std::string{ Text::Get(Text::Id::kChatNearby) };
+                    return std::string{ Text::Get(Text::ID::kChatNearby) };
                 case Multiplayer::ChatChannel::kGlobal:
-                    return std::string{ Text::Get(Text::Id::kChatGlobal) };
+                    return std::string{ Text::Get(Text::ID::kChatGlobal) };
                 case Multiplayer::ChatChannel::kWhisper:
                     break;
             }
-            return Text::Format(Text::Id::kChatTo, a_target.player.name);
+            return Text::Format(Text::ID::kChatTo, a_target.player.name);
         }
     }
 
@@ -275,14 +275,14 @@ namespace UI
                 switch (a_target.channel)
                 {
                     case Multiplayer::ChatChannel::kGlobal:
-                        ImGui::SetTooltip("%s", Text::GetCString(Text::Id::kChatGlobalTargetHint));
+                        ImGui::SetTooltip("%s", Text::GetCString(Text::ID::kChatGlobalTargetHint));
                         break;
                     case Multiplayer::ChatChannel::kNearby:
-                        ImGui::SetTooltip("%s", Text::GetCString(Text::Id::kChatNearbyTargetHint));
+                        ImGui::SetTooltip("%s", Text::GetCString(Text::ID::kChatNearbyTargetHint));
                         break;
                     case Multiplayer::ChatChannel::kWhisper:
                         ImGui::SetTooltip(
-                            "%s", Text::Format(Text::Id::kChatWhisperTargetHint, a_target.player.name).c_str());
+                            "%s", Text::Format(Text::ID::kChatWhisperTargetHint, a_target.player.name).c_str());
                         break;
                 }
             }
@@ -293,8 +293,8 @@ namespace UI
             }
             ImGui::PopID();
         };
-        pick(ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kGlobal }, Text::Get(Text::Id::kChatGlobal), 0);
-        pick(ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kNearby }, Text::Get(Text::Id::kChatNearby), 1);
+        pick(ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kGlobal }, Text::Get(Text::ID::kChatGlobal), 0);
+        pick(ChatSync::ChatTarget{ .channel = Multiplayer::ChatChannel::kNearby }, Text::Get(Text::ID::kChatNearby), 1);
         partners.clear();
         ChatRoster::GetRecentPartners(partners, kMaximumMenuPartners);
         if (!partners.empty())
@@ -420,13 +420,13 @@ namespace UI
 
         // Keyboard focus applies on a later frame, so it is requested until
         // taken. Not from an item the mouse holds, which would lose its click.
-        const auto fieldId = ImGui::GetID("##ChatInput");
+        const auto fieldID = ImGui::GetID("##ChatInput");
         if ((a_frame.focus || !fieldActive) && !a_frame.passive && !a_frame.menuOpen && !menuOpen
             && !ImGui::IsAnyItemActive() && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
             ImGui::SetKeyboardFocusHere();
         }
-        else if (a_frame.passive && ImGui::GetActiveID() == fieldId)
+        else if (a_frame.passive && ImGui::GetActiveID() == fieldID)
         {
             // Focus went elsewhere without a click that would have left the field.
             ImGui::ClearActiveID();
@@ -436,9 +436,9 @@ namespace UI
         // and the open chat are, it measures the caret of that old text against the hint or the
         // shorter buffer it now shows; a caret past their end makes ImFontCalcTextSizeEx loop forever.
         // Activation builds the state anew, so an inactive field has no use for it.
-        if (ImGui::GetActiveID() != fieldId)
+        if (ImGui::GetActiveID() != fieldID)
         {
-            if (auto* state = ImGui::GetInputTextState(fieldId))
+            if (auto* state = ImGui::GetInputTextState(fieldID))
             {
                 state->ID = 0;
             }
@@ -453,7 +453,7 @@ namespace UI
             ImGui::PushStyleColor(color, kHidden);
         }
         sendByLineBreak = false;
-        bool entered = ImGui::InputTextEx("##ChatInput", Text::GetCString(Text::Id::kChatInputHint), field.data(),
+        bool entered = ImGui::InputTextEx("##ChatInput", Text::GetCString(Text::ID::kChatInputHint), field.data(),
             static_cast<int>(field.size()), ImVec2{ -FLT_MIN, fieldHeight },
             static_cast<ImGuiInputTextFlags>(ImGuiInputTextFlags_Multiline) | ImGuiInputTextFlags_WordWrap
                 | ImGuiInputTextFlags_CtrlEnterForNewLine | ImGuiInputTextFlags_EnterReturnsTrue

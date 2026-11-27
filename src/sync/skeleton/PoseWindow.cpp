@@ -32,6 +32,8 @@ namespace PoseWindow
         // ordinary states, not to a behavior.
         constexpr float kAmbientMachineSeconds = 2.0F;
         constexpr std::size_t kMaximumEventName = 64;
+        // Bounds what a mod that never releases its holds can leave behind.
+        constexpr std::size_t kMaximumHolds = 64;
 
         struct AmbientCandidate
         {
@@ -60,6 +62,13 @@ namespace PoseWindow
             float inactiveElapsed{ 0.0F };
             bool observedModded{ false };
             bool observedReaction{ false };
+            bool observedHold{ false };
+        };
+
+        struct Hold
+        {
+            std::uint32_t id{ 0 };
+            std::string owner;
         };
 
         // The first modded event the hook saw since the last drain, and how many.
@@ -67,6 +76,11 @@ namespace PoseWindow
         std::array<char, kMaximumEventName> s_observedName{};
         std::size_t s_observedLength = 0;
         std::uint32_t s_observedCount = 0;
+
+        std::mutex s_holdLock;
+        std::vector<Hold> s_holds;
+        std::uint32_t s_nextHold = 1;
+        bool s_holdLimitLogged = false;
 
         LocalGraph s_graph;
         Window s_window;
@@ -138,8 +152,10 @@ namespace PoseWindow
             {
                 return;
             }
-            logs::debug("Pose window closed: trigger={} reason={} seconds={:.3f} observedModded={} observedReaction={}",
-                s_window.trigger, a_reason, s_window.elapsed, s_window.observedModded, s_window.observedReaction);
+            logs::debug("Pose window closed: trigger={} reason={} seconds={:.3f} observedModded={} observedReaction={} "
+                        "observedHold={}",
+                s_window.trigger, a_reason, s_window.elapsed, s_window.observedModded, s_window.observedReaction,
+                s_window.observedHold);
             s_window = {};
             s_graph.candidates.clear();
             s_graph.sampleElapsed = 0.0F;
@@ -172,7 +188,32 @@ namespace PoseWindow
                 ReadLifeState(a_player), a_player.IsInRagdollState(), ModdedGraph::ReadLayout(a_player).activeGraph);
         }
 
-        void ObserveWindow(RE::PlayerCharacter& a_player, float a_delta)
+        void OpenForHold(RE::PlayerCharacter& a_player)
+        {
+            std::uint32_t hold = 0;
+            std::size_t holds = 0;
+            std::string owner;
+            {
+                const std::scoped_lock lock{ s_holdLock };
+                if (!s_holds.empty())
+                {
+                    hold = s_holds.front().id;
+                    owner = s_holds.front().owner;
+                }
+                holds = s_holds.size();
+            }
+            s_window = Window{ .open = true, .trigger = "hold:" + owner, .observedHold = true };
+            logs::debug("Pose window opened: hold={} owner={} holds={} activeGraph={}", hold, owner, holds,
+                ModdedGraph::ReadLayout(a_player).activeGraph);
+        }
+
+        bool IsHeld()
+        {
+            const std::scoped_lock lock{ s_holdLock };
+            return !s_holds.empty();
+        }
+
+        void ObserveWindow(RE::PlayerCharacter& a_player, float a_delta, bool a_held)
         {
             s_window.elapsed += a_delta;
             s_window.sampleElapsed += a_delta;
@@ -196,17 +237,19 @@ namespace PoseWindow
                     ReadLifeState(a_player), s_window.elapsed);
             }
             s_window.observedReaction = s_window.observedReaction || reaction;
-            if (modded || reaction)
+            s_window.observedHold = s_window.observedHold || a_held;
+            if (modded || reaction || a_held)
             {
                 s_window.inactiveElapsed = 0.0F;
                 return;
             }
             // Reactions are actor state, readable when the graph is not.
-            if (!reading.available && !s_window.observedReaction)
+            if (!reading.available && !s_window.observedReaction && !s_window.observedHold)
             {
                 return;
             }
-            if (!s_window.observedModded && !s_window.observedReaction && s_window.elapsed < kMinimumWindowSeconds)
+            if (!s_window.observedModded && !s_window.observedReaction && !s_window.observedHold
+                && s_window.elapsed < kMinimumWindowSeconds)
             {
                 return;
             }
@@ -215,6 +258,7 @@ namespace PoseWindow
             {
                 Close(s_window.observedModded ? "graph-vanilla"
                         : s_window.observedReaction ? "reaction-ended"
+                        : s_window.observedHold     ? "hold-released"
                                                     : "graph-unobserved");
             }
         }
@@ -310,6 +354,7 @@ namespace PoseWindow
             OpenForEvent(player, { observedName.data(), observedLength }, observedCount);
             return true;
         }
+        const bool held = IsHeld();
         if (!s_window.open)
         {
             if (const char* reaction = FindReaction(player))
@@ -317,10 +362,16 @@ namespace PoseWindow
                 OpenForReaction(player, reaction);
                 return true;
             }
+            // A hold suspended by a block above reopens the window once the block lifts.
+            if (held)
+            {
+                OpenForHold(player);
+                return true;
+            }
         }
         if (s_window.open)
         {
-            ObserveWindow(player, delta);
+            ObserveWindow(player, delta, held);
         }
         else
         {
@@ -334,6 +385,50 @@ namespace PoseWindow
         Close("discarded");
         const std::scoped_lock lock{ s_observedLock };
         s_observedCount = 0;
+    }
+
+    std::uint32_t AcquireHold(std::string a_owner)
+    {
+        const std::scoped_lock lock{ s_holdLock };
+        if (s_holds.size() >= kMaximumHolds)
+        {
+            if (!std::exchange(s_holdLimitLogged, true))
+            {
+                logs::warn("Pose window hold refused at the limit: owner={} holds={}", a_owner, s_holds.size());
+            }
+            return 0;
+        }
+        const std::uint32_t id = s_nextHold;
+        s_nextHold = s_nextHold == UINT32_MAX ? 1 : s_nextHold + 1;
+        s_holds.push_back({ .id = id, .owner = std::move(a_owner) });
+        logs::debug("Pose window hold acquired: hold={} owner={} holds={}", id, s_holds.back().owner, s_holds.size());
+        return id;
+    }
+
+    void ReleaseHold(std::uint32_t a_hold)
+    {
+        const std::scoped_lock lock{ s_holdLock };
+        const auto hold = std::ranges::find(s_holds, a_hold, &Hold::id);
+        if (hold == s_holds.end())
+        {
+            logs::debug("Pose window hold release ignored an unknown hold: hold={}", a_hold);
+            return;
+        }
+        logs::debug("Pose window hold released: hold={} owner={} holds={}", a_hold, hold->owner, s_holds.size() - 1);
+        s_holds.erase(hold);
+        s_holdLimitLogged = false;
+    }
+
+    void ReleaseHolds(const char* a_reason)
+    {
+        const std::scoped_lock lock{ s_holdLock };
+        if (s_holds.empty())
+        {
+            return;
+        }
+        logs::debug("Pose window holds released: reason={} holds={}", a_reason, s_holds.size());
+        s_holds.clear();
+        s_holdLimitLogged = false;
     }
 
     bool IsOpen()

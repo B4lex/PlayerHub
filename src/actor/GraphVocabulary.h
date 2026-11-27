@@ -1,6 +1,6 @@
 #pragma once
 
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <RE/Skyrim.h>
 
@@ -22,7 +22,7 @@ namespace GraphVocabulary
         std::uint64_t hash = 0xCBF29CE484222325ULL;
         for (const char character : a_name)
         {
-            hash = (hash ^ static_cast<std::uint8_t>(AsciiCase::ToLower(character))) * 0x100000001B3ULL;
+            hash = (hash ^ static_cast<std::uint8_t>(ASCIICase::ToLower(character))) * 0x100000001B3ULL;
         }
         return hash;
     }

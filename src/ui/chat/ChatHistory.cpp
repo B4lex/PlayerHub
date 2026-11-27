@@ -27,15 +27,15 @@ namespace UI
 
         struct Filter
         {
-            Text::Id label;
+            Text::ID label;
             Multiplayer::ChatChannel channel;
-            Text::Id hint;
+            Text::ID hint;
         };
 
         constexpr std::array kFilters{
-            Filter{ Text::Id::kChatGlobal, Multiplayer::ChatChannel::kGlobal, Text::Id::kChatGlobalFilterHint },
-            Filter{ Text::Id::kChatNearby, Multiplayer::ChatChannel::kNearby, Text::Id::kChatNearbyFilterHint },
-            Filter{ Text::Id::kChatWhispers, Multiplayer::ChatChannel::kWhisper, Text::Id::kChatWhispersFilterHint },
+            Filter{ Text::ID::kChatGlobal, Multiplayer::ChatChannel::kGlobal, Text::ID::kChatGlobalFilterHint },
+            Filter{ Text::ID::kChatNearby, Multiplayer::ChatChannel::kNearby, Text::ID::kChatNearbyFilterHint },
+            Filter{ Text::ID::kChatWhispers, Multiplayer::ChatChannel::kWhisper, Text::ID::kChatWhispersFilterHint },
         };
 
         float GetRecentAlpha(double a_receivedAt, double a_now)

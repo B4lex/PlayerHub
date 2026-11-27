@@ -66,10 +66,10 @@ namespace UI
             {
                 case LabelKind::kMismatch:
                     ImGui::SetTooltip("%s",
-                        Text::Format(Text::Id::kItemPickerMismatch, Config::FormatFormReference(a_value)).c_str());
+                        Text::Format(Text::ID::kItemPickerMismatch, Config::FormatFormReference(a_value)).c_str());
                     break;
                 case LabelKind::kPluginMissing:
-                    ImGui::SetTooltip("%s", Text::Format(Text::Id::kItemPickerPluginMissing, a_value.plugin).c_str());
+                    ImGui::SetTooltip("%s", Text::Format(Text::ID::kItemPickerPluginMissing, a_value.plugin).c_str());
                     break;
                 case LabelKind::kItem:
                     ImGui::SetTooltip("%s", Config::FormatFormReference(a_value).c_str());
@@ -93,7 +93,7 @@ namespace UI
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip))
             {
                 ImGui::SetTooltip("%s",
-                    Text::Format(Text::Id::kItemPickerReset, GetLabel(ImGui::GetID("##default"), a_default, a_filter).text)
+                    Text::Format(Text::ID::kItemPickerReset, GetLabel(ImGui::GetID("##default"), a_default, a_filter).text)
                         .c_str());
             }
             if (reset)
@@ -130,7 +130,7 @@ namespace UI
         if (a_value.IsEmpty())
         {
             label.kind = LabelKind::kNone;
-            label.text = Text::Get(Text::Id::kItemPickerNone);
+            label.text = Text::Get(Text::ID::kItemPickerNone);
         }
         else if (item)
         {
@@ -140,7 +140,7 @@ namespace UI
         else if (catalog && !catalog->IsPluginLoaded(a_value.plugin))
         {
             label.kind = LabelKind::kPluginMissing;
-            label.text = Text::Format(Text::Id::kItemPickerNotLoaded, Config::FormatFormReference(a_value));
+            label.text = Text::Format(Text::ID::kItemPickerNotLoaded, Config::FormatFormReference(a_value));
         }
         else
         {
@@ -154,7 +154,7 @@ namespace UI
     {
         if (!catalog)
         {
-            ImGui::TextDisabled("%s", Text::GetCString(Text::Id::kItemPickerNotReady));
+            ImGui::TextDisabled("%s", Text::GetCString(Text::ID::kItemPickerNotReady));
             return false;
         }
 
@@ -173,7 +173,7 @@ namespace UI
         }
 
         ImGui::SetNextItemWidth(-FLT_MIN);
-        if (ImGui::InputTextWithHint("##search", Text::GetCString(Text::Id::kItemPickerSearchHint), &query))
+        if (ImGui::InputTextWithHint("##search", Text::GetCString(Text::ID::kItemPickerSearchHint), &query))
         {
             Search(a_filter);
         }
@@ -203,7 +203,7 @@ namespace UI
             {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
-                if (ImGui::Selectable(Text::GetCString(Text::Id::kItemPickerNone), a_value.IsEmpty(),
+                if (ImGui::Selectable(Text::GetCString(Text::ID::kItemPickerNone), a_value.IsEmpty(),
                         ImGuiSelectableFlags_SpanAllColumns))
                 {
                     a_value = {};
@@ -254,7 +254,7 @@ namespace UI
             {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
-                ImGui::TextDisabled("%s", Text::GetCString(Text::Id::kItemsNoMatch));
+                ImGui::TextDisabled("%s", Text::GetCString(Text::ID::kItemsNoMatch));
             }
             ImGui::EndTable();
         }

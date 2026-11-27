@@ -607,8 +607,10 @@ reproduction does not cover by taking the bone pose its player's game animated:
 new graph states from mods such as Paraglider or SkyParkour, modded idles, and
 the reactions the reproduction leaves out (staggers, the player's own kill
 moves, knockdowns with ragdoll and get-up). Poses travel only during such an
-animation (a pose window), so everything the reproduction covers keeps syncing
-through the graph and a viewer's replacers apply. Viewers with and without the
+animation (a pose window), or while another plugin holds one open through the
+[plugin API](plugin-api.md#pose-window-holds) for an animation it plays, so
+everything the reproduction covers keeps syncing through the graph and a
+viewer's replacers apply. Viewers with and without the
 mod see the same pose. The graph keeps running the vanilla reproduction
 underneath, so weapon draws, sounds, footsteps, and spell art still come from
 it, and bones the pose leaves out keep the graph's output. Positions stay on
@@ -620,8 +622,9 @@ Non-goals:
 - Replacers of vanilla clips (OAR and DAR variants) never open a window; they
   sync natively. A replacer of a reaction's clip shows through that reaction's
   window as the source played it.
-- Modded behavior entered by vanilla events under modded conditions (MCO and
-  SCAR attack chains) and modded idle forms played through vanilla events.
+- Detecting modded behavior entered by vanilla events under modded conditions
+  (MCO and SCAR attack chains) and modded idle forms played through vanilla
+  events; a plugin that plays them can hold a window.
 - Other vanilla states the reproduction leaves out: bleedout, attack recoils,
   ritual spells, non-lethal paired animations; flinches and block hit reactions
   layer over locomotion and fire too often for a whole-body pose.
@@ -665,16 +668,29 @@ is sent ([Interest and delivery](interest-and-delivery.md#skeleton-poses)).
   holds the window like a modded state, without the 1 s minimum, and its end
   closes it after the tail (`reaction-ended`); a modded window entering a
   reaction logs `Pose window entered reaction`.
+- **Plugin holds.** `PoseWindow::AcquireHold` and `ReleaseHold`, called from
+  any thread by the [plugin API](plugin-api.md#pose-window-holds), keep up to
+  64 holds under a mutex, each with its caller's owner name; at the limit a
+  hold is refused (`Pose window hold refused at the limit`, logged once until a
+  release). On a pass without a window and without a reaction, a held window
+  opens (`hold=` and its owner, trigger `hold:<owner>`). Any hold keeps a
+  window open like a modded state, without the 1 s minimum, whatever opened it,
+  and the last release closes it after the tail (`hold-released`). A block
+  above closes a held window and keeps the holds, so it reopens once the block
+  lifts, a disconnect included. `PoseWindow::ReleaseHolds` drops every hold on
+  SKSE's `kNewGame` and `kPreLoadGame` (`Pose window holds released`), since
+  the plugin's animation belonged to the previous game. A hold has no timeout.
 - **Hold.** Every 0.1 s of clamped frame time,
   `ModdedGraph::ReadModdedState` reads the active state machines under the
   manager's `updateLock`: a machine whose name is not vanilla, or a vanilla
   machine in a non-vanilla state, is modded (`Pose window entered modded
-  state`). The window holds while one is active or a reaction is, and one opened
+  state`). The window holds while one is active, a reaction is, or a plugin
+  hold remains, and one opened
   by a modded event holds at least 1 s, since a machine switches on the graph
   update after the event and a modded event can play through vanilla states.
-- **Close.** After 0.25 s past that without a modded state or reaction, the
-  window closes (`Pose window closed` with `graph-vanilla`, `reaction-ended`, or
-  `graph-unobserved`), so the last poses show the vanilla state the receiver
+- **Close.** After 0.25 s past that without a modded state, reaction, or plugin
+  hold, the window closes (`Pose window closed` with `graph-vanilla`,
+  `reaction-ended`, `hold-released`, or `graph-unobserved`), so the last poses show the vanilla state the receiver
   reproduces. It also closes on an epoch or graph change, a block above, a
   disconnect, or leaving the world, never on a modded exit event (Paraglider's
   landing leaves on the vanilla `JumpLandEnd`).

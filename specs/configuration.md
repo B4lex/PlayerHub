@@ -45,14 +45,14 @@ Sections are described in the order Connection, DefaultLook, UI, Controls,
 Gameplay, Voice, Advanced, which orders a new file and the settings window's
 sidebar ([UI overlay](ui-overlay.md#settings-window)).
 
-- Every shown setting takes the `Text::Id` of its label after its key, ignored
+- Every shown setting takes the `Text::ID` of its label after its key, ignored
   by reading and saving, so a label changes without renaming the key; one
   without a label does not compile. The default look's slots and weapon types take theirs
   from `kArmorSlotLabels` and `kWeaponTypeLabels`. Section titles, comments,
-  and group comments are `Text::Id`s too: the window shows them in the game's
+  and group comments are `Text::ID`s too: the window shows them in the game's
   language ([Localization](ui-overlay.md#localization)) and the file gets
   their English text (`Text::GetEnglish`).
-- `Choice` takes the values the file stores and the `Text::Id`s the window
+- `Choice` takes the values the file stores and the `Text::ID`s the window
   shows for them.
 - `Language` takes a translation's code, or empty for the game's language.
   Reading checks only that it is a code (`Text::IsLanguageCode`), since
@@ -60,7 +60,7 @@ sidebar ([UI overlay](ui-overlay.md#settings-window)).
 - `Config::SettingsVisitor::Form` takes the setting's item filter
   ([Appearance and equipment](appearance-and-equipment.md#item-filter-and-catalog)).
 - `Unsigned` takes a maximum (a larger file value is invalid), an optional
-  `Text::Id` naming zero for the window (the file stores `0`), and a slider
+  `Text::ID` naming zero for the window (the file stores `0`), and a slider
   step; the file takes any value up to the maximum, off the step too.
 - `Percent` takes both limits and a step; a file value outside the limits or
   off the steps is invalid. Stored without a sign.

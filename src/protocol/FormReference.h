@@ -1,6 +1,6 @@
 #pragma once
 
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 
 #include <algorithm>
 #include <array>
@@ -42,7 +42,7 @@ namespace Multiplayer
         [[nodiscard]] constexpr bool PluginNameLess(std::string_view a_left, std::string_view a_right) noexcept
         {
             return std::ranges::lexicographical_compare(a_left, a_right,
-                [](char a_first, char a_second) { return AsciiCase::ToLower(a_first) < AsciiCase::ToLower(a_second); });
+                [](char a_first, char a_second) { return ASCIICase::ToLower(a_first) < ASCIICase::ToLower(a_second); });
         }
 
         // The Skyrim Special Edition masters, and Anniversary Edition's backpacks,

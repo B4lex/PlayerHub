@@ -72,7 +72,7 @@ namespace UI
         const auto top = ImGui::GetCursorPosY();
         const auto right = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x;
         ImGui::PushFont(Fonts::GetHeading(), style.FontSizeBase * kTitleScale);
-        ImGui::TextUnformatted(Text::GetCString(Text::Id::kUnsyncedTitle));
+        ImGui::TextUnformatted(Text::GetCString(Text::ID::kUnsyncedTitle));
         const auto titleHeight = ImGui::GetTextLineHeight();
         ImGui::PopFont();
         const auto titleBottom = ImGui::GetCursorPosY();
@@ -137,7 +137,7 @@ namespace UI
     void UnsyncedLocations::DrawLocalCell()
     {
         const auto local = UnsyncedCells::GetLocalCell();
-        const auto* label = Text::GetCString(Text::Id::kUnsyncedAdd);
+        const auto* label = Text::GetCString(Text::ID::kUnsyncedAdd);
         const auto width = ImGui::CalcTextSize(label).x + ImGui::GetStyle().FramePadding.x * 2.0F;
         ImGui::SetCursorPosX(
             (std::max)(ImGui::GetCursorPosX() + std::floor((ImGui::GetContentRegionAvail().x - width) * 0.5F),
@@ -151,7 +151,7 @@ namespace UI
         if (local && local->unsynced
             && ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip | ImGuiHoveredFlags_AllowWhenDisabled))
         {
-            ImGui::SetTooltip("%s", Text::GetCString(Text::Id::kUnsyncedAlready));
+            ImGui::SetTooltip("%s", Text::GetCString(Text::ID::kUnsyncedAlready));
         }
     }
 
@@ -164,15 +164,15 @@ namespace UI
         }
         if (rows.empty())
         {
-            Controls::MutedTextWrapped(Text::GetCString(Text::Id::kUnsyncedNone));
+            Controls::MutedTextWrapped(Text::GetCString(Text::ID::kUnsyncedNone));
         }
         else if (matches.empty())
         {
-            Controls::MutedTextWrapped(Text::GetCString(Text::Id::kUnsyncedNoMatch));
+            Controls::MutedTextWrapped(Text::GetCString(Text::ID::kUnsyncedNoMatch));
         }
 
         const auto& style = ImGui::GetStyle();
-        const auto* removeLabel = Text::GetCString(Text::Id::kUnsyncedRemove);
+        const auto* removeLabel = Text::GetCString(Text::ID::kUnsyncedRemove);
         const auto buttonWidth = ImGui::CalcTextSize(removeLabel).x + style.FramePadding.x * 2.0F;
         const auto buttonLeft = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - buttonWidth;
         const auto frameHeight = ImGui::GetFrameHeight();

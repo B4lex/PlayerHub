@@ -1,6 +1,6 @@
 #include "ui/trade/TradeWindow.h"
 #include "sync/trade/TradeSync.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 #include "text/Text.h"
 #include "ui/Fonts.h"
 #include "ui/MenuFrame.h"
@@ -84,10 +84,10 @@ namespace UI
         constexpr const char* kOfferPopup = "##OfferLine";
         constexpr const char* kPickPopup = "##OfferCount";
 
-        constexpr std::array<Text::Id, 11> kCategoryNames{ Text::Id::kTradeCategoryAll, Text::Id::kTradeCategoryWeapons,
-            Text::Id::kTradeCategoryApparel, Text::Id::kTradeCategoryAmmunition, Text::Id::kTradeCategoryPotions,
-            Text::Id::kTradeCategoryIngredients, Text::Id::kTradeCategoryBooks, Text::Id::kTradeCategoryScrolls,
-            Text::Id::kTradeCategorySoulGems, Text::Id::kTradeCategoryKeys, Text::Id::kTradeCategoryMiscellaneous };
+        constexpr std::array<Text::ID, 11> kCategoryNames{ Text::ID::kTradeCategoryAll, Text::ID::kTradeCategoryWeapons,
+            Text::ID::kTradeCategoryApparel, Text::ID::kTradeCategoryAmmunition, Text::ID::kTradeCategoryPotions,
+            Text::ID::kTradeCategoryIngredients, Text::ID::kTradeCategoryBooks, Text::ID::kTradeCategoryScrolls,
+            Text::ID::kTradeCategorySoulGems, Text::ID::kTradeCategoryKeys, Text::ID::kTradeCategoryMiscellaneous };
 
         // The font size the layout is drawn at: the overlay's, or the largest the display holds
         // the layout at, so the layout looks the same on every display.
@@ -322,7 +322,7 @@ namespace UI
                 {
                     const auto& line = view.inventory[row];
                     if ((category == 0 || static_cast<int>(line.category) == category - 1)
-                        && AsciiCase::Contains(line.name, query))
+                        && ASCIICase::Contains(line.name, query))
                     {
                         matches.push_back(row);
                     }
@@ -528,7 +528,7 @@ namespace UI
             {
                 ImGui::PushFont(Fonts::GetHeading(), Fonts::GetBaseSize() * kTitleScale);
                 const std::array<std::string_view, 1> name{ view.peer.name };
-                Controls::AccentedText(Text::Get(Text::Id::kTradeTitle), name);
+                Controls::AccentedText(Text::Get(Text::ID::kTradeTitle), name);
                 ImGui::PopFont();
                 ImGui::Separator();
             }
@@ -540,12 +540,12 @@ namespace UI
                 if (a_full)
                 {
                     ImGui::SameLine();
-                    ImGui::TextColored(Theme::kWarning, "%s", Text::GetCString(Text::Id::kTradeOfferFull));
+                    ImGui::TextColored(Theme::kWarning, "%s", Text::GetCString(Text::ID::kTradeOfferFull));
                 }
                 if (a_accepted)
                 {
                     ImGui::SameLine();
-                    ImGui::TextColored(Theme::kPositive, "%s", Text::GetCString(Text::Id::kTradeAccepted));
+                    ImGui::TextColored(Theme::kPositive, "%s", Text::GetCString(Text::ID::kTradeAccepted));
                 }
             }
 
@@ -604,7 +604,7 @@ namespace UI
 
             void DrawPeerOffer(float a_cell)
             {
-                Text::FormatTo(heading, Text::Id::kTradePeerOffer, view.peer.name);
+                Text::FormatTo(heading, Text::ID::kTradePeerOffer, view.peer.name);
                 DrawGridHeading(heading.c_str(), view.peerAccepted);
                 DrawGrid("##peer", view.peerOffer.size(), a_cell, view.peerAccepted,
                     [this](std::size_t a_index, const ImVec2& a_min, const ImVec2& a_max, bool a_hovered) {
@@ -624,7 +624,7 @@ namespace UI
 
             void DrawOwnOffer(float a_cell)
             {
-                DrawGridHeading(Text::GetCString(Text::Id::kTradeOwnOffer), view.ownAccepted,
+                DrawGridHeading(Text::GetCString(Text::ID::kTradeOwnOffer), view.ownAccepted,
                     view.offer.size() >= Multiplayer::kMaximumTradeItems);
                 DrawGrid("##own", view.offer.size(), a_cell, view.ownAccepted,
                     [this](std::size_t a_index, const ImVec2& a_min, const ImVec2& a_max, bool a_hovered) {
@@ -702,9 +702,9 @@ namespace UI
                     }
                     ImGui::SameLine();
                     ImGui::AlignTextToFramePadding();
-                    ImGui::TextDisabled("%s", Text::Format(Text::Id::kTradeCountOf, item.count).c_str());
+                    ImGui::TextDisabled("%s", Text::Format(Text::ID::kTradeCountOf, item.count).c_str());
                 }
-                if (Controls::DangerButton(Text::GetCString(Text::Id::kTradeRemoveAll), ImVec2{ -FLT_MIN, 0.0F }))
+                if (Controls::DangerButton(Text::GetCString(Text::ID::kTradeRemoveAll), ImVec2{ -FLT_MIN, 0.0F }))
                 {
                     TradeSync::SetOfferCount(view.inventoryRevision, popupRow, 0);
                     ImGui::CloseCurrentPopup();
@@ -748,8 +748,8 @@ namespace UI
                     ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false);
                 ImGui::SameLine();
                 ImGui::AlignTextToFramePadding();
-                ImGui::TextDisabled("%s", Text::Format(Text::Id::kTradeCountOf, item.count).c_str());
-                if (Controls::PrimaryButton(Text::GetCString(Text::Id::kTradeOffer), ImVec2{ -FLT_MIN, 0.0F }) || entered)
+                ImGui::TextDisabled("%s", Text::Format(Text::ID::kTradeCountOf, item.count).c_str());
+                if (Controls::PrimaryButton(Text::GetCString(Text::ID::kTradeOffer), ImVec2{ -FLT_MIN, 0.0F }) || entered)
                 {
                     TradeSync::SetOfferCount(pickRevision, pickRow, pickCount);
                     ImGui::CloseCurrentPopup();
@@ -761,7 +761,7 @@ namespace UI
             {
                 ImGui::BeginGroup();
                 ImGui::AlignTextToFramePadding();
-                ImGui::TextUnformatted(Text::GetCString(Text::Id::kTradeInventory));
+                ImGui::TextUnformatted(Text::GetCString(Text::ID::kTradeInventory));
                 if (view.checkingPlugins)
                 {
                     ImGui::SameLine();
@@ -769,12 +769,12 @@ namespace UI
                         * std::numbers::pi_v<float>;
                     auto color = ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
                     color.w *= 0.65F + 0.35F * std::sin(angle);
-                    ImGui::TextColored(color, "%s", Text::GetCString(Text::Id::kTradeCheckingMods));
+                    ImGui::TextColored(color, "%s", Text::GetCString(Text::ID::kTradeCheckingMods));
                 }
                 const auto& style = ImGui::GetStyle();
                 const auto comboWidth = std::floor(a_size.x * 0.4F);
                 ImGui::SetNextItemWidth(a_size.x - comboWidth - style.ItemSpacing.x);
-                bool changed = ImGui::InputTextWithHint("##search", Text::GetCString(Text::Id::kSearchHint), &query);
+                bool changed = ImGui::InputTextWithHint("##search", Text::GetCString(Text::ID::kSearchHint), &query);
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(comboWidth);
                 std::array<const char*, kCategoryNames.size()> categoryNames{};
@@ -807,8 +807,8 @@ namespace UI
                         ImGui::TableNextRow();
                         ImGui::TableNextColumn();
                         ImGui::TextDisabled("%s",
-                            Text::GetCString(view.inventory.empty() ? Text::Id::kTradeNothingToTrade
-                                                                    : Text::Id::kItemsNoMatch));
+                            Text::GetCString(view.inventory.empty() ? Text::ID::kTradeNothingToTrade
+                                                                    : Text::ID::kItemsNoMatch));
                     }
                     ImGui::EndTable();
                 }
@@ -867,8 +867,8 @@ namespace UI
             {
                 const auto& style = ImGui::GetStyle();
                 const auto fontSize = ImGui::GetFontSize();
-                const auto* const accept = Text::GetCString(Text::Id::kTradeAccept);
-                const auto* const cancel = Text::GetCString(Text::Id::kTradeCancel);
+                const auto* const accept = Text::GetCString(Text::ID::kTradeAccept);
+                const auto* const cancel = Text::GetCString(Text::ID::kTradeCancel);
                 const auto buttonWidth = (std::max)(kFooterButtonWidthFonts * fontSize,
                     std::ceil((std::max)(ImGui::CalcTextSize(accept).x, ImGui::CalcTextSize(cancel).x)
                         + style.FramePadding.x * 2.0F));

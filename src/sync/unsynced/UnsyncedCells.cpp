@@ -5,7 +5,7 @@
 #include "forms/FormLookup.h"
 #include "runtime/GameThread.h"
 #include "sync/notices/Notices.h"
-#include "text/AsciiCase.h"
+#include "text/ASCIICase.h"
 #include "text/Text.h"
 
 #include <RE/Skyrim.h>
@@ -21,7 +21,7 @@ namespace UnsyncedCells
 {
     namespace
     {
-        using PluginFiles::ToUtf8;
+        using PluginFiles::ToUTF8;
 
         constexpr std::string_view kFileName = "PlayerHub.locations";
         constexpr std::string_view kFileHeader
@@ -44,7 +44,7 @@ namespace UnsyncedCells
 
         bool IsSameCell(const Multiplayer::FormReference& a_left, const Multiplayer::FormReference& a_right)
         {
-            return a_left.localFormID == a_right.localFormID && AsciiCase::Equals(a_left.plugin, a_right.plugin);
+            return a_left.localFormID == a_right.localFormID && ASCIICase::Equals(a_left.plugin, a_right.plugin);
         }
 
         std::vector<Entry>::iterator FindLocked(const Multiplayer::FormReference& a_cell)
@@ -86,21 +86,21 @@ namespace UnsyncedCells
             const auto text = PluginFiles::ReadFile(path);
             if (!text)
             {
-                logs::info("Unsynced cells have no {}; every location is synced", ToUtf8(path));
+                logs::info("Unsynced cells have no {}; every location is synced", ToUTF8(path));
                 return;
             }
             PluginFiles::ForEachDataLine(*text, [&path](std::string_view a_line) {
                 auto entry = ParseLine(a_line);
                 if (!entry)
                 {
-                    logs::warn("Unsynced cells ignored a malformed line of {}", ToUtf8(path));
+                    logs::warn("Unsynced cells ignored a malformed line of {}", ToUTF8(path));
                 }
                 else if (FindLocked(entry->cell) == s_entries.end())
                 {
                     s_entries.push_back(std::move(*entry));
                 }
             });
-            logs::info("Unsynced cells loaded {} locations from {}", s_entries.size(), ToUtf8(path));
+            logs::info("Unsynced cells loaded {} locations from {}", s_entries.size(), ToUTF8(path));
         }
 
         bool WriteLocked()
@@ -200,7 +200,7 @@ namespace UnsyncedCells
         }
         if (!saved)
         {
-            Notices::Post(std::string{ Text::Get(Text::Id::kUnsyncedSaveFailed) });
+            Notices::Post(std::string{ Text::Get(Text::ID::kUnsyncedSaveFailed) });
         }
     }
 
@@ -222,7 +222,7 @@ namespace UnsyncedCells
         }
         if (!saved)
         {
-            Notices::Post(std::string{ Text::Get(Text::Id::kUnsyncedSaveFailed) });
+            Notices::Post(std::string{ Text::Get(Text::ID::kUnsyncedSaveFailed) });
         }
     }
 

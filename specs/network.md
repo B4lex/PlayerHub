@@ -52,7 +52,7 @@ compatibility shims; a version mismatch is refused at the handshake.
 - The server address (`Config::GetServerAddress`: the official server, or
   `[Connection] ServerAddress` and `ServerTls` with `CustomServer` on,
   [Configuration](configuration.md#official-and-custom-server)) is a host,
-  a port, and whether to use TLS. `ServerClient`'s `ToWebSocketUrl` makes it
+  a port, and whether to use TLS. `ServerClient`'s `ToWebSocketURL` makes it
   `wss://host:port/ws` or `ws://host:port/ws`, without the port when it is
   the scheme's own. That URL keys the server's lines in `PlayerHub.session` and
   `PlayerHub.players`, so `example.org` and `example.org:14201` are one server.
@@ -1132,7 +1132,7 @@ Datagrams (`server/internal/voice/datagram.go`, `network/VoiceTransport`):
   under the lock the hello is sent under: a `Vanish` before the hello would
   end the connection, and the hello reads the file, which the caller updates
   before publishing, so a change made meanwhile is in one or the other.
-- `Network::GetServerUrl` is the URL of the latest welcomed connection, or
+- `Network::GetServerURL` is the URL of the latest welcomed connection, or
   of the configured server address before the first, or empty without one: the
   server whose session IDs the roster and chat lines carry. `PlayerFilters`
   reads the file for it again whenever the connection generation changes

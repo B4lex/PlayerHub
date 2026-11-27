@@ -21,19 +21,19 @@ namespace UI
 
         struct TabLabel
         {
-            Text::Id label;
+            Text::ID label;
             bool PlayerFilters::Entry::* listed;
-            Text::Id action;
-            Text::Id empty;
+            Text::ID action;
+            Text::ID empty;
         };
 
         constexpr std::array kTabs{
-            TabLabel{ Text::Id::kPlayersFriends, &PlayerFilters::Entry::friended, Text::Id::kPlayersRemoveFriend,
-                Text::Id::kPlayersNoFriends },
-            TabLabel{ Text::Id::kPlayersMuted, &PlayerFilters::Entry::muted, Text::Id::kPlayersUnmute,
-                Text::Id::kPlayersNoMuted },
-            TabLabel{ Text::Id::kPlayersVanished, &PlayerFilters::Entry::vanished, Text::Id::kPlayersUnvanish,
-                Text::Id::kPlayersNoVanished },
+            TabLabel{ Text::ID::kPlayersFriends, &PlayerFilters::Entry::friended, Text::ID::kPlayersRemoveFriend,
+                Text::ID::kPlayersNoFriends },
+            TabLabel{ Text::ID::kPlayersMuted, &PlayerFilters::Entry::muted, Text::ID::kPlayersUnmute,
+                Text::ID::kPlayersNoMuted },
+            TabLabel{ Text::ID::kPlayersVanished, &PlayerFilters::Entry::vanished, Text::ID::kPlayersUnvanish,
+                Text::ID::kPlayersNoVanished },
         };
 
     }
@@ -142,7 +142,7 @@ namespace UI
         const auto top = ImGui::GetCursorPosY();
         const auto right = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x;
         ImGui::PushFont(Fonts::GetHeading(), style.FontSizeBase * kTitleScale);
-        ImGui::TextUnformatted(Text::GetCString(Text::Id::kPlayersTitle));
+        ImGui::TextUnformatted(Text::GetCString(Text::ID::kPlayersTitle));
         ImGui::PopFont();
         const auto titleBottom = ImGui::GetCursorPosY();
         ImGui::SetCursorPos(ImVec2{ right - ImGui::GetFrameHeight(), top });
@@ -224,7 +224,7 @@ namespace UI
         }
         else if (matches.empty())
         {
-            Controls::MutedTextWrapped(Text::GetCString(Text::Id::kPlayersNoMatch));
+            Controls::MutedTextWrapped(Text::GetCString(Text::ID::kPlayersNoMatch));
         }
 
         // The chat's field keeps the keyboard, which would otherwise keep the rows from being hovered.
@@ -264,7 +264,7 @@ namespace UI
                 if (ImGui::IsItemHovered(kHover))
                 {
                     ImGui::SetTooltip(
-                        "%s", Text::GetCString(row.online ? Text::Id::kPlayersOnline : Text::Id::kPlayersOffline));
+                        "%s", Text::GetCString(row.online ? Text::ID::kPlayersOnline : Text::ID::kPlayersOffline));
                 }
 
                 ImGui::SameLine();

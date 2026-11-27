@@ -15,7 +15,9 @@ a peer does not have a matching modded asset or behavior.
 - Follow the existing domain boundaries when adding features: `src/runtime/` for
   engine hooks and startup, `src/protocol/` for shared state and wire types,
   `src/network/` for transport, `src/sync/<feature>/` for synchronization logic,
-  `src/actor/` for Skyrim actor behavior, and `src/ui/` for presentation. Keep
+  `src/actor/` for Skyrim actor behavior, `src/ui/` for presentation, and
+  `src/api/` for the interface other plugins call, whose public header is in
+  `include/`. Keep
   server-side behavior in `server/` (Go) and the wire schema in `proto/`.
 - Split a feature across the domains it touches, with each responsibility in its
   owning module. Keep coordination and entry points focused on ordering and
@@ -81,6 +83,10 @@ a peer does not have a matching modded asset or behavior.
   config key or value, a file name, or a log line that agents search for.
 
 ## Code style guidelines
+- Write abbreviations in uppercase in identifiers and file names (`GPU`,
+  `ASCIICase`, `Text::ID`, `stateID`, `PlayerHubAPI.h`). Keep the spelling a
+  third-party name or a contract fixes, such as ImGui, Win32, and CommonLib
+  symbols, `PlayerHub.ini` keys, and generated protobuf code.
 - Comment only what a reader cannot get from the code:
   - non-obvious constraints and "why" decisions at that spot in the code, such
     as ordering, locking, and lifetime requirements;

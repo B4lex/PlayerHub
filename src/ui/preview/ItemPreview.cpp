@@ -5,7 +5,7 @@
 #include "runtime/PluginTime.h"
 #include "runtime/Profiling.h"
 #include "text/Text.h"
-#include "ui/render/Gpu.h"
+#include "ui/render/GPU.h"
 
 #include <REX/W32/D3D11_1.h>
 
@@ -25,7 +25,7 @@ namespace UI::ItemPreview
 {
     namespace
     {
-        using Gpu::ComPtr;
+        using GPU::ComPtr;
 
         constexpr std::uint32_t kTextureSize = 2048;
         constexpr float kCaptureMargin = 1.05F;
@@ -111,7 +111,7 @@ float4 Separate(Vertex input) : SV_Target
             Texture overBlack;
             Texture overWhite;
             // Premultiplied by the coverage Separate finds.
-            Gpu::RenderTarget model;
+            GPU::RenderTarget model;
             ComPtr<REX::W32::ID3D11PixelShader> separate;
             REX::W32::DXGI_FORMAT format{};
         };
@@ -405,13 +405,13 @@ float4 Separate(Vertex input) : SV_Target
             modelTextures = {};
             if (!CreateTexture(a_device, a_format, modelTextures.overBlack)
                 || !CreateTexture(a_device, a_format, modelTextures.overWhite)
-                || !Gpu::EnsureRenderTarget(a_device, modelTextures.model, kTextureSize, kTextureSize,
+                || !GPU::EnsureRenderTarget(a_device, modelTextures.model, kTextureSize, kTextureSize,
                     REX::W32::DXGI_FORMAT_R8G8B8A8_UNORM))
             {
                 DisableModel(std::format("textures could not be created: format={}", static_cast<int>(a_format)));
                 return false;
             }
-            modelTextures.separate = Gpu::CompilePixelShader(a_device, kSeparateSource, "Separate");
+            modelTextures.separate = GPU::CompilePixelShader(a_device, kSeparateSource, "Separate");
             if (!modelTextures.separate.Get())
             {
                 DisableModel("its shader could not be created");
@@ -893,7 +893,7 @@ float4 Separate(Vertex input) : SV_Target
         // Renders the attached model over each layer's background and copies it to the layer's
         // destination at its origin, leaving the back buffer as it was.
         std::optional<CaptureBox> RenderModel(RE::Inventory3DManager& a_manager, RE::UI& a_ui,
-            const RE::NiAVObject& a_model, float a_depth, const Gpu::Frame& a_frame, std::span<const Layer> a_layers)
+            const RE::NiAVObject& a_model, float a_depth, const GPU::Frame& a_frame, std::span<const Layer> a_layers)
         {
             auto* scene = RE::UI3DSceneManager::GetSingleton();
             if (!scene)
@@ -948,7 +948,7 @@ float4 Separate(Vertex input) : SV_Target
         // separates its coverage from them.
         bool CaptureModel(RE::Inventory3DManager& a_manager, RE::UI& a_ui, RE::NiAVObject& a_model)
         {
-            const auto frame = Gpu::GetFrame();
+            const auto frame = GPU::GetFrame();
             auto* scene = RE::UI3DSceneManager::GetSingleton();
             if (!frame || !scene || !EnsureModelTextures(frame->device, frame->description.format))
             {
@@ -964,7 +964,7 @@ float4 Separate(Vertex input) : SV_Target
             {
                 return false;
             }
-            Gpu::PassScope passes{ *frame };
+            GPU::PassScope passes{ *frame };
             if (!passes.IsReady())
             {
                 DisableModel("its pipeline states could not be created");
@@ -980,7 +980,7 @@ float4 Separate(Vertex input) : SV_Target
         bool CaptureThumbnail(RE::Inventory3DManager& a_manager, RE::UI& a_ui, RE::NiAVObject& a_model,
             ThumbnailSlot& a_slot, const TextureCheck& a_textures)
         {
-            const auto frame = Gpu::GetFrame();
+            const auto frame = GPU::GetFrame();
             auto* scene = RE::UI3DSceneManager::GetSingleton();
             if (!frame || !scene || !EnsureThumbnailTextures(frame->device, frame->description.format))
             {
@@ -1413,16 +1413,16 @@ float4 Separate(Vertex input) : SV_Target
                 max = ImVec2{ min.x + drawn.x, min.y + drawn.y };
                 uvMax = ImVec2{ drawn.x * kSupersample * texel, drawn.y * kSupersample * texel };
             }
-            if (Gpu::AddImage(drawList, *modelTextures.model.view.Get(), min, max, ImVec2{ 0.0F, 0.0F }, uvMax,
-                    Gpu::Blend::kPremultiplied))
+            if (GPU::AddImage(drawList, *modelTextures.model.view.Get(), min, max, ImVec2{ 0.0F, 0.0F }, uvMax,
+                    GPU::Blend::kPremultiplied))
             {
                 return;
             }
         }
 
         const char* note = unavailable || modelUnavailable || model.state == CaptureState::kFailed
-            ? Text::GetCString(Text::Id::kItemPreviewUnavailable)
-            : now - model.requestedSince >= kLoadingNoteDelaySeconds ? Text::GetCString(Text::Id::kItemPreviewLoading)
+            ? Text::GetCString(Text::ID::kItemPreviewUnavailable)
+            : now - model.requestedSince >= kLoadingNoteDelaySeconds ? Text::GetCString(Text::ID::kItemPreviewLoading)
                                                                      : nullptr;
         if (note)
         {
@@ -1474,8 +1474,8 @@ float4 Separate(Vertex input) : SV_Target
         const auto [min, max]
             = Fit(ImVec2{ static_cast<float>(slot->width), static_cast<float>(slot->height) }, a_min, a_max);
         // The still was captured on its background, whose alpha under the model is not coverage.
-        return Gpu::AddImage(
-                   a_drawList, *thumbnailTextures.atlasView.Get(), min, max, uvMin, uvMax, Gpu::Blend::kOpaque)
+        return GPU::AddImage(
+                   a_drawList, *thumbnailTextures.atlasView.Get(), min, max, uvMin, uvMax, GPU::Blend::kOpaque)
             ? Thumbnail::kDrawn
             : Thumbnail::kUnavailable;
     }
