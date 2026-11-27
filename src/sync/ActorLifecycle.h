@@ -32,6 +32,7 @@ namespace ActorLifecycle
     void RetireForShapeshift(const RemoteFrame& a_remote, PeerState& a_peer);
     void RetireForSpaceChange(
         const RemoteFrame& a_remote, PeerState& a_peer, RE::FormID a_localCellID, RE::FormID a_localWorldspaceID);
+    void RetireForUnsyncedCell(const RemoteFrame& a_remote, PeerState& a_peer);
     void RetireWhenStranded(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta);
     void RetireForRevival(const RemoteFrame& a_remote, PeerState& a_peer);
     void RetireForDismount(const RemoteFrame& a_remote, PeerState& a_peer);

@@ -35,6 +35,7 @@
 #include "sync/skeleton/SkeletonSync.h"
 #include "sync/voice/VoiceSync.h"
 #include "sync/trade/TradeSync.h"
+#include "sync/unsynced/UnsyncedCells.h"
 #include "sync/voicechat/VoiceChatSync.h"
 
 #include <algorithm>
@@ -398,7 +399,7 @@ namespace SyncCoordinator
 
         void SyncPeer(Multiplayer::PeerSlot a_playerID, PeerState& a_peer, const LocalFrame& a_local,
             RE::FormID a_localCellID, RE::FormID a_localWorldspaceID, RE::TESObjectREFR* a_localFurniture,
-            float a_delta)
+            bool a_localCellUnsynced, float a_delta)
         {
             PROFILE_FUNCTION();
             PLUGIN_TIME_STAGE("Remote players");
@@ -406,7 +407,9 @@ namespace SyncCoordinator
             PROFILE_ALLOCATIONS("SyncPeer");
             auto& lifecycle = a_peer.lifecycle;
 
-            const bool isInLocalSpace = MovementSync::IsInLocalSpace(remote, a_localCellID, a_localWorldspaceID);
+            // An unsynced cell holds nobody else, so its peers are treated as elsewhere.
+            const bool isInLocalSpace
+                = !a_localCellUnsynced && MovementSync::IsInLocalSpace(remote, a_localCellID, a_localWorldspaceID);
             const bool changedSpawnedSpace = ActorLifecycle::HasChangedSpawnedSpace(a_peer);
             AppearanceSync::SyncAppearance(a_peer.appearance, a_delta);
             if (lifecycle.actor && isInLocalSpace && !changedSpawnedSpace)
@@ -421,7 +424,11 @@ namespace SyncCoordinator
                     ActorLifecycle::RetireForShapeshift(remote, a_peer);
                 }
             }
-            if (lifecycle.actor && (!isInLocalSpace || changedSpawnedSpace))
+            if (lifecycle.actor && a_localCellUnsynced)
+            {
+                ActorLifecycle::RetireForUnsyncedCell(remote, a_peer);
+            }
+            else if (lifecycle.actor && (!isInLocalSpace || changedSpawnedSpace))
             {
                 ActorLifecycle::RetireForSpaceChange(remote, a_peer, a_localCellID, a_localWorldspaceID);
             }
@@ -580,6 +587,7 @@ namespace SyncCoordinator
         ActorLifecycle::RefillSpawnAllowance(a_delta);
         if (!a_player)
         {
+            (void)UnsyncedCells::UpdateLocal(nullptr);
             VoiceChatSync::UpdateLocal(nullptr, false);
             return;
         }
@@ -603,6 +611,7 @@ namespace SyncCoordinator
         TradeSync::Sync(*a_player, inWorld, a_delta);
 
         auto* localCell = a_player->GetParentCell();
+        const bool localCellUnsynced = UnsyncedCells::UpdateLocal(localCell);
         if (!localCell)
         {
             return;
@@ -616,13 +625,14 @@ namespace SyncCoordinator
         ActorMovement::BeginPass();
         for (auto& [playerID, peer] : s_peers)
         {
-            SyncPeer(playerID, peer, local, localCellID, localWorldspaceID, localFurniture.get(), a_delta);
+            SyncPeer(playerID, peer, local, localCellID, localWorldspaceID, localFurniture.get(), localCellUnsynced,
+                a_delta);
         }
         PROFILE_PLOT("Remote actors", std::ranges::count_if(s_peers, [](const auto& a_entry) {
             return a_entry.second.lifecycle.actor.has_value();
         }));
         // Before the plates, which show who speaks.
-        VoiceChatSync::UpdatePeers(s_peers, *a_player, *localCell, a_delta);
+        VoiceChatSync::UpdatePeers(s_peers, *a_player, *localCell, localCellUnsynced, a_delta);
         NameplateSync::Update(s_peers, *a_player, a_delta);
         if (const auto* camera = RE::Main::WorldRootCamera())
         {

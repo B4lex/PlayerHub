@@ -35,6 +35,7 @@ feature's rules to its own system, the transport to [Network](network.md).
 | `sync/CheckpointPublisher` | Checkpoint cadence and sequence; calls every feature's local sampler |
 | `sync/ActorLifecycle` | Spawn, retirement, stranded and lost actors, spawn throttling, save exclusion, the mount beside its rider |
 | `sync/presence/PresenceSync` | `Enter` and `Exit`, and the game session |
+| `sync/unsynced/UnsyncedCells` | The [unsynced locations](#unsynced-locations): the saved list, the local interior, and whether it is on the list |
 | `sync/voicechat/VoiceChatSync` | [Voice chat](voice-chat.md)'s game-thread state: devices, the microphone key, speakers' parameters, occlusion, lip sync |
 | `sync/customanimation/GraphEventSurvey` | Debug builds: logs each distinct graph event the local player accepts ([Graph event survey](#graph-event-survey)) |
 | `sync/customanimation/GraphTrace` | Debug builds: logs the local player's modded graph behavior ([Graph trace](#graph-trace)) |
@@ -106,7 +107,7 @@ ApplyNetworkChanges                       # the one drain; trade events queued
 ServePlayerDetails                        # the open player menu's level and place
 PlayCheckpoints                           # each peer's due checkpoints play
 ActorLifecycle::RefillSpawnAllowance
-if no player: VoiceChatSync::UpdateLocal(nullptr, false), return
+if no player: UnsyncedCells::UpdateLocal(nullptr), VoiceChatSync::UpdateLocal(nullptr, false), return
 YieldActivatedFurniture                   # queued local furniture activations
 OpenActivatedPlayerMenu                   # the latest activated remote actor's player menu
 inWorld = PresenceSync::SyncPresence
@@ -133,10 +134,11 @@ if inWorld:
     EffectSync::SyncLocalEffects           # the presented active effects, polled
 else: discard captured attacks, beast actions, and idle events
 TradeSync::Sync                           # trade events, overlay commands, cancels, offers, a commit
+unsynced = UnsyncedCells::UpdateLocal     # the player's cell, or null
 if no local cell: return
 PrecisionIsolation::Update                # reassert after the player's Havok world changes
-for each peer: SyncPeer
-VoiceChatSync::UpdatePeers                    # speakers' gain, pan, occlusion; lip sync; speaking levels
+for each peer: SyncPeer(unsynced)
+VoiceChatSync::UpdatePeers(unsynced)          # speakers' gain, pan, occlusion; lip sync; speaking levels
 NameplateSync::Update                     # head nodes, line of sight, the plates the overlay draws
 RemoteLights::Update                      # with a world camera: the remote light budget
 ```
@@ -145,10 +147,10 @@ RemoteLights::Update                      # with a world camera: the remote ligh
 
 ```text
 AppearanceSync advance timers; retire on a new appearance revision, or else on a new form
-retire on a coordinate-space change
+retire in an unsynced cell, or else on a coordinate-space change
 CombatSync, ShapeshiftSync, IdleSync, VoiceSync::AgeRemoteActions
 EffectSync::AgeRemoteEffects               # held effects take effect after the playout delay
-not in the local space: clear attacks, beast actions, idles, and powers, stop
+not in the local space, or the cell is unsynced: clear attacks, beast actions, idles, and powers, stop
 EffectSync::SyncEffects                    # with an actor, in every state below
 DeathSync::SyncDeath                       # a killed actor keeps only handle and look; shout released
 ActorLifecycle::RetireWhenStranded
@@ -269,6 +271,51 @@ reads and sets. Nothing acts on it.
   the pass, so the published state is kept under a lock.
 - Attacks captured while out of the world are discarded, so they cannot anchor
   to the first checkpoint after returning.
+
+## Unsynced locations
+
+Goal: a player can pick interiors where it sees no other players, such as a
+home or a dungeon it wants to play alone, and keep playing there without
+leaving the server. Other players are not told and still see the player
+there. Non-goals: listing an exterior or a whole worldspace (exterior cells
+meet at borders, so a player crossing one would pop in and out), hiding the
+player from others (the server and peers are unchanged), listing by
+location (`BGSLocation`) rather than by cell, saving bandwidth (the server
+still sends the cell's peers), and a list per server.
+
+- `UnsyncedCells` keeps the list of interior cells, each a
+  [form reference](network.md#form-references) and the name it had when added,
+  in `PlayerHub.locations` beside `PlayerHub.ini`, one line per cell:
+  `Plugin.esp|0xFormID`, a tab, and the name. It is read on first use and
+  written whole on each change (`PluginFiles::ReplaceFile`); a failed write
+  posts a [notice](ui-overlay.md#notices) that the change lasts until the game
+  exits. Malformed lines are logged and skipped, and a repeated cell is kept
+  once. Plugin names compare without case. The list is the same on every
+  server and needs no connection.
+- `UpdateLocal` runs on the game thread once per pass. Only when the player's
+  interior FormID or the list's revision changes does it build the cell's
+  reference (`FormLookup::MakeFormReference`) and name (`GetFullName`, else
+  the editor ID, else the reference), look the cell up, and publish the
+  result under the module's lock for the overlay (`GetLocalCell`). An
+  exterior, no cell, or an interior without a plugin (a dynamic form)
+  publishes none, which cannot be added. A change between hidden and shown
+  logs `Unsynced cells hide remote players in ...` or
+  `Unsynced cells show remote players again` at info.
+- `AddLocalCell` and `Remove` may run on any thread: the overlay adds the cell
+  `UpdateLocal` published, so it reads no engine state. Each change bumps the
+  revision, so the next pass applies it.
+- While the player's cell is on the list, every peer counts as outside the local
+  space: its actor and mount are retired (`RetireForUnsyncedCell`, logged as
+  `Recycling remote player actor ... in an unsynced cell`), queued actions are
+  cleared, and nothing spawns. The reconstructable state is kept, so the
+  players [spawn](#actor-lifecycle) again once the player leaves the cell or
+  the cell is removed from the list. [Voice chat](voice-chat.md#playback)
+  hears nobody there, and without actors there are no nameplates or world
+  player menus, and no trade can be offered to a player there, since the
+  menu's trade item needs its actor in range. Chat and the player list are
+  unchanged.
+- The list is edited in the settings window's `[Gameplay]` page
+  ([UI overlay](ui-overlay.md#unsynced-locations)).
 
 ## Vanilla intro
 
@@ -466,11 +513,12 @@ player rides, its mount ([Native interactions](native-interactions.md#mounts)).
 - **Retirement** removes the actor and its mount, clears queued attacks, idles,
   and the applied sequence, and keeps the reconstructable state, the held idle
   included, for a respawn. Queued beast actions stay, since they may belong to
-  the form the actor respawns in, and age out after 3 s. Reasons, each logged as `Recycling
-  remote player actor ...`: a new appearance revision, a new
+  the form the actor respawns in, and age out after 3 s. Reasons, each logged
+  as `Recycling remote player actor ...`: a new appearance revision, a new
   [beast form](appearance-and-equipment.md#shapeshifts), a coordinate-space
-  change, fast travel, revival, dismount (including a change between a horse
-  and a dragon), a lost mount, and death while riding.
+  change, an [unsynced cell](#unsynced-locations), fast travel, revival,
+  dismount (including a change between a horse and a dragon), a lost mount, and
+  death while riding.
 - **Fast travel** within one space keeps the coordinate space, so it is found by
   displacement: an actor more than 4096 units (`kRelocationDistance`) from its
   checkpoint is retired, and so is one without 3D for 2 s whose target location
@@ -518,6 +566,16 @@ the elapsed time divides the distance travelled into the published speed.
 - `kPostLoadGame` arrives before the loaded game's first pass with the player
   in the world, so a save in the intro starts with the hold set.
 
+## Acceptance criteria
+
+- In an interior on the [unsynced locations](#unsynced-locations) list, no
+  remote player or mount is shown and no remote voice is heard; players
+  already there disappear in the pass after the cell is added.
+- Leaving the cell, or removing it from the list, shows the players there
+  again without reconnecting.
+- Players in the cell still see the local player, and the list is kept
+  across games and servers.
+
 ## Known limitations
 
 - Once the [vanilla intro](#vanilla-intro) hold is off, nothing reads MQ101
@@ -538,3 +596,5 @@ the elapsed time divides the distance travelled into the published speed.
 - The playout constants were tuned in simulation, not under real jitter or a
   far peer's 10 Hz rate.
 - There is no lobby or server-authoritative movement.
+- A player in an [unsynced cell](#unsynced-locations) can still be invited
+  to a trade by a player there, who sees it, and the prompt shows as usual.

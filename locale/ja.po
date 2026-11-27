@@ -470,6 +470,42 @@ msgctxt "GameplayDisableCollisionComment"
 msgid "Lets you walk through other players."
 msgstr "他のプレイヤーをすり抜けられるようにします。"
 
+msgctxt "GameplayUnsyncedLocationsComment"
+msgid "Interiors where you see and hear no other players. They still see you there."
+msgstr "他のプレイヤーが見えず、声も聞こえない屋内です。相手からはそこでもあなたが見えます。"
+
+msgctxt "GameplayUnsyncedLocationsManage"
+msgid "Manage unsynced locations"
+msgstr "同期しない場所を管理"
+
+msgctxt "UnsyncedTitle"
+msgid "Unsynced locations"
+msgstr "同期しない場所"
+
+msgctxt "UnsyncedAdd"
+msgid "Unsync this location"
+msgstr "この場所を同期しない"
+
+msgctxt "UnsyncedAlready"
+msgid "Already unsynced"
+msgstr "同期しない設定済み"
+
+msgctxt "UnsyncedNone"
+msgid "No unsynced locations."
+msgstr "同期しない場所はありません。"
+
+msgctxt "UnsyncedNoMatch"
+msgid "No location with that name"
+msgstr "その名前の場所はありません"
+
+msgctxt "UnsyncedRemove"
+msgid "Remove"
+msgstr "削除"
+
+msgctxt "UnsyncedSaveFailed"
+msgid "Could not save your unsynced locations; the change lasts until the game exits"
+msgstr "同期しない場所を保存できませんでした。変更はゲームを終了するまで有効です"
+
 msgctxt "AdvancedGroupPerformance"
 msgid "Performance"
 msgstr "パフォーマンス"

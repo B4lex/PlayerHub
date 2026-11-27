@@ -63,6 +63,7 @@ src/ui/
   settings/SettingsWindow     # plugin settings: sidebar, section pages, footer
   settings/ConnectionControls # connection button, the line under it, one-line summary
   settings/CommunityLinks     # the Discord and Ko-fi buttons, opening their pages in the browser
+  settings/UnsyncedLocations  # the unsynced locations window opened from the [Gameplay] page
   widgets/Controls            # switch, accent and red buttons, icon buttons, search field, muted text, striped box
   widgets/RoleBadge           # a role's letter mark beside a name, and its whole badge
   widgets/ItemPicker          # item dropdown
@@ -2049,6 +2050,44 @@ settings window, the open chat, and their lists can match a modpack's look.
 - The new accent shows everywhere from the next frame, including the
   `Accent` [frame](#menu-frame). The status panel and state colors stay as
   they are.
+
+### Unsynced locations
+
+The `[Gameplay]` page ends with a divider line (`DrawGroupDivider`) and one
+button under it, without a label row or group heading, whose tooltip says what
+an unsynced location does; it opens the list of
+[unsynced locations](sync-pipeline.md#unsynced-locations).
+`Config::SettingsVisitor::UnsyncedLocations` describes the button, which only
+the settings window draws, since the list is not in `PlayerHub.ini`
+([Configuration](configuration.md#gameplay)).
+
+- `UnsyncedLocations` draws the list as a window of its own in the
+  [menu frame](#menu-frame), with the [player manager](#player-manager)'s
+  padding and flags. `SettingsWindow` owns it and draws it after its own
+  window, in the same theme; the button only requests it
+  (`SettingsEditor::TakeUnsyncedLocationsRequest`). It opens in the middle of
+  the screen (`ImGuiCond_Appearing`) with a fixed size, takes focus, and can be
+  dragged by any empty part. While it is open the settings window has
+  `ImGuiWindowFlags_NoBringToFrontOnFocus`, so a click on the settings leaves
+  it in front.
+- It holds a title with a close button, then, under a rule, the list, and
+  at the bottom center a primary button that adds the player's current
+  interior (`UnsyncedCells::AddLocalCell`); it is disabled outside an
+  interior, without a game, and while the interior is already listed, which
+  its tooltip then says.
+- A list with entries has a search field that keeps the names
+  containing its text, folded as the [name list](#name-list) folds them. A row
+  per location, sorted by folded name: the name kept when it was added, whose
+  tooltip shows its form reference (`Plugin.esp|0xFormID`), and a button that
+  removes it at once (`UnsyncedCells::Remove`). An empty list, and a search
+  matching nothing, show a line saying so. `ImGuiListClipper` draws only the
+  rows in view.
+- It copies the list only when `UnsyncedCells::GetRevision` changes, and reads
+  the current interior each frame it is open (`GetLocalCell`, one copy under
+  the module's lock). Every opening starts with an empty search.
+- Escape leaves an active field or open popup first, then closes the window,
+  then the settings; its close button closes it alone. Closing the settings
+  hides it, and the next opening of the settings starts with it closed.
 
 ### Key bindings
 

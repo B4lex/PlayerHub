@@ -18,7 +18,7 @@ overlay logs a warning and does not install there. `Status` and
 
 | Spec | System | Sources |
 | --- | --- | --- |
-| [sync-pipeline.md](sync-pipeline.md) | Main-loop pass, game thread, peer receive state, checkpoint publishing and playout, world presence, actor lifecycle | `src/runtime/`, `src/sync/` (top level, `presence/`) |
+| [sync-pipeline.md](sync-pipeline.md) | Main-loop pass, game thread, peer receive state, checkpoint publishing and playout, world presence, unsynced locations, actor lifecycle | `src/runtime/`, `src/sync/` (top level, `presence/`, `unsynced/`) |
 | [network.md](network.md) | Wire protocol, client transport and connection, server connections, player sessions, roles, and validation | `proto/`, `src/protocol/`, `src/network/`, `server/internal/{session,auth,admission,validate,wire,world}` |
 | [interest-and-delivery.md](interest-and-delivery.md) | Which peers each client receives, exclusions, per-recipient outboxes, ordering, batching, skeleton pose recipients | `server/internal/{interest,hub,delivery}` |
 | [remote-actor.md](remote-actor.md) | Spawn, update order, registry, animation firewall, graph recovery, survival, combat and reaction isolation, world isolation, light budget, skeleton pose and face | `src/actor/`, `sync/skeleton/` |
@@ -65,6 +65,7 @@ criteria.
 | Death | [native-interactions](native-interactions.md#death) |
 | Shapeshifts (werewolf, vampire lord, werebear) and beast actions | [appearance-and-equipment](appearance-and-equipment.md#shapeshifts), [combat-presentation](combat-presentation.md#beast-actions), [locomotion](locomotion.md#beast-graphs), [network](network.md#actions), [sync-pipeline](sync-pipeline.md#actor-lifecycle), [trade](trade.md#invitation) |
 | World presence, fast travel, spawn throttling | [sync-pipeline](sync-pipeline.md) |
+| Unsynced locations (interiors where the player sees and hears no other players, picked in the settings) | [sync-pipeline](sync-pipeline.md#unsynced-locations), [ui-overlay](ui-overlay.md#unsynced-locations), [configuration](configuration.md#gameplay), [voice-chat](voice-chat.md#playback) |
 | Combat and reaction isolation, Precision compatibility | [remote-actor](remote-actor.md#combat-isolation), [remote-actor](remote-actor.md#precision), [sync-pipeline](sync-pipeline.md#frame-sequence) |
 | World isolation and collision | [remote-actor](remote-actor.md#world-isolation), [native-interactions](native-interactions.md#collision) |
 | Gameplay settings (showing remote spell and shout effects; isolating remote spells and shouts; collision with remote actors) | [configuration](configuration.md#gameplay), [combat-presentation](combat-presentation.md#isolation-settings), [remote-actor](remote-actor.md#solid-remote-actors), [ui-overlay](ui-overlay.md#settings-window) |

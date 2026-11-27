@@ -461,6 +461,42 @@ msgctxt "GameplayDisableCollisionComment"
 msgid "Lets you walk through other players."
 msgstr "讓你能穿過其他玩家。"
 
+msgctxt "GameplayUnsyncedLocationsComment"
+msgid "Interiors where you see and hear no other players. They still see you there."
+msgstr "你在其中看不到也聽不到其他玩家的室內地點。他們在那裡仍看得到你。"
+
+msgctxt "GameplayUnsyncedLocationsManage"
+msgid "Manage unsynced locations"
+msgstr "管理不同步的地點"
+
+msgctxt "UnsyncedTitle"
+msgid "Unsynced locations"
+msgstr "不同步的地點"
+
+msgctxt "UnsyncedAdd"
+msgid "Unsync this location"
+msgstr "不同步此地點"
+
+msgctxt "UnsyncedAlready"
+msgid "Already unsynced"
+msgstr "已設為不同步"
+
+msgctxt "UnsyncedNone"
+msgid "No unsynced locations."
+msgstr "沒有不同步的地點。"
+
+msgctxt "UnsyncedNoMatch"
+msgid "No location with that name"
+msgstr "沒有使用此名稱的地點"
+
+msgctxt "UnsyncedRemove"
+msgid "Remove"
+msgstr "移除"
+
+msgctxt "UnsyncedSaveFailed"
+msgid "Could not save your unsynced locations; the change lasts until the game exits"
+msgstr "無法儲存你不同步的地點；變更只在遊戲結束前有效"
+
 msgctxt "AdvancedGroupPerformance"
 msgid "Performance"
 msgstr "效能"

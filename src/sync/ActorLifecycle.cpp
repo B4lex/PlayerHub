@@ -110,6 +110,13 @@ namespace ActorLifecycle
             a_remote.cellID, a_remote.worldspaceID, a_localCellID, a_localWorldspaceID);
     }
 
+    void RetireForUnsyncedCell(const RemoteFrame& a_remote, PeerState& a_peer)
+    {
+        const auto actorHandle = Retire(a_peer);
+        logs::debug("Recycling remote player actor {} actor {:08X} in an unsynced cell: cell={:08X}",
+            a_remote.playerID, actorHandle, a_peer.lifecycle.spawnedCellID);
+    }
+
     void RetireWhenStranded(const RemoteFrame& a_remote, PeerState& a_peer, float a_delta)
     {
         PROFILE_FUNCTION();

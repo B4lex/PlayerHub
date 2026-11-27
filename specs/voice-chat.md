@@ -136,7 +136,10 @@ muted nor vanished ([UI overlay](ui-overlay.md#mute-and-vanish)), placed at its
 remote actor once ready. A peer in the local coordinate space without a ready
 actor, such as one waiting to spawn, being respawned, or hidden in
 [shared furniture](native-interactions.md#shared-furniture), is placed at its
-played pose instead, without lip sync. Vanish is applied by the server
+played pose instead, without lip sync. In an
+[unsynced location](sync-pipeline.md#unsynced-locations) no peer is passed:
+every actor there is retired before `UpdatePeers`, and `a_cellUnsynced` skips
+the pose placement. Vanish is applied by the server
 ([Network](network.md#vanish)); the client also checks it, so a vanished
 peer is silent before it leaves. Frames of anyone else are dropped on arrival
 and their buffers freed.

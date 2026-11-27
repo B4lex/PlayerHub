@@ -66,6 +66,9 @@ namespace Config
         // The microphone's level against a_threshold, which the next setting holds; the settings
         // window alone draws it.
         virtual void InputMeter(Text::Id, std::uint32_t) {}
+        // A button that opens the interiors where remote players are hidden. The list is not in this file,
+        // so only the settings window draws it.
+        virtual void UnsyncedLocations(Text::Id /*a_button*/, Text::Id /*a_comment*/) {}
 
         [[nodiscard]] static bool IsValidAudioDeviceName(std::string_view a_value);
         [[nodiscard]] static bool IsValidPreset(std::string_view a_value);

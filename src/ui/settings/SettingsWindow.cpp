@@ -14,6 +14,7 @@
 #include "ui/hud/VoiceIndicator.h"
 #include "ui/settings/CommunityLinks.h"
 #include "ui/settings/ConnectionControls.h"
+#include "ui/settings/UnsyncedLocations.h"
 #include "ui/widgets/Controls.h"
 #include "ui/widgets/ItemPicker.h"
 
@@ -75,6 +76,7 @@ namespace UI
         constexpr std::string_view kDefaultsSections[]{ kUISection, kControlsSection, kGameplaySection, kVoiceSection,
             kAdvancedSection };
         constexpr std::string_view kInputMeterKey = "InputMeter";
+        constexpr std::string_view kUnsyncedLocationsKey = "UnsyncedLocations";
         constexpr std::string_view kIndicatorHorizontalKey = "IndicatorPositionHorizontal";
         constexpr std::string_view kIndicatorVerticalKey = "IndicatorPositionVertical";
         constexpr float kMeterHeightFraction = 0.4F;
@@ -232,6 +234,11 @@ namespace UI
             [[nodiscard]] bool IsIndicatorPreviewed() const { return indicatorPreviewed; }
 
             [[nodiscard]] bool TakeConnectRequest() { return std::exchange(connectRequested, false); }
+
+            [[nodiscard]] bool TakeUnsyncedLocationsRequest()
+            {
+                return std::exchange(unsyncedLocationsRequested, false);
+            }
 
             [[nodiscard]] float GetScrollbarWidth() const { return scrollbarWidth; }
 
@@ -761,6 +768,28 @@ namespace UI
                 EndRow();
             }
 
+            void UnsyncedLocations(Text::Id a_button, Text::Id a_comment) override
+            {
+                hideNext = false;
+                if (!sectionOpen)
+                {
+                    return;
+                }
+                if (!sectionEmpty)
+                {
+                    DrawGroupDivider();
+                }
+                sectionEmpty = false;
+                ImGui::PushID(
+                    kUnsyncedLocationsKey.data(), kUnsyncedLocationsKey.data() + kUnsyncedLocationsKey.size());
+                if (ImGui::Button(Text::GetCString(a_button)))
+                {
+                    unsyncedLocationsRequested = true;
+                }
+                DrawTooltip(Text::Get(a_comment));
+                ImGui::PopID();
+            }
+
         private:
             struct TextField
             {
@@ -953,6 +982,20 @@ namespace UI
                     ImVec2{ position.x + ImGui::GetContentRegionAvail().x, position.y },
                     ImGui::GetColorU32(ImGuiCol_Separator), ImGui::GetStyle().WindowBorderSize);
                 ImGui::Dummy(ImVec2{ 0.0F, gap - spacing });
+            }
+
+            // Two item spacings on each side of the line; an empty Dummy still advances by one. A row's
+            // label and toggle end a frame padding above the row, so that much comes off the gap above.
+            void DrawGroupDivider()
+            {
+                const auto& style = ImGui::GetStyle();
+                ImGui::Dummy(ImVec2{ 0.0F, 0.0F });
+                ImGui::SetCursorPosY(ImGui::GetCursorPosY() - style.FramePadding.y);
+                const auto position = ImGui::GetCursorScreenPos();
+                ImGui::GetWindowDrawList()->AddLine(position,
+                    ImVec2{ position.x + ImGui::GetContentRegionAvail().x, position.y },
+                    ImGui::GetColorU32(ImGuiCol_Separator), style.WindowBorderSize);
+                ImGui::Dummy(ImVec2{ 0.0F, style.ItemSpacing.y });
             }
 
             void EndSection()
@@ -1155,6 +1198,7 @@ namespace UI
             bool indicatorPreviewed{ false };
             bool focusConnectionField{ false };
             bool connectRequested{ false };
+            bool unsyncedLocationsRequested{ false };
             bool hideNext{ false };
             bool captureRejected{ false };
         };
@@ -1200,12 +1244,17 @@ namespace UI
                     Open();
                 }
 
-                // What was active or open last frame takes Escape first.
-                const bool escapeClaimed
-                    = ImGui::IsAnyItemActive() || ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
+                // What was active or open last frame takes Escape first, then the unsynced locations.
+                const bool escape = !ImGui::IsAnyItemActive() && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId)
+                    && ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+                const bool closeUnsynced = escape && unsyncedLocations.IsOpen();
                 bool open = true;
                 DrawWindow(open);
-                if (!open || (!escapeClaimed && ImGui::IsKeyPressed(ImGuiKey_Escape, false)))
+                if (closeUnsynced)
+                {
+                    unsyncedLocations.Close();
+                }
+                else if (!open || escape)
                 {
                     WindowManager::ReleaseFocus(*this);
                 }
@@ -1219,6 +1268,7 @@ namespace UI
                 live = Config::Get();
                 draft = *live;
                 editor.Reset();
+                unsyncedLocations.Close();
                 if (live->connection.displayName.empty())
                 {
                     editor.FocusConnectionField();
@@ -1248,8 +1298,12 @@ namespace UI
                 const Theme::Scope theme;
                 frame = MenuFrame::GetMetrics();
                 const MenuFrame::WindowLayout layout{ .sizeFonts = kSizeFonts, .minimumSizeFonts = kMinimumSizeFonts };
+                // A click on the settings leaves the unsynced locations in front, as the chat does the
+                // player manager.
+                const auto flags
+                    = kWindowFlags | (unsyncedLocations.IsOpen() ? ImGuiWindowFlags_NoBringToFrontOnFocus : 0);
                 if (MenuFrame::BeginWindow(
-                        "Multiplayer Settings###Settings", layout, kWindowFlags, std::exchange(focusWindow, false)))
+                        "Multiplayer Settings###Settings", layout, flags, std::exchange(focusWindow, false)))
                 {
                     const auto fontSize = ImGui::GetFontSize();
                     const auto sidebarWidth = std::floor(kSidebarWidthFonts * fontSize);
@@ -1265,6 +1319,11 @@ namespace UI
                     DrawSidebar(sidebarWidth);
                 }
                 ImGui::End();
+                if (editor.TakeUnsyncedLocationsRequest())
+                {
+                    unsyncedLocations.Open();
+                }
+                unsyncedLocations.Draw();
             }
 
             void DrawSidebarBackground(float a_width) const
@@ -1537,6 +1596,7 @@ namespace UI
             std::shared_ptr<const Config::PluginConfig> live;
             Config::PluginConfig draft;
             SettingsEditor editor;
+            UI::UnsyncedLocations unsyncedLocations;
             MenuFrame::Metrics frame;
             std::string saveFailedText;
             bool stagedApplied{ false };

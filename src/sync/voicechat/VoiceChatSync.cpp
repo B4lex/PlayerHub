@@ -172,7 +172,7 @@ namespace VoiceChatSync
     }
 
     void UpdatePeers(std::unordered_map<Multiplayer::PeerSlot, PeerState>& a_peers, RE::PlayerCharacter& a_player,
-        RE::TESObjectCELL& a_cell, float a_delta)
+        RE::TESObjectCELL& a_cell, bool a_cellUnsynced, float a_delta)
     {
         PROFILE_FUNCTION();
         PLUGIN_TIME_STAGE("Voice");
@@ -227,7 +227,9 @@ namespace VoiceChatSync
             else
             {
                 state.mouthOpen = false;
-                if (!MovementSync::IsSameCoordinateSpace(
+                // An unsynced cell has retired every actor by now, so every peer comes here.
+                if (a_cellUnsynced
+                    || !MovementSync::IsSameCoordinateSpace(
                         peer.space.cellID, peer.space.worldspaceID, localCellID, localWorldspaceID))
                 {
                     continue;

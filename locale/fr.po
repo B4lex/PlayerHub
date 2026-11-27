@@ -488,6 +488,42 @@ msgctxt "GameplayDisableCollisionComment"
 msgid "Lets you walk through other players."
 msgstr "Vous permet de traverser les autres joueurs."
 
+msgctxt "GameplayUnsyncedLocationsComment"
+msgid "Interiors where you see and hear no other players. They still see you there."
+msgstr "Intérieurs où vous ne voyez ni n'entendez les autres joueurs. Eux vous y voient toujours."
+
+msgctxt "GameplayUnsyncedLocationsManage"
+msgid "Manage unsynced locations"
+msgstr "Gérer les lieux non synchronisés"
+
+msgctxt "UnsyncedTitle"
+msgid "Unsynced locations"
+msgstr "Lieux non synchronisés"
+
+msgctxt "UnsyncedAdd"
+msgid "Unsync this location"
+msgstr "Ne pas synchroniser ce lieu"
+
+msgctxt "UnsyncedAlready"
+msgid "Already unsynced"
+msgstr "Déjà non synchronisé"
+
+msgctxt "UnsyncedNone"
+msgid "No unsynced locations."
+msgstr "Aucun lieu non synchronisé."
+
+msgctxt "UnsyncedNoMatch"
+msgid "No location with that name"
+msgstr "Aucun lieu ne porte ce nom"
+
+msgctxt "UnsyncedRemove"
+msgid "Remove"
+msgstr "Retirer"
+
+msgctxt "UnsyncedSaveFailed"
+msgid "Could not save your unsynced locations; the change lasts until the game exits"
+msgstr "Impossible d'enregistrer vos lieux non synchronisés ; la modification dure jusqu'à la fermeture du jeu"
+
 msgctxt "AdvancedGroupPerformance"
 msgid "Performance"
 msgstr "Performances"

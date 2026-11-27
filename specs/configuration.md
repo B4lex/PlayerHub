@@ -14,7 +14,7 @@ consumer's system.
 | --- | --- |
 | `config/PluginConfig` | `Config::PluginConfig`, `Load`, `Get`, `GetRevision`, `Apply`, saving |
 | `config/SettingsSchema` | `Config::Describe`: every setting described once, through a visitor |
-| `config/PluginFiles` | Reading, line iteration, and atomic replacement of the plugin's files, shared with the session store, player filters, and menu frame |
+| `config/PluginFiles` | Reading, line iteration, and atomic replacement of the plugin's files, shared with the session store, player filters, unsynced locations, and menu frame |
 
 ## File
 
@@ -280,6 +280,12 @@ always hit nothing ([Remote actor](remote-actor.md#combat-isolation)).
 | `IsolateSpellEffects` | Remote spells act on nothing; off, they act on the local world as a local NPC's would ([Combat presentation](combat-presentation.md#isolation-settings)) | `true` |
 | `IsolateShoutEffects` | The same for remote shouts and powers | `true` |
 | `DisableCollision` | The local player passes through remote actors; off, a network-placed remote actor or mount collides as a local NPC does, with the local player, NPCs, projectiles, clutter, traps, and trigger volumes ([Remote actor](remote-actor.md#solid-remote-actors)); weapon hits between them still do not land | `true` |
+
+The page ends with a button that opens the
+[unsynced locations](sync-pipeline.md#unsynced-locations)
+(`SettingsVisitor::UnsyncedLocations`). They are
+kept in `PlayerHub.locations`, not in this file, so neither reading, saving,
+nor the page's Defaults touch them.
 
 ### `[Voice]`
 

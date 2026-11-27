@@ -404,6 +404,8 @@ namespace Config
                 Id::kGameplayIsolateShoutEffectsComment);
             a_visitor.Bool("DisableCollision", Id::kGameplayDisableCollision, a_settings.disableCollision,
                 Id::kGameplayDisableCollisionComment);
+
+            a_visitor.UnsyncedLocations(Id::kGameplayUnsyncedLocationsManage, Id::kGameplayUnsyncedLocationsComment);
         }
 
         void DescribeAdvanced(AdvancedSettings& a_settings, SettingsVisitor& a_visitor)

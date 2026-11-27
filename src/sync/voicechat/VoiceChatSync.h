@@ -54,8 +54,9 @@ namespace VoiceChatSync
     void UpdateLocal(RE::PlayerCharacter* a_player, bool a_inWorld);
 
     // Each pass, after every peer is synced: where each speaker is heard, occlusion, peers' lip sync.
+    // Nobody is heard in an unsynced cell.
     void UpdatePeers(std::unordered_map<Multiplayer::PeerSlot, PeerState>& a_peers, RE::PlayerCharacter& a_player,
-        RE::TESObjectCELL& a_cell, float a_delta);
+        RE::TESObjectCELL& a_cell, bool a_cellUnsynced, float a_delta);
 
     // Whether a peer's voice plays this pass. Main-loop thread, like the overlay.
     [[nodiscard]] bool IsSpeaking(Multiplayer::PeerSlot a_playerID);
